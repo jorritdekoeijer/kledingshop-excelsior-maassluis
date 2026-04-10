@@ -2,6 +2,7 @@ import type { NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import type { SetAllCookies } from "@supabase/ssr";
 import { NextResponse } from "next/server";
+import { permissions } from "@/lib/auth/permissions";
 
 function getEnv(name: string) {
   const v = process.env[name];
@@ -25,8 +26,70 @@ export async function proxy(request: NextRequest) {
   });
 
   const { data } = await supabase.auth.getUser();
+  const pathname = request.nextUrl.pathname;
 
-  if (request.nextUrl.pathname.startsWith("/admin")) {
+  async function getPermissionsForUser(userId: string) {
+    const { data: profile, error } = await supabase
+      .from("user_profiles")
+      .select("permissions")
+      .eq("id", userId)
+      .single();
+    if (error || !profile) return [] as string[];
+    return (profile.permissions ?? []) as string[];
+  }
+
+  async function requirePerm(required: string) {
+    if (!data.user) return NextResponse.redirect(new URL("/login", request.url));
+    const perms = await getPermissionsForUser(data.user.id);
+    if (!perms.includes(required)) return new NextResponse("Forbidden", { status: 403 });
+    return null;
+  }
+
+  if (pathname.startsWith("/dashboard")) {
+    // Always require login for /dashboard/*
+    if (!data.user) return NextResponse.redirect(new URL("/login", request.url));
+
+    // Optional permission gating per route
+    if (pathname === "/dashboard" || pathname.startsWith("/dashboard/")) {
+      const perms = await getPermissionsForUser(data.user.id);
+      if (!perms.includes(permissions.dashboard.access)) return new NextResponse("Forbidden", { status: 403 });
+    }
+    if (pathname.startsWith("/dashboard/settings")) {
+      const res = await requirePerm(permissions.settings.read);
+      if (res) return res;
+    }
+    if (pathname.startsWith("/dashboard/settings/users")) {
+      const res = await requirePerm(permissions.users.read);
+      if (res) return res;
+    }
+    if (pathname.startsWith("/dashboard/settings/cost-groups")) {
+      const res = await requirePerm(permissions.costGroups.read);
+      if (res) return res;
+    }
+    if (pathname.startsWith("/dashboard/products")) {
+      const res = await requirePerm(permissions.products.read);
+      if (res) return res;
+    }
+    // Write-only routes (create/edit/categories) require products:write
+    if (
+      pathname === "/dashboard/products/new" ||
+      pathname.startsWith("/dashboard/products/categories") ||
+      pathname.match(/^\/dashboard\/products\/[0-9a-fA-F-]+\/edit$/)
+    ) {
+      const res = await requirePerm(permissions.products.write);
+      if (res) return res;
+    }
+    if (pathname.startsWith("/dashboard/stock")) {
+      const res = await requirePerm(permissions.stock.read);
+      if (res) return res;
+    }
+    if (pathname.startsWith("/dashboard/orders")) {
+      const res = await requirePerm(permissions.orders.read);
+      if (res) return res;
+    }
+  }
+
+  if (pathname.startsWith("/admin")) {
     if (!data.user) return NextResponse.redirect(new URL("/login", request.url));
 
     const { data: roles, error } = await supabase

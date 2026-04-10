@@ -2,8 +2,36 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --brand-red: #c8191b;
+  --brand-blue: #04235a;
+}
+
 html,
 body {
   height: 100%;
+}
+
+body {
+  background: white;
+  color: #18181b;
+}
+
+::selection {
+  background: rgba(200, 25, 27, 0.18);
+}
+
+a {
+  color: var(--brand-blue);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+*:focus-visible {
+  outline: 2px solid rgba(4, 35, 90, 0.7);
+  outline-offset: 2px;
 }
 
