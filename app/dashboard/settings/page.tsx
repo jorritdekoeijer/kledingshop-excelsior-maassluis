@@ -29,6 +29,13 @@ export default async function DashboardSettingsPage() {
           <div className="font-medium">E-mail (SMTP)</div>
           <div className="mt-1 text-sm text-zinc-600">Nodemailer SMTP configuratie via settings tabel.</div>
         </Link>
+        <Link
+          href="/dashboard/settings/monthly-email"
+          className="rounded-lg border border-zinc-200 bg-white p-6 hover:bg-zinc-50"
+        >
+          <div className="font-medium">Maandelijkse e-mail</div>
+          <div className="mt-1 text-sm text-zinc-600">Cron-samenvatting omzet en aantal orders.</div>
+        </Link>
         <Link href="/dashboard/settings/mollie" className="rounded-lg border border-zinc-200 bg-white p-6 hover:bg-zinc-50">
           <div className="font-medium">Mollie</div>
           <div className="mt-1 text-sm text-zinc-600">API key + webhook secret.</div>

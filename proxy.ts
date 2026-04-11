@@ -38,13 +38,6 @@ export async function proxy(request: NextRequest) {
     return (profile.permissions ?? []) as string[];
   }
 
-  async function requirePerm(required: string) {
-    if (!data.user) return NextResponse.redirect(new URL("/login", request.url));
-    const perms = await getPermissionsForUser(data.user.id);
-    if (!perms.includes(required)) return new NextResponse("Forbidden", { status: 403 });
-    return null;
-  }
-
   /** `dashboard:access` telt als volledige toegang tot beheer-routes (naast specifieke permissies). */
   async function requirePermOrDashboard(required: string) {
     if (!data.user) return NextResponse.redirect(new URL("/login", request.url));

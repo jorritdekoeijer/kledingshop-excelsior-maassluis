@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Poppins } from "next/font/google";
 import type { ReactNode } from "react";
+import { CartProvider } from "@/components/shop/cart/CartContext";
 import "./globals.css";
 
 const poppins = Poppins({
@@ -21,7 +22,9 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="nl" className={poppins.variable}>
-      <body className="min-h-dvh bg-white font-sans text-zinc-900 antialiased">{children}</body>
+      <body className="min-h-dvh bg-white font-sans text-zinc-900 antialiased">
+        <CartProvider>{children}</CartProvider>
+      </body>
     </html>
   );
 }

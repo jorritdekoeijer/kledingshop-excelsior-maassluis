@@ -3,7 +3,9 @@ import Link from "next/link";
 import { PublicFooter } from "@/components/shop/PublicFooter";
 import { PublicHeader } from "@/components/shop/PublicHeader";
 import { ProductCard } from "@/components/shop/ProductCard";
+import { ShopSearchBar } from "@/components/shop/ShopSearchBar";
 import { pickPrimaryImagePath } from "@/lib/shop/product-images";
+import { normalizeSearchQuery } from "@/lib/shop/search";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = {
@@ -26,6 +28,8 @@ export default async function ShopPage({
   const sp = (await searchParams) ?? {};
   const raw = sp.c;
   const categorySlug = typeof raw === "string" ? raw : undefined;
+  const searchRaw = sp.q;
+  const search = normalizeSearchQuery(typeof searchRaw === "string" ? searchRaw : undefined);
 
   const supabase = await createSupabaseServerClient();
 
@@ -49,20 +53,34 @@ export default async function ShopPage({
     q = q.eq("category_id", categoryId);
   }
 
+  if (search) {
+    const pat = `%${search.replace(/"/g, "")}%`;
+    q = q.or(`name.ilike."${pat}",description.ilike."${pat}"`);
+  }
+
   const { data: products } = await q;
 
   return (
     <div className="flex min-h-dvh flex-col bg-white">
       <PublicHeader />
       <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-10 sm:px-6">
-        <div className="mb-8 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-          <div>
+        <div className="mb-8 flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+          <div className="min-w-0 flex-1">
             <h1 className="text-2xl font-semibold text-black">Assortiment</h1>
             <p className="mt-1 text-sm text-zinc-600">
               {categoryName ? `Categorie: ${categoryName}` : "Alle actieve producten."}
+              {search ? (
+                <>
+                  {" "}
+                  · Zoekopdracht: <span className="font-medium text-zinc-800">&quot;{search}&quot;</span>
+                </>
+              ) : null}
             </p>
+            <div className="mt-4">
+              <ShopSearchBar categorySlug={categorySlug} defaultQuery={search ?? ""} />
+            </div>
           </div>
-          <div className="flex flex-wrap gap-4 text-sm">
+          <div className="flex shrink-0 flex-wrap gap-4 text-sm">
             {categorySlug ? (
               <Link href="/shop" className="font-medium text-brand-blue hover:underline">
                 Alle categorieën
@@ -78,7 +96,9 @@ export default async function ShopPage({
           <p className="rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-8 text-center text-sm text-zinc-600">
             {categorySlug && !categoryId
               ? "Deze categorie bestaat niet of er zijn geen producten."
-              : "Er staan nog geen producten live. Kom later terug."}
+              : search
+                ? "Geen producten gevonden voor deze zoekopdracht. Pas je zoekterm aan of wis het veld."
+                : "Er staan nog geen producten live. Kom later terug."}
           </p>
         ) : (
           <ul className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
