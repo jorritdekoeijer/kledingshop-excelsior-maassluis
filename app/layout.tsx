@@ -3,8 +3,11 @@ import type { ReactNode } from "react";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Kledingshop Excelsior Maassluis",
-  description: "Kledingshop"
+  title: {
+    default: "Kledingshop Excelsior Maassluis",
+    template: "%s | Excelsior Maassluis"
+  },
+  description: "Officiële kleding en artikelen van Excelsior Maassluis."
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
