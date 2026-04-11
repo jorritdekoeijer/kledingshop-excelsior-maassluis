@@ -58,7 +58,9 @@ export default async function ProductDetailPage({ params }: Props) {
                 <p className="whitespace-pre-wrap">{product.description}</p>
               </div>
             ) : null}
-            <p className="mt-8 text-sm text-zinc-500">Bestellen volgt in een volgende stap (winkelmand + betaling).</p>
+            <p className="mt-8 text-sm text-zinc-500">
+              Bestellen volgt in een volgende stap (winkelmand + betaling). Daarvoor hoef je geen account aan te maken.
+            </p>
           </div>
         </div>
       </main>

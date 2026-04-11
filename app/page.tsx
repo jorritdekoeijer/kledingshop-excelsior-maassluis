@@ -32,10 +32,10 @@ export default async function HomePage() {
             Clubkleding en artikelen voor leden en supporters
           </h1>
           <p className="mt-4 max-w-xl text-lg text-zinc-600">
-            Bestel eenvoudig officiële kleding en merchandise. Alles wat je nodig hebt om Excelsior te dragen — met
-            kwaliteit en clubgevoel.
+            Bestel eenvoudig officiële kleding en merchandise — als lid, supporter of staf: iedereen kan gewoon bestellen
+            zonder account. Alleen medewerkers van de kledingcommissie loggen in voor het beheer van de shop.
           </p>
-          <div className="mt-8 flex flex-wrap gap-3">
+          <div className="mt-8 flex flex-wrap items-center gap-3">
             <Link
               href="/shop"
               className="inline-flex items-center justify-center rounded-md bg-brand-red px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#a91416]"
@@ -44,11 +44,15 @@ export default async function HomePage() {
             </Link>
             <Link
               href="/login"
-              className="inline-flex items-center justify-center rounded-md border border-zinc-300 bg-white px-5 py-2.5 text-sm font-medium text-zinc-900 shadow-sm transition hover:bg-zinc-50"
+              className="text-sm font-medium text-brand-blue underline-offset-4 hover:underline"
+              title="Alleen voor medewerkers van de kledingcommissie"
             >
-              Inloggen voor staf
+              Inloggen kledingcommissie
             </Link>
           </div>
+          <p className="mt-4 text-sm text-zinc-500">
+            Geen inlog nodig om te bestellen — ook niet voor stafleden.
+          </p>
         </div>
       </section>
 
@@ -95,8 +99,11 @@ export default async function HomePage() {
               <p className="mt-1 text-zinc-600">Duidelijke prijzen en productinformatie.</p>
             </li>
             <li className="rounded-lg bg-white p-4 shadow-sm">
-              <span className="font-medium text-brand-blue">Leden & staf</span>
-              <p className="mt-1 text-zinc-600">Publieke shop; inloggen voor staf en beheer.</p>
+              <span className="font-medium text-brand-blue">Voor iedereen</span>
+              <p className="mt-1 text-zinc-600">
+                Bestellen zonder account: leden, supporters en staf. Inloggen alleen nodig voor de kledingcommissie
+                (beheer).
+              </p>
             </li>
           </ul>
         </section>

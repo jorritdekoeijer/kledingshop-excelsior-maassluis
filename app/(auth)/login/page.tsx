@@ -23,7 +23,11 @@ export default async function LoginPage({
 
   return (
     <main className="mx-auto max-w-md px-6 py-10">
-      <h1 className="text-2xl font-semibold">Inloggen</h1>
+      <h1 className="text-2xl font-semibold">Inloggen kledingcommissie</h1>
+      <p className="mt-2 text-sm text-zinc-600">
+        Dit account is alleen bedoeld voor medewerkers van de kledingcommissie (beheer van de shop). Leden, supporters
+        en staf bestellen zonder in te loggen.
+      </p>
 
       {error ? (
         <p className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">

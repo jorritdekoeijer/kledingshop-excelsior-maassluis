@@ -30,8 +30,12 @@ export async function PublicHeader() {
               </form>
             </>
           ) : (
-            <Link href="/login" className="text-zinc-700 hover:text-brand-blue">
-              Inloggen
+            <Link
+              href="/login"
+              className="text-zinc-700 hover:text-brand-blue"
+              title="Alleen voor medewerkers van de kledingcommissie"
+            >
+              Commissie
             </Link>
           )}
         </nav>
