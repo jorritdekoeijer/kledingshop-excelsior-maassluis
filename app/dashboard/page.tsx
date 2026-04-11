@@ -51,7 +51,7 @@ export default async function DashboardHome() {
   const visible = CARDS.filter((c) => {
     if (c.href === "/admin") return isAdmin;
     if (!c.needs) return false;
-    return hasDashboardAccess || hasPermission(perms, c.needs);
+    return isAdmin || hasDashboardAccess || hasPermission(perms, c.needs);
   });
 
   const hasAnything = visible.length > 0;

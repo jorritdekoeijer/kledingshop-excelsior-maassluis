@@ -21,9 +21,17 @@ export async function requireLogin() {
 export async function requirePermission(required: Permission) {
   const user = await requireLogin();
   const perms = await getUserPermissions(user.id);
-  if (perms.includes(permissions.dashboard.access)) return { ok: true as const, user, permissions: perms };
-  if (!perms.includes(required)) return { ok: false as const, user, permissions: perms };
-  return { ok: true as const, user, permissions: perms };
+  const admin = await requireAdmin();
+  if (admin.ok && admin.user.id === user.id) {
+    return { ok: true as const, user, permissions: perms, isAdmin: true as const };
+  }
+  if (perms.includes(permissions.dashboard.access)) {
+    return { ok: true as const, user, permissions: perms, isAdmin: false as const };
+  }
+  if (!perms.includes(required)) {
+    return { ok: false as const, user, permissions: perms, isAdmin: false as const };
+  }
+  return { ok: true as const, user, permissions: perms, isAdmin: false as const };
 }
 
 /** True if public.is_admin() RPC returns true (admin role in user_roles). */
@@ -34,13 +42,8 @@ export async function getIsAdmin(): Promise<boolean> {
   return data;
 }
 
-/** Admin-rol (is_admin / user_roles) telt als volledige toegang voor deze permissie-check. */
+/** Zelfde als {@link requirePermission}: admins hebben impliciet alle dashboard-permissies. */
 export async function requireAdminOrPermission(required: Permission) {
-  const admin = await requireAdmin();
-  if (admin.ok) {
-    const perms = await getUserPermissions(admin.user.id);
-    return { ok: true as const, user: admin.user, permissions: perms };
-  }
   return requirePermission(required);
 }
 

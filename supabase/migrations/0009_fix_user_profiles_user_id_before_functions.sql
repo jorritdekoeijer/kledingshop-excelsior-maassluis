@@ -1,8 +1,8 @@
--- Align legacy / template schemas: sommige projecten hebben public.user_profiles.user_id
--- i.p.v. id. Deze app verwacht overal kolom id (= auth.users.id).
--- Idempotent: alleen actief als user_id bestaat en id nog niet.
+-- Herstel voor databases waar public.user_profiles nog kolom user_id heeft i.p.v. id.
+-- Oorzaak: in 0004 werden has_permission/handle_new_user vóór de rename aangemaakt — op een
+-- tabel met alleen user_id faalde CREATE FUNCTION op up.id, waardoor het DO-blok nooit liep.
 --
--- Volgorde: eerst rename + policies zonder has_permission, daarna functies (has_permission gebruikt up.id).
+-- Idempotent: doet niets als kolom id al bestaat.
 
 do $migrate$
 declare
@@ -36,6 +36,7 @@ begin
 
     alter table public.user_profiles rename column user_id to id;
 
+    -- Alleen policies zonder has_permission(); admin-policies volgen na CREATE FUNCTION
     create policy "user_profiles_select_own" on public.user_profiles
       for select
       using (auth.uid() = id);
@@ -75,6 +76,7 @@ begin
 end;
 $fn$;
 
+-- Commissie-beheer user_profiles (na has_permission)
 drop policy if exists "user_profiles_select_admin" on public.user_profiles;
 create policy "user_profiles_select_admin" on public.user_profiles
   for select

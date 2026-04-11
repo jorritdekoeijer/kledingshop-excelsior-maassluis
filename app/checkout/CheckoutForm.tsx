@@ -137,6 +137,18 @@ export function CheckoutForm() {
         </div>
       </section>
 
+      <p className="text-xs leading-relaxed text-zinc-600">
+        Door verder te gaan ga je akkoord met onze{" "}
+        <Link href="/algemene-voorwaarden" className="text-brand-blue underline hover:no-underline">
+          algemene voorwaarden
+        </Link>{" "}
+        en{" "}
+        <Link href="/privacy" className="text-brand-blue underline hover:no-underline">
+          privacyverklaring
+        </Link>
+        .
+      </p>
+
       <div className="flex flex-wrap items-center gap-4">
         <button
           type="submit"

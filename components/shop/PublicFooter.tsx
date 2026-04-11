@@ -65,6 +65,21 @@ export function PublicFooter() {
                   Over deze shop
                 </Link>
               </li>
+              <li>
+                <Link href="/contact" className="text-zinc-700 hover:text-brand-blue">
+                  Contact
+                </Link>
+              </li>
+              <li>
+                <Link href="/privacy" className="text-zinc-700 hover:text-brand-blue">
+                  Privacy
+                </Link>
+              </li>
+              <li>
+                <Link href="/algemene-voorwaarden" className="text-zinc-700 hover:text-brand-blue">
+                  Algemene voorwaarden
+                </Link>
+              </li>
             </ul>
           </div>
           <div>

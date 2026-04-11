@@ -9,10 +9,13 @@ export default async function DashboardLayout({ children }: { children: ReactNod
   const isAdmin = await getIsAdmin();
   const hasDashboardAccess = hasPermission(perms, permissions.dashboard.access);
 
-  const showSettings = hasDashboardAccess || hasPermission(perms, permissions.settings.read);
-  const showProducts = hasDashboardAccess || hasPermission(perms, permissions.products.read);
-  const showStock = hasDashboardAccess || hasPermission(perms, permissions.stock.read);
-  const showOrders = hasDashboardAccess || hasPermission(perms, permissions.orders.read);
+  const showSettings =
+    isAdmin || hasDashboardAccess || hasPermission(perms, permissions.settings.read);
+  const showProducts =
+    isAdmin || hasDashboardAccess || hasPermission(perms, permissions.products.read);
+  const showStock = isAdmin || hasDashboardAccess || hasPermission(perms, permissions.stock.read);
+  const showOrders =
+    isAdmin || hasDashboardAccess || hasPermission(perms, permissions.orders.read);
 
   return (
     <div className="min-h-dvh">

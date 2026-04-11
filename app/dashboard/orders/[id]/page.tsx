@@ -42,6 +42,7 @@ export default async function DashboardOrderDetailPage({ params, searchParams }:
   }
 
   const canWrite =
+    gate.isAdmin ||
     hasPermission(gate.permissions, permissions.orders.write) ||
     hasPermission(gate.permissions, permissions.dashboard.access);
 

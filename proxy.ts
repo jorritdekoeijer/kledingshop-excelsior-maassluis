@@ -38,11 +38,25 @@ export async function proxy(request: NextRequest) {
     return (profile.permissions ?? []) as string[];
   }
 
-  /** `dashboard:access` telt als volledige toegang tot beheer-routes (naast specifieke permissies). */
+  /** Zelfde als server-side requireAdmin: RPC + fallback user_roles. */
+  async function isAdminUser(userId: string): Promise<boolean> {
+    const { data: rpcAdmin, error: rpcError } = await supabase.rpc("is_admin");
+    if (!rpcError && rpcAdmin === true) return true;
+    const { data: roles, error } = await supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", userId)
+      .eq("role", "admin")
+      .limit(1);
+    return !error && !!roles && roles.length > 0;
+  }
+
+  /** `dashboard:access` of admin-rol telt als volledige toegang tot beheer-routes. */
   async function requirePermOrDashboard(required: string) {
     if (!data.user) return NextResponse.redirect(new URL("/login", request.url));
     const perms = await getPermissionsForUser(data.user.id);
     if (perms.includes(permissions.dashboard.access)) return null;
+    if (await isAdminUser(data.user.id)) return null;
     if (!perms.includes(required)) return new NextResponse("Forbidden", { status: 403 });
     return null;
   }
@@ -51,23 +65,19 @@ export async function proxy(request: NextRequest) {
     // Always require login for /dashboard/* (startpagina toont keuzes; subroutes per permissie)
     if (!data.user) return NextResponse.redirect(new URL("/login", request.url));
 
-    if (pathname.startsWith("/dashboard/settings")) {
-      const res = await requirePermOrDashboard(permissions.settings.read);
-      if (res) return res;
-    }
+    // Specifieke settings-subroutes vóór de brede /dashboard/settings-check (anders nooit bereikt)
     if (pathname.startsWith("/dashboard/settings/users")) {
       const res = await requirePermOrDashboard(permissions.users.read);
       if (res) return res;
-    }
-    if (pathname.startsWith("/dashboard/settings/cost-groups")) {
+    } else if (pathname.startsWith("/dashboard/settings/cost-groups")) {
       const res = await requirePermOrDashboard(permissions.costGroups.read);
       if (res) return res;
-    }
-    if (pathname.startsWith("/dashboard/products")) {
-      const res = await requirePermOrDashboard(permissions.products.read);
+    } else if (pathname.startsWith("/dashboard/settings")) {
+      const res = await requirePermOrDashboard(permissions.settings.read);
       if (res) return res;
     }
-    // Write-only routes (create/edit/categories) require products:write
+
+    // Schrijf-routes vóór de algemene /dashboard/products-leesregel
     if (
       pathname === "/dashboard/products/new" ||
       pathname.startsWith("/dashboard/products/categories") ||
@@ -75,7 +85,11 @@ export async function proxy(request: NextRequest) {
     ) {
       const res = await requirePermOrDashboard(permissions.products.write);
       if (res) return res;
+    } else if (pathname.startsWith("/dashboard/products")) {
+      const res = await requirePermOrDashboard(permissions.products.read);
+      if (res) return res;
     }
+
     if (pathname.startsWith("/dashboard/stock")) {
       const res = await requirePermOrDashboard(permissions.stock.read);
       if (res) return res;
@@ -109,4 +123,3 @@ export async function proxy(request: NextRequest) {
 export const config = {
   matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"]
 };
-

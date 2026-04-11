@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { z } from "zod";
+import { ALL_KNOWN_PERMISSION_KEYS } from "@/lib/auth/permission-options";
 import { requireAdminOrPermission } from "@/lib/auth/permissions-server";
 import { permissions } from "@/lib/auth/permissions";
 import { getSetting, upsertSetting } from "@/lib/settings";
@@ -12,17 +13,8 @@ import { mollieSettingsSchema, monthlyEmailSettingsSchema, smtpSettingsSchema } 
 const createCostGroupSchema = z.object({ name: z.string().min(1).max(80) });
 const renameCostGroupSchema = z.object({ id: z.string().uuid(), name: z.string().min(1).max(80) });
 const deleteCostGroupSchema = z.object({ id: z.string().uuid() });
-const updateUserPermsSchema = z.object({
-  id: z.string().uuid(),
-  permissions: z
-    .string()
-    .default("")
-    .transform((s) =>
-      s
-        .split(",")
-        .map((p) => p.trim())
-        .filter(Boolean)
-    )
+const updateUserIdSchema = z.object({
+  id: z.string().uuid()
 });
 
 export async function saveSmtpSettings(formData: FormData) {
@@ -140,17 +132,25 @@ export async function updateUserPermissions(formData: FormData) {
   const gate = await requireAdminOrPermission(permissions.users.write);
   if (!gate.ok) redirect(`${base}/users?error=${encodeURIComponent("Geen toegang")}`);
 
-  const parsed = updateUserPermsSchema.safeParse({
-    id: formData.get("id"),
-    permissions: String(formData.get("permissions") ?? "")
-  });
+  const parsed = updateUserIdSchema.safeParse({ id: formData.get("id") });
   if (!parsed.success) redirect(`${base}/users?error=Invalid`);
 
+  const known = new Set(ALL_KNOWN_PERMISSION_KEYS);
+  const fromCheckboxes = formData.getAll("permissions").map(String).filter((p) => known.has(p));
+
   const supabase = await createSupabaseServerClient();
-  const { error } = await supabase
+  const { data: existing, error: loadError } = await supabase
     .from("user_profiles")
-    .update({ permissions: parsed.data.permissions })
-    .eq("id", parsed.data.id);
+    .select("permissions")
+    .eq("id", parsed.data.id)
+    .single();
+  if (loadError) redirect(`${base}/users?error=${encodeURIComponent(loadError.message)}`);
+
+  const current = (existing?.permissions ?? []) as string[];
+  const unknownLegacy = current.filter((p) => !known.has(p));
+  const merged = [...new Set([...unknownLegacy, ...fromCheckboxes])];
+
+  const { error } = await supabase.from("user_profiles").update({ permissions: merged }).eq("id", parsed.data.id);
   if (error) redirect(`${base}/users?error=${encodeURIComponent(error.message)}`);
 
   redirect(`${base}/users?ok=1`);
