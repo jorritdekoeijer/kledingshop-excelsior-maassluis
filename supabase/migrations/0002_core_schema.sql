@@ -207,13 +207,20 @@ before update on public.stock_batches
 for each row execute function public.set_updated_at();
 
 -- 6) Orders + items + payments
-create type if not exists public.order_status as enum (
-  'created',
-  'pending_payment',
-  'paid',
-  'cancelled',
-  'fulfilled'
-);
+-- NB: "create type if not exists ... as enum" is not valid on all Postgres versions; use exception instead.
+do $enum_order_status$
+begin
+  create type public.order_status as enum (
+    'created',
+    'pending_payment',
+    'paid',
+    'cancelled',
+    'fulfilled'
+  );
+exception
+  when duplicate_object then null;
+end
+$enum_order_status$;
 
 create table if not exists public.orders (
   id uuid primary key default gen_random_uuid(),

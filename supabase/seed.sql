@@ -4,4 +4,6 @@
 
 -- Replace with a real user UUID after creating the user in Supabase Auth:
 -- insert into public.user_roles (user_id, role) values ('00000000-0000-0000-0000-000000000000', 'admin');
+--
+-- Of gebruik grant-full-access-by-email.sql voor admin + alle dashboard-permissies op basis van e-mail.
 
