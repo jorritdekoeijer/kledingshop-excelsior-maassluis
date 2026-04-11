@@ -32,12 +32,60 @@ create unique index if not exists product_images_one_primary_per_product
   on public.product_images (product_id)
   where (is_primary = true);
 
--- Backfill from products.image_path (legacy single image)
-insert into public.product_images (product_id, path, sort_order, is_primary)
-select p.id, p.image_path, 0, true
-from public.products p
-where p.image_path is not null
-on conflict do nothing;
+-- Backfill from legacy single-image column on public.products (name differs per project)
+do $backfill_product_images$
+begin
+  -- Standaard in deze repo: image_path (text)
+  if exists (
+    select 1
+    from information_schema.columns c
+    where c.table_schema = 'public'
+      and c.table_name = 'products'
+      and c.column_name = 'image_path'
+  ) then
+    insert into public.product_images (product_id, path, sort_order, is_primary)
+    select p.id, p.image_path, 0, true
+    from public.products p
+    where p.image_path is not null
+      and length(trim(p.image_path)) > 0
+    on conflict (product_id, path) do nothing;
+  -- Sommige databases: image_paths als één pad (text)
+  elsif exists (
+    select 1
+    from information_schema.columns c
+    where c.table_schema = 'public'
+      and c.table_name = 'products'
+      and c.column_name = 'image_paths'
+      and c.data_type in ('text', 'character varying')
+  ) then
+    insert into public.product_images (product_id, path, sort_order, is_primary)
+    select p.id, p.image_paths, 0, true
+    from public.products p
+    where p.image_paths is not null
+      and length(trim(p.image_paths::text)) > 0
+    on conflict (product_id, path) do nothing;
+  -- Of: image_paths als text[] — elk pad een rij, eerste = primary
+  elsif exists (
+    select 1
+    from information_schema.columns c
+    where c.table_schema = 'public'
+      and c.table_name = 'products'
+      and c.column_name = 'image_paths'
+      and c.data_type = 'ARRAY'
+  ) then
+    insert into public.product_images (product_id, path, sort_order, is_primary)
+    select
+      p.id,
+      u.path,
+      (u.ord - 1)::integer,
+      (u.ord = 1)
+    from public.products p
+    cross join lateral unnest(coalesce(p.image_paths, array[]::text[])) with ordinality as u(path, ord)
+    where cardinality(coalesce(p.image_paths, array[]::text[])) > 0
+    on conflict (product_id, path) do nothing;
+  end if;
+end
+$backfill_product_images$;
 
 -- 2) FIFO stock consumption
 -- This function consumes stock from oldest batches first and records decrements.
