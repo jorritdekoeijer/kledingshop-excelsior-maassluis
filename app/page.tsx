@@ -1,115 +1,338 @@
 import Link from "next/link";
+import { AnnouncementBar } from "@/components/shop/AnnouncementBar";
+import { CompactProductCard } from "@/components/shop/CompactProductCard";
 import { PublicFooter } from "@/components/shop/PublicFooter";
 import { PublicHeader } from "@/components/shop/PublicHeader";
-import { ProductCard } from "@/components/shop/ProductCard";
 import { pickPrimaryImagePath } from "@/lib/shop/product-images";
+import { getPublicProductImageUrl } from "@/lib/utils/supabase-storage";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
-function excerpt(text: string | null, max = 100) {
-  if (!text) return null;
-  const t = text.trim();
-  if (t.length <= max) return t;
-  return `${t.slice(0, max).trim()}…`;
-}
+const DEFAULT_COLLECTIONS: { title: string; href: string }[] = [
+  { title: "Clubcollectie", href: "/shop" },
+  { title: "Trainingskleding", href: "/shop" },
+  { title: "Accessoires", href: "/shop" },
+  { title: "Fans & supporters", href: "/shop" }
+];
 
 export default async function HomePage() {
   const supabase = await createSupabaseServerClient();
-  const { data: featured } = await supabase
+
+  const { data: productRows } = await supabase
     .from("products")
-    .select("name,slug,price_cents,description,product_images(path,is_primary,sort_order)")
+    .select("name,slug,price_cents,description,created_at,category_id,product_images(path,is_primary,sort_order)")
     .eq("active", true)
     .order("created_at", { ascending: false })
-    .limit(8);
+    .limit(24);
+
+  const products = productRows ?? [];
+  const featuredPrimary = products.slice(0, 6);
+  const featuredSecondary = products.slice(6, 12);
+  const moreProducts = products.slice(12, 18);
+
+  const { data: categoryRows } = await supabase.from("categories").select("id,name,slug").order("name").limit(4);
+
+  const coverByCategory = new Map<string, string | null>();
+  if (categoryRows?.length && products.length) {
+    for (const p of products) {
+      const cid = p.category_id as string | null;
+      if (cid && !coverByCategory.has(cid)) {
+        coverByCategory.set(cid, pickPrimaryImagePath(p.product_images as any));
+      }
+    }
+  }
+
+  const collectionTiles =
+    categoryRows && categoryRows.length > 0
+      ? categoryRows.map((c) => ({
+          title: c.name,
+          href: `/shop?c=${encodeURIComponent(c.slug)}`,
+          imagePath: coverByCategory.get(c.id) ?? null
+        }))
+      : DEFAULT_COLLECTIONS.map((d) => ({ ...d, imagePath: null as string | null }));
+
+  const videoId = process.env.NEXT_PUBLIC_YOUTUBE_VIDEO_ID?.trim();
 
   return (
-    <div className="flex min-h-dvh flex-col">
+    <div className="flex min-h-dvh flex-col bg-white">
+      <AnnouncementBar />
       <PublicHeader />
 
-      <section className="border-b border-zinc-200 bg-gradient-to-b from-zinc-50 to-white">
-        <div className="mx-auto max-w-6xl px-4 py-14 sm:px-6 sm:py-20">
-          <p className="text-sm font-medium uppercase tracking-wide text-brand-red">Excelsior Maassluis</p>
-          <h1 className="mt-2 max-w-2xl text-3xl font-bold tracking-tight text-brand-blue sm:text-4xl">
-            Clubkleding en artikelen voor leden en supporters
-          </h1>
-          <p className="mt-4 max-w-xl text-lg text-zinc-600">
-            Bestel eenvoudig officiële kleding en merchandise — als lid, supporter of staf: iedereen kan gewoon bestellen
-            zonder account. Alleen medewerkers van de kledingcommissie loggen in voor het beheer van de shop.
-          </p>
-          <div className="mt-8 flex flex-wrap items-center gap-3">
-            <Link
-              href="/shop"
-              className="inline-flex items-center justify-center rounded-md bg-brand-red px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#a91416]"
-            >
-              Bekijk het assortiment
-            </Link>
-            <Link
-              href="/login"
-              className="text-sm font-medium text-brand-blue underline-offset-4 hover:underline"
-              title="Alleen voor medewerkers van de kledingcommissie"
-            >
-              Inloggen kledingcommissie
-            </Link>
+      <section className="relative isolate min-h-[min(70vh,560px)] w-full overflow-hidden bg-zinc-900">
+        <div
+          className="absolute inset-0 bg-gradient-to-br from-brand-blue via-[#061a40] to-zinc-900"
+          aria-hidden
+        />
+        <div
+          className="absolute inset-0 opacity-[0.12] mix-blend-overlay"
+          style={{
+            backgroundImage:
+              "url(\"data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.35'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E\")"
+          }}
+          aria-hidden
+        />
+        <Link
+          href="/shop"
+          className="absolute inset-0 z-0"
+          aria-label="Ga naar het assortiment"
+        />
+        <div className="relative z-[1] mx-auto flex h-full min-h-[min(70vh,560px)] max-w-[1800px] items-end justify-end px-4 pb-12 pt-24 sm:px-6 sm:pb-16">
+          <div className="max-w-md text-right text-white drop-shadow-md">
+            <p className="text-xs font-medium uppercase tracking-[0.25em] text-white/90">Excelsior</p>
+            <h1 className="mt-2 text-3xl font-semibold leading-[1.05] tracking-tight sm:text-5xl">
+              Clubkleding
+              <br />
+              &amp; merchandise
+            </h1>
+            <p className="mt-4 text-sm leading-relaxed text-white/90 sm:text-base">
+              Voor leden, supporters en staf: bestel direct — geen account nodig.
+            </p>
+            <div className="mt-8 flex flex-wrap items-center justify-end gap-3">
+              <Link
+                href="/shop"
+                className="inline-flex min-h-[44px] items-center justify-center rounded-none bg-brand-blue px-6 py-3 text-sm font-semibold text-white transition hover:brightness-110"
+              >
+                Naar het assortiment
+              </Link>
+              <Link
+                href="/login"
+                className="text-sm font-medium text-white/95 underline-offset-4 hover:underline"
+                title="Alleen voor medewerkers van de kledingcommissie"
+              >
+                Inloggen commissie
+              </Link>
+            </div>
           </div>
-          <p className="mt-4 text-sm text-zinc-500">
-            Geen inlog nodig om te bestellen — ook niet voor stafleden.
-          </p>
         </div>
       </section>
 
-      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-12 sm:px-6">
-        <div className="flex items-end justify-between gap-4">
-          <div>
-            <h2 className="text-xl font-semibold text-brand-blue">Uitgelicht</h2>
-            <p className="mt-1 text-sm text-zinc-600">Een selectie uit ons assortiment.</p>
-          </div>
-          <Link href="/shop" className="text-sm font-medium text-brand-blue hover:underline">
-            Alles bekijken
-          </Link>
+      <section className="mx-auto w-full max-w-[1800px] px-4 py-10 sm:px-6 sm:py-14">
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-4 md:gap-5">
+          {collectionTiles.map((tile) => (
+            <CollectionTile key={tile.href + tile.title} title={tile.title} href={tile.href} imagePath={tile.imagePath} />
+          ))}
         </div>
+      </section>
 
-        {!featured?.length ? (
-          <p className="mt-8 rounded-lg border border-dashed border-zinc-300 bg-zinc-50 px-4 py-10 text-center text-sm text-zinc-600">
-            Nog geen producten beschikbaar. Zodra er artikelen live staan, verschijnen ze hier.
-          </p>
-        ) : (
-          <ul className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-            {featured.map((p) => (
-              <li key={p.slug}>
-                <ProductCard
-                  name={p.name}
-                  slug={p.slug}
-                  priceCents={p.price_cents}
-                  imagePath={pickPrimaryImagePath(p.product_images as any)}
-                  excerpt={excerpt(p.description)}
-                />
-              </li>
-            ))}
-          </ul>
-        )}
+      <ProductSection
+        id="uitgelicht"
+        title="Uitgelicht uit het assortiment"
+        products={featuredPrimary}
+        viewAllHref="/shop"
+      />
 
-        <section className="mt-16 rounded-xl border border-zinc-200 bg-zinc-50 p-6 sm:p-8">
-          <h2 className="text-lg font-semibold text-brand-blue">Waarom bij ons bestellen?</h2>
-          <ul className="mt-4 grid gap-3 text-sm text-zinc-700 sm:grid-cols-3">
-            <li className="rounded-lg bg-white p-4 shadow-sm">
-              <span className="font-medium text-brand-blue">Officieel</span>
-              <p className="mt-1 text-zinc-600">Artikelen in clubstijl, rechtstreeks voor Excelsior.</p>
-            </li>
-            <li className="rounded-lg bg-white p-4 shadow-sm">
-              <span className="font-medium text-brand-blue">Overzichtelijk</span>
-              <p className="mt-1 text-zinc-600">Duidelijke prijzen en productinformatie.</p>
-            </li>
-            <li className="rounded-lg bg-white p-4 shadow-sm">
-              <span className="font-medium text-brand-blue">Voor iedereen</span>
-              <p className="mt-1 text-zinc-600">
-                Bestellen zonder account: leden, supporters en staf. Inloggen alleen nodig voor de kledingcommissie
-                (beheer).
-              </p>
-            </li>
-          </ul>
+      {featuredSecondary.length > 0 ? (
+        <div className="bg-[#f3f3f3]">
+          <ProductSection
+            id="meer"
+            title="Meer voor jouw clublook"
+            products={featuredSecondary}
+            viewAllHref="/shop"
+            muted
+          />
+        </div>
+      ) : null}
+
+      {moreProducts.length > 0 ? (
+        <ProductSection
+          id="meer-producten"
+          title="Nog meer uit de shop"
+          products={moreProducts}
+          viewAllHref="/shop"
+        />
+      ) : null}
+
+      <section className="mx-auto grid max-w-[1800px] gap-5 px-4 pb-12 sm:grid-cols-2 sm:px-6">
+        <PromoCard
+          href="/shop"
+          title="Supporter in stijl"
+          subtitle="Bekijk de clubcollectie"
+          buttonText="Naar de shop"
+          className="min-h-[280px] md:min-h-[360px] lg:min-h-[400px]"
+          tone="light"
+        />
+        <PromoCard
+          href="/shop"
+          title="Excelsior Maassluis"
+          subtitle="Artikelen rechtstreeks voor jouw vereniging"
+          buttonText="Ontdek producten"
+          className="min-h-[280px] md:min-h-[360px] lg:min-h-[400px]"
+          tone="blue"
+        />
+      </section>
+
+      <section className="bg-brand-red text-white">
+        <div className="mx-auto grid max-w-[2100px] items-center gap-8 px-4 py-10 md:grid-cols-[1fr_min(40%,480px)] md:gap-12 md:px-6 md:py-12">
+          <div>
+            <h2 className="text-2xl font-semibold tracking-tight text-white sm:text-3xl">Blijf op de hoogte</h2>
+            <p className="mt-4 max-w-xl text-sm leading-relaxed text-white/95 sm:text-base">
+              Volg Excelsior Maassluis via de officiële clubkanalen voor nieuws over wedstrijden, evenementen en
+              nieuwe artikelen in deze shop.
+            </p>
+            <p className="mt-4 text-sm text-white/90">
+              Vragen over je bestelling? Neem contact op met de kledingcommissie via de club.
+            </p>
+          </div>
+          <div className="relative aspect-[16/10] overflow-hidden bg-black/20">
+            <div className="absolute inset-0 flex items-center justify-center text-center text-sm text-white/80">
+              <span className="rounded border border-white/30 px-4 py-3">Clubfoto of banner kan hier later geplaatst worden</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="over-de-shop" className="mx-auto max-w-[1800px] px-4 py-14 sm:px-6 sm:py-16">
+        <h2 className="text-center text-2xl font-semibold text-brand-blue sm:text-3xl">
+          <strong>Kledingshop Excelsior Maassluis</strong>
+        </h2>
+        <p className="mx-auto mt-6 max-w-3xl text-center text-base leading-relaxed text-[#1f1f1f]">
+          Welkom in de officiële kledingshop van Excelsior Maassluis. Hier bestel je clubkleding en artikelen voor op
+          en naast het veld. Iedereen kan bestellen: leden, supporters en staf — zonder account. Alleen medewerkers van
+          de kledingcommissie loggen in voor het beheer van producten, voorraad en bestellingen.
+        </p>
+      </section>
+
+      {videoId ? (
+        <section className="bg-zinc-950">
+          <div className="relative mx-auto aspect-video max-h-[70vh] w-full max-w-[1800px]">
+            <iframe
+              title="Excelsior video"
+              src={`https://www.youtube-nocookie.com/embed/${videoId}?rel=0`}
+              className="absolute inset-0 h-full w-full"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen
+            />
+          </div>
         </section>
-      </main>
+      ) : null}
 
       <PublicFooter />
     </div>
+  );
+}
+
+function CollectionTile({
+  title,
+  href,
+  imagePath
+}: {
+  title: string;
+  href: string;
+  imagePath: string | null;
+}) {
+  const url = getPublicProductImageUrl(imagePath);
+  return (
+    <Link
+      href={href}
+      className="group relative block aspect-square overflow-hidden bg-zinc-100 shadow-sm ring-1 ring-black/5 transition hover:ring-brand-blue/30"
+    >
+      {url ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={url} alt="" className="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
+      ) : (
+        <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-zinc-200 to-zinc-100 p-4 text-center">
+          <span className="text-sm font-medium text-zinc-600">{title}</span>
+        </div>
+      )}
+      <span className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/75 via-black/35 to-transparent px-3 pb-4 pt-16 text-center">
+        <span className="text-sm font-medium uppercase tracking-wide text-white drop-shadow">{title}</span>
+      </span>
+    </Link>
+  );
+}
+
+function ProductSection({
+  id,
+  title,
+  products,
+  viewAllHref,
+  muted
+}: {
+  id: string;
+  title: string;
+  products: {
+    name: string;
+    slug: string;
+    price_cents: number;
+    product_images: unknown;
+  }[];
+  viewAllHref: string;
+  muted?: boolean;
+}) {
+  if (!products.length) return null;
+  return (
+    <section id={id} className={muted ? "py-10 sm:py-14" : "bg-white py-10 sm:py-14"}>
+      <div className="mx-auto max-w-[1800px] px-4 sm:px-6">
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <h2 className="text-xl font-semibold text-black sm:text-2xl">{title}</h2>
+          <Link
+            href={viewAllHref}
+            className="rounded-none border border-zinc-900 bg-transparent px-4 py-2 text-xs font-semibold uppercase tracking-wider text-zinc-900 transition hover:bg-zinc-900 hover:text-white"
+          >
+            Alles bekijken
+          </Link>
+        </div>
+        <ul className="mt-8 grid grid-cols-2 gap-x-4 gap-y-8 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
+          {products.map((p) => (
+            <li key={p.slug}>
+              <CompactProductCard
+                name={p.name}
+                slug={p.slug}
+                priceCents={p.price_cents}
+                imagePath={pickPrimaryImagePath(p.product_images as any)}
+              />
+            </li>
+          ))}
+        </ul>
+      </div>
+    </section>
+  );
+}
+
+function PromoCard({
+  href,
+  title,
+  subtitle,
+  buttonText,
+  tone,
+  className
+}: {
+  href: string;
+  title: string;
+  subtitle: string;
+  buttonText: string;
+  tone: "light" | "blue";
+  className?: string;
+}) {
+  const bg =
+    tone === "light"
+      ? "bg-gradient-to-br from-zinc-300 via-zinc-200 to-zinc-100"
+      : "bg-gradient-to-br from-brand-blue via-[#06275c] to-[#021631]";
+  return (
+    <Link
+      href={href}
+      className={`group relative flex flex-col justify-end overflow-hidden p-6 text-white ${bg} ${className ?? ""}`}
+    >
+      <div className="absolute inset-0 bg-[url('data:image/svg+xml,%3Csvg%20width%3D%2240%22%20height%3D%2240%22%20viewBox%3D%220%200%2040%2040%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Cg%20fill%3D%22%23fff%22%20fill-opacity%3D%220.06%22%3E%3Cpath%20d%3D%22M20%2020h20v20H20zM0%200h20v20H0z%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E')] opacity-50" />
+      <div className="relative z-[1]">
+        {tone === "light" ? (
+          <p className="text-sm font-medium uppercase tracking-widest text-zinc-800">Shop</p>
+        ) : (
+          <p className="text-sm font-medium uppercase tracking-widest text-white/90">Seizoen</p>
+        )}
+        <h3 className={`mt-2 text-2xl font-semibold leading-tight ${tone === "light" ? "text-zinc-900" : "text-white"}`}>
+          {title}
+        </h3>
+        <p className={`mt-2 max-w-sm text-sm ${tone === "light" ? "text-zinc-700" : "text-white/90"}`}>{subtitle}</p>
+        <span
+          className={`mt-6 inline-flex min-h-[44px] items-center justify-center rounded-none px-5 py-2.5 text-sm font-semibold transition ${
+            tone === "light"
+              ? "bg-white text-black hover:bg-zinc-100"
+              : "bg-white text-brand-blue hover:bg-zinc-100"
+          }`}
+        >
+          {buttonText}
+        </span>
+      </div>
+    </Link>
   );
 }

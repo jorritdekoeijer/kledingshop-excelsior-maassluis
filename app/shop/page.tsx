@@ -18,31 +18,67 @@ function excerpt(text: string | null, max = 120) {
   return `${t.slice(0, max).trim()}…`;
 }
 
-export default async function ShopPage() {
+export default async function ShopPage({
+  searchParams
+}: {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const sp = (await searchParams) ?? {};
+  const raw = sp.c;
+  const categorySlug = typeof raw === "string" ? raw : undefined;
+
   const supabase = await createSupabaseServerClient();
-  const { data: products } = await supabase
+
+  let categoryId: string | null = null;
+  let categoryName: string | null = null;
+  if (categorySlug) {
+    const { data: cat } = await supabase.from("categories").select("id,name").eq("slug", categorySlug).maybeSingle();
+    if (cat) {
+      categoryId = cat.id;
+      categoryName = cat.name;
+    }
+  }
+
+  let q = supabase
     .from("products")
     .select("name,slug,price_cents,description,product_images(path,is_primary,sort_order)")
     .eq("active", true)
     .order("created_at", { ascending: false });
 
+  if (categoryId) {
+    q = q.eq("category_id", categoryId);
+  }
+
+  const { data: products } = await q;
+
   return (
-    <div className="flex min-h-dvh flex-col">
+    <div className="flex min-h-dvh flex-col bg-white">
       <PublicHeader />
       <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-10 sm:px-6">
         <div className="mb-8 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <h1 className="text-2xl font-semibold text-brand-blue">Assortiment</h1>
-            <p className="mt-1 text-sm text-zinc-600">Alle actieve producten.</p>
+            <h1 className="text-2xl font-semibold text-black">Assortiment</h1>
+            <p className="mt-1 text-sm text-zinc-600">
+              {categoryName ? `Categorie: ${categoryName}` : "Alle actieve producten."}
+            </p>
           </div>
-          <Link href="/" className="text-sm text-brand-blue hover:underline">
-            ← Terug naar home
-          </Link>
+          <div className="flex flex-wrap gap-4 text-sm">
+            {categorySlug ? (
+              <Link href="/shop" className="font-medium text-brand-blue hover:underline">
+                Alle categorieën
+              </Link>
+            ) : null}
+            <Link href="/" className="text-brand-blue hover:underline">
+              ← Terug naar home
+            </Link>
+          </div>
         </div>
 
         {!products?.length ? (
           <p className="rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-8 text-center text-sm text-zinc-600">
-            Er staan nog geen producten live. Kom later terug.
+            {categorySlug && !categoryId
+              ? "Deze categorie bestaat niet of er zijn geen producten."
+              : "Er staan nog geen producten live. Kom later terug."}
           </p>
         ) : (
           <ul className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">

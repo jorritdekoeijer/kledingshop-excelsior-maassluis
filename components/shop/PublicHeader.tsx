@@ -6,24 +6,32 @@ export async function PublicHeader() {
   const { data } = await supabase.auth.getUser();
 
   return (
-    <header className="border-b border-zinc-200 bg-white">
-      <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-4 sm:px-6">
-        <Link href="/" className="text-lg font-semibold tracking-tight text-brand-blue">
-          Excelsior Maassluis
+    <header className="sticky top-0 z-50 border-b border-black/10 bg-white shadow-[0_0_1px_rgba(0,0,0,0.2)]">
+      <div className="mx-auto flex max-w-[1800px] items-center justify-between gap-4 px-4 py-4 sm:px-6">
+        <Link href="/" className="min-w-0 shrink-0">
+          <span className="block truncate text-lg font-semibold tracking-tight text-brand-blue sm:text-xl">
+            Excelsior Maassluis
+          </span>
+          <span className="hidden text-[10px] font-normal uppercase tracking-[0.2em] text-zinc-500 sm:block">
+            Kledingshop
+          </span>
         </Link>
-        <nav className="flex flex-wrap items-center justify-end gap-2 text-sm sm:gap-4">
-          <Link href="/shop" className="text-zinc-700 hover:text-brand-blue">
+        <nav className="flex flex-wrap items-center justify-end gap-x-4 gap-y-2 text-[11px] font-medium uppercase tracking-[0.2em] text-black sm:gap-x-8 sm:text-xs">
+          <Link href="/shop" className="hover:text-brand-blue">
             Assortiment
+          </Link>
+          <Link href="/#over-de-shop" className="hidden hover:text-brand-blue md:inline">
+            Over de shop
           </Link>
           {data.user ? (
             <>
-              <Link href="/dashboard" className="text-zinc-700 hover:text-brand-blue">
+              <Link href="/dashboard" className="hover:text-brand-blue">
                 Dashboard
               </Link>
               <form action="/logout" method="post" className="inline">
                 <button
                   type="submit"
-                  className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-900 hover:bg-zinc-50"
+                  className="rounded-none border border-zinc-300 px-3 py-1.5 text-[11px] font-medium normal-case tracking-normal text-zinc-900 hover:bg-zinc-50"
                 >
                   Uitloggen
                 </button>
@@ -32,7 +40,7 @@ export async function PublicHeader() {
           ) : (
             <Link
               href="/login"
-              className="text-zinc-700 hover:text-brand-blue"
+              className="hover:text-brand-blue"
               title="Alleen voor medewerkers van de kledingcommissie"
             >
               Commissie
