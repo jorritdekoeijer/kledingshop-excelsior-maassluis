@@ -1,9 +1,11 @@
-import { requirePermission } from "@/lib/auth/permissions-server";
-import { permissions } from "@/lib/auth/permissions";
 import Link from "next/link";
+import { getIsAdmin, requireAdminOrPermission } from "@/lib/auth/permissions-server";
+import { permissions } from "@/lib/auth/permissions";
 
 export default async function DashboardSettingsPage() {
-  const gate = await requirePermission(permissions.settings.read);
+  const gate = await requireAdminOrPermission(permissions.settings.read);
+  const isAdmin = await getIsAdmin();
+
   if (!gate.ok) {
     return (
       <div className="rounded-lg border border-zinc-200 bg-white p-6">
@@ -15,6 +17,18 @@ export default async function DashboardSettingsPage() {
 
   return (
     <div className="space-y-4">
+      {isAdmin ? (
+        <div className="rounded-lg border border-brand-blue/30 bg-brand-blue/5 p-4">
+          <p className="text-sm text-zinc-800">
+            Je bent ingelogd als <span className="font-medium">admin</span>. Alle instellingen vind je ook onder{" "}
+            <Link href="/admin/settings" className="font-medium text-brand-blue underline">
+              Admin → Instellingen
+            </Link>
+            .
+          </p>
+        </div>
+      ) : null}
+
       <div className="rounded-lg border border-zinc-200 bg-white p-6">
         <h1 className="text-xl font-semibold">Settings</h1>
         <p className="mt-2 text-sm text-zinc-600">Beheer gebruikers, e-mail, Mollie en kostengroepen.</p>
@@ -51,4 +65,3 @@ export default async function DashboardSettingsPage() {
     </div>
   );
 }
-

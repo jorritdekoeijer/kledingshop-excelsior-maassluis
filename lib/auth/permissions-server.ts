@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import type { Permission } from "@/lib/auth/permissions";
 import { permissions } from "@/lib/auth/permissions";
+import { requireAdmin } from "@/lib/auth/require-admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export async function getUserPermissions(userId: string): Promise<Permission[]> {
@@ -31,5 +32,15 @@ export async function getIsAdmin(): Promise<boolean> {
   const { data, error } = await supabase.rpc("is_admin");
   if (error || typeof data !== "boolean") return false;
   return data;
+}
+
+/** Admin-rol (is_admin / user_roles) telt als volledige toegang voor deze permissie-check. */
+export async function requireAdminOrPermission(required: Permission) {
+  const admin = await requireAdmin();
+  if (admin.ok) {
+    const perms = await getUserPermissions(admin.user.id);
+    return { ok: true as const, user: admin.user, permissions: perms };
+  }
+  return requirePermission(required);
 }
 
