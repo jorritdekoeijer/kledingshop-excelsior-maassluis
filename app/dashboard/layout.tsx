@@ -1,19 +1,55 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { getIsAdmin, getUserPermissions, requireLogin } from "@/lib/auth/permissions-server";
+import { hasPermission, permissions } from "@/lib/auth/permissions";
 
-export default function DashboardLayout({ children }: { children: ReactNode }) {
+export default async function DashboardLayout({ children }: { children: ReactNode }) {
+  const { id: userId } = await requireLogin();
+  const perms = await getUserPermissions(userId);
+  const isAdmin = await getIsAdmin();
+  const hasDashboardAccess = hasPermission(perms, permissions.dashboard.access);
+
+  const showSettings = hasDashboardAccess || hasPermission(perms, permissions.settings.read);
+  const showProducts = hasDashboardAccess || hasPermission(perms, permissions.products.read);
+  const showStock = hasDashboardAccess || hasPermission(perms, permissions.stock.read);
+  const showOrders = hasDashboardAccess || hasPermission(perms, permissions.orders.read);
+
   return (
     <div className="min-h-dvh">
       <header className="border-b border-zinc-200 bg-white">
-        <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
+        <div className="mx-auto flex max-w-5xl flex-col gap-3 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
           <Link href="/dashboard" className="font-semibold text-brand-blue">
-            Dashboard
+            Beheer
           </Link>
-          <nav className="flex gap-3 text-sm">
-            <Link href="/dashboard/settings">Settings</Link>
-            <Link href="/dashboard/products">Products</Link>
-            <Link href="/dashboard/stock">Stock</Link>
-            <Link href="/dashboard/orders">Orders</Link>
+          <nav className="flex flex-wrap gap-x-4 gap-y-2 text-sm">
+            {isAdmin ? (
+              <Link href="/admin" className="text-zinc-700 hover:text-brand-blue">
+                Admin
+              </Link>
+            ) : null}
+            {showSettings ? (
+              <Link href="/dashboard/settings" className="text-zinc-700 hover:text-brand-blue">
+                Instellingen
+              </Link>
+            ) : null}
+            {showProducts ? (
+              <Link href="/dashboard/products" className="text-zinc-700 hover:text-brand-blue">
+                Producten
+              </Link>
+            ) : null}
+            {showStock ? (
+              <Link href="/dashboard/stock" className="text-zinc-700 hover:text-brand-blue">
+                Voorraad
+              </Link>
+            ) : null}
+            {showOrders ? (
+              <Link href="/dashboard/orders" className="text-zinc-700 hover:text-brand-blue">
+                Bestellingen
+              </Link>
+            ) : null}
+            <Link href="/" className="text-zinc-500 hover:text-brand-blue">
+              Shop
+            </Link>
           </nav>
         </div>
       </header>
@@ -21,4 +57,3 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
     </div>
   );
 }
-

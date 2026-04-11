@@ -45,29 +45,33 @@ export async function proxy(request: NextRequest) {
     return null;
   }
 
+  /** `dashboard:access` telt als volledige toegang tot beheer-routes (naast specifieke permissies). */
+  async function requirePermOrDashboard(required: string) {
+    if (!data.user) return NextResponse.redirect(new URL("/login", request.url));
+    const perms = await getPermissionsForUser(data.user.id);
+    if (perms.includes(permissions.dashboard.access)) return null;
+    if (!perms.includes(required)) return new NextResponse("Forbidden", { status: 403 });
+    return null;
+  }
+
   if (pathname.startsWith("/dashboard")) {
-    // Always require login for /dashboard/*
+    // Always require login for /dashboard/* (startpagina toont keuzes; subroutes per permissie)
     if (!data.user) return NextResponse.redirect(new URL("/login", request.url));
 
-    // Optional permission gating per route
-    if (pathname === "/dashboard" || pathname.startsWith("/dashboard/")) {
-      const perms = await getPermissionsForUser(data.user.id);
-      if (!perms.includes(permissions.dashboard.access)) return new NextResponse("Forbidden", { status: 403 });
-    }
     if (pathname.startsWith("/dashboard/settings")) {
-      const res = await requirePerm(permissions.settings.read);
+      const res = await requirePermOrDashboard(permissions.settings.read);
       if (res) return res;
     }
     if (pathname.startsWith("/dashboard/settings/users")) {
-      const res = await requirePerm(permissions.users.read);
+      const res = await requirePermOrDashboard(permissions.users.read);
       if (res) return res;
     }
     if (pathname.startsWith("/dashboard/settings/cost-groups")) {
-      const res = await requirePerm(permissions.costGroups.read);
+      const res = await requirePermOrDashboard(permissions.costGroups.read);
       if (res) return res;
     }
     if (pathname.startsWith("/dashboard/products")) {
-      const res = await requirePerm(permissions.products.read);
+      const res = await requirePermOrDashboard(permissions.products.read);
       if (res) return res;
     }
     // Write-only routes (create/edit/categories) require products:write
@@ -76,15 +80,15 @@ export async function proxy(request: NextRequest) {
       pathname.startsWith("/dashboard/products/categories") ||
       pathname.match(/^\/dashboard\/products\/[0-9a-fA-F-]+\/edit$/)
     ) {
-      const res = await requirePerm(permissions.products.write);
+      const res = await requirePermOrDashboard(permissions.products.write);
       if (res) return res;
     }
     if (pathname.startsWith("/dashboard/stock")) {
-      const res = await requirePerm(permissions.stock.read);
+      const res = await requirePermOrDashboard(permissions.stock.read);
       if (res) return res;
     }
     if (pathname.startsWith("/dashboard/orders")) {
-      const res = await requirePerm(permissions.orders.read);
+      const res = await requirePermOrDashboard(permissions.orders.read);
       if (res) return res;
     }
   }

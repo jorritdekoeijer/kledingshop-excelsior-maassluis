@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import type { Permission } from "@/lib/auth/permissions";
+import { permissions } from "@/lib/auth/permissions";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export async function getUserPermissions(userId: string): Promise<Permission[]> {
@@ -19,7 +20,16 @@ export async function requireLogin() {
 export async function requirePermission(required: Permission) {
   const user = await requireLogin();
   const perms = await getUserPermissions(user.id);
+  if (perms.includes(permissions.dashboard.access)) return { ok: true as const, user, permissions: perms };
   if (!perms.includes(required)) return { ok: false as const, user, permissions: perms };
   return { ok: true as const, user, permissions: perms };
+}
+
+/** True if public.is_admin() RPC returns true (admin role in user_roles). */
+export async function getIsAdmin(): Promise<boolean> {
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.rpc("is_admin");
+  if (error || typeof data !== "boolean") return false;
+  return data;
 }
 
