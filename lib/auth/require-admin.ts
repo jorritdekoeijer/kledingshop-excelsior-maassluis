@@ -6,6 +6,11 @@ export async function requireAdmin() {
   const { data } = await supabase.auth.getUser();
   if (!data.user) redirect("/login");
 
+  const { data: isAdmin, error: rpcError } = await supabase.rpc("is_admin");
+  if (!rpcError && isAdmin === true) {
+    return { ok: true as const, user: data.user };
+  }
+
   const { data: roles, error } = await supabase
     .from("user_roles")
     .select("role")

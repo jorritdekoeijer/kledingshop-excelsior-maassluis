@@ -92,14 +92,18 @@ export async function proxy(request: NextRequest) {
   if (pathname.startsWith("/admin")) {
     if (!data.user) return NextResponse.redirect(new URL("/login", request.url));
 
-    const { data: roles, error } = await supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", data.user.id)
-      .eq("role", "admin")
-      .limit(1);
+    const { data: isAdmin, error: rpcError } = await supabase.rpc("is_admin");
+    const okRpc = !rpcError && isAdmin === true;
+    if (!okRpc) {
+      const { data: roles, error } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", data.user.id)
+        .eq("role", "admin")
+        .limit(1);
 
-    if (error || !roles || roles.length === 0) return new NextResponse("Forbidden", { status: 403 });
+      if (error || !roles || roles.length === 0) return new NextResponse("Forbidden", { status: 403 });
+    }
   }
 
   return response;
