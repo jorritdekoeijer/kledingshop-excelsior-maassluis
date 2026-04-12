@@ -46,6 +46,7 @@ export async function createStockDeliveryAction(input: unknown) {
     received_at: receivedAtIso,
     quantity_received: line.quantity,
     quantity_remaining: line.quantity,
+    variant_segment: line.variantSegment,
     size_label: line.sizeLabel.trim(),
     unit_purchase_excl_cents: line.unitPurchaseExclCents,
     note

@@ -1,23 +1,10 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { NewDeliveryForm, type ProductPickOption } from "@/components/dashboard/NewDeliveryForm";
+import { NewDeliveryForm } from "@/components/dashboard/NewDeliveryForm";
 import { requirePermission } from "@/lib/auth/permissions-server";
 import { permissions } from "@/lib/auth/permissions";
-import { normalizeVariantBlock } from "@/lib/shop/product-json";
+import { buildProductPickOptions } from "@/lib/stock/build-product-pick-options";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-
-function buildProductOptions(
-  rows: { id: string; name: string; variant_youth: unknown; variant_adult: unknown }[]
-): ProductPickOption[] {
-  return rows.map((p) => {
-    const y = normalizeVariantBlock(p.variant_youth);
-    const a = normalizeVariantBlock(p.variant_adult);
-    const model = [y.model_number, a.model_number].map((m) => String(m || "").trim()).find(Boolean) ?? "";
-    const sizes = [...new Set([...(y.sizes ?? []), ...(a.sizes ?? [])])];
-    const label = model ? `${model} — ${p.name}` : p.name;
-    return { id: p.id, label, sizes };
-  });
-}
 
 export default async function NewStockDeliveryPage({
   searchParams
@@ -37,7 +24,7 @@ export default async function NewStockDeliveryPage({
     .eq("active", true)
     .order("name");
 
-  const options = buildProductOptions(products ?? []);
+  const options = buildProductPickOptions(products ?? []);
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">

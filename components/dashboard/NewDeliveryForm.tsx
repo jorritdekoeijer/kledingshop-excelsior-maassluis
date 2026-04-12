@@ -4,12 +4,9 @@ import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
 import { createStockDeliveryAction } from "@/app/dashboard/stock/levering/nieuw/actions";
 import { inclCentsFromExcl21, parseDutchEuroToCents } from "@/lib/money/nl-euro";
+import type { ProductPickOption, VariantSegment } from "@/lib/stock/product-pick-types";
 
-export type ProductPickOption = {
-  id: string;
-  label: string;
-  sizes: string[];
-};
+export type { ProductPickOption, VariantSegment };
 
 const eur = (cents: number) =>
   new Intl.NumberFormat("nl-NL", { style: "currency", currency: "EUR" }).format(cents / 100);
@@ -17,6 +14,7 @@ const eur = (cents: number) =>
 type LineState = {
   key: string;
   productId: string;
+  segment: VariantSegment;
   quantity: number;
   sizeLabel: string;
   unitExclEuro: string;
@@ -26,10 +24,28 @@ function emptyLine(): LineState {
   return {
     key: typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : String(Math.random()),
     productId: "",
+    segment: "adult",
     quantity: 1,
     sizeLabel: "",
     unitExclEuro: ""
   };
+}
+
+function defaultSegmentForProduct(p: ProductPickOption | undefined): VariantSegment {
+  if (!p) return "adult";
+  const y = p.youth.sizes.length;
+  const a = p.adult.sizes.length;
+  if (y > 0 && a === 0) return "youth";
+  if (a > 0 && y === 0) return "adult";
+  return "adult";
+}
+
+function sizesForSegment(p: ProductPickOption, seg: VariantSegment): string[] {
+  return seg === "youth" ? p.youth.sizes : p.adult.sizes;
+}
+
+function modelForSegment(p: ProductPickOption, seg: VariantSegment): string {
+  return seg === "youth" ? p.youth.modelNumber : p.adult.modelNumber;
 }
 
 export function NewDeliveryForm({ products }: { products: ProductPickOption[] }) {
@@ -70,14 +86,59 @@ export function NewDeliveryForm({ products }: { products: ProductPickOption[] })
 
   function onProductChange(key: string, productId: string) {
     const p = productMap.get(productId);
-    const firstSize = p && p.sizes.length > 0 ? p.sizes[0] : "";
-    updateLine(key, { productId, sizeLabel: firstSize });
+    const seg = defaultSegmentForProduct(p);
+    const sizes = p ? sizesForSegment(p, seg) : [];
+    updateLine(key, {
+      productId,
+      segment: seg,
+      sizeLabel: sizes[0] ?? ""
+    });
+  }
+
+  function onSegmentChange(key: string, productId: string, segment: VariantSegment) {
+    const p = productMap.get(productId);
+    if (!p) return;
+    const sizes = sizesForSegment(p, segment);
+    updateLine(key, {
+      segment,
+      sizeLabel: sizes[0] ?? ""
+    });
+  }
+
+  function segmentButtons(key: string, productId: string, current: VariantSegment) {
+    return (
+      <div
+        className="mt-2 inline-flex rounded-full border border-zinc-300 bg-white p-1"
+        role="group"
+        aria-label="Jeugd of volwassenen"
+      >
+        <button
+          type="button"
+          onClick={() => onSegmentChange(key, productId, "youth")}
+          className={`rounded-full px-3 py-1.5 text-xs font-semibold ${
+            current === "youth" ? "bg-brand-blue text-white" : "text-zinc-700 hover:bg-zinc-100"
+          }`}
+        >
+          YOUTH
+        </button>
+        <button
+          type="button"
+          onClick={() => onSegmentChange(key, productId, "adult")}
+          className={`rounded-full px-3 py-1.5 text-xs font-semibold ${
+            current === "adult" ? "bg-brand-blue text-white" : "text-zinc-700 hover:bg-zinc-100"
+          }`}
+        >
+          ADULT
+        </button>
+      </div>
+    );
   }
 
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     const outLines: {
       productId: string;
+      variantSegment: VariantSegment;
       quantity: number;
       sizeLabel: string;
       unitPurchaseExclCents: number;
@@ -91,7 +152,7 @@ export function NewDeliveryForm({ products }: { products: ProductPickOption[] })
         return;
       }
       if (!line.sizeLabel.trim()) {
-        alert("Kies per regel een maat.");
+        alert("Kies per regel een maat (of vul deze in bij producten zonder vaste matenlijst).");
         return;
       }
       if (line.quantity < 1) {
@@ -99,12 +160,15 @@ export function NewDeliveryForm({ products }: { products: ProductPickOption[] })
         return;
       }
       const p = productMap.get(line.productId);
-      if (p && p.sizes.length > 0 && !p.sizes.includes(line.sizeLabel.trim())) {
-        alert(`Maat "${line.sizeLabel}" hoort niet bij het gekozen product.`);
+      if (!p) continue;
+      const allowed = sizesForSegment(p, line.segment);
+      if (allowed.length > 0 && !allowed.includes(line.sizeLabel.trim())) {
+        alert(`Maat "${line.sizeLabel}" hoort niet bij ${line.segment === "youth" ? "Jeugd" : "Volwassenen"} voor dit product.`);
         return;
       }
       outLines.push({
         productId: line.productId,
+        variantSegment: line.segment,
         quantity: line.quantity,
         sizeLabel: line.sizeLabel.trim(),
         unitPurchaseExclCents: unit
@@ -164,13 +228,17 @@ export function NewDeliveryForm({ products }: { products: ProductPickOption[] })
       <div>
         <h2 className="text-sm font-semibold text-zinc-900">Regels</h2>
         <p className="mt-1 text-xs text-zinc-500">
-          Inkoopprijs is <strong>excl. btw</strong> per stuk. Maten komen uit het product (dashboard).
+          Kies eerst <strong>Jeugd</strong> of <strong>Volwassenen</strong> — elk heeft een eigen modelnummer en maten. Inkoop is{" "}
+          <strong>excl. btw</strong> per stuk.
         </p>
 
         <div className="mt-4 space-y-4">
           {lines.map((line) => {
             const p = line.productId ? productMap.get(line.productId) : undefined;
-            const sizeOptions = p?.sizes ?? [];
+            const sizeOptions = p ? sizesForSegment(p, line.segment) : [];
+            const model = p ? modelForSegment(p, line.segment) : "";
+            const showToggle = p && p.youth.sizes.length > 0 && p.adult.sizes.length > 0;
+
             return (
               <div
                 key={line.key}
@@ -196,16 +264,35 @@ export function NewDeliveryForm({ products }: { products: ProductPickOption[] })
                     <option value="">— Kies product —</option>
                     {products.map((pr) => (
                       <option key={pr.id} value={pr.id}>
-                        {pr.label}
+                        {pr.name}
                       </option>
                     ))}
                   </select>
                 </label>
+
+                <div className="md:col-span-3">
+                  <span className="text-xs font-medium text-zinc-600">Jeugd / Volwassenen</span>
+                  {!line.productId ? (
+                    <p className="mt-2 text-xs text-zinc-400">Kies eerst een product</p>
+                  ) : showToggle ? (
+                    segmentButtons(line.key, line.productId, line.segment)
+                  ) : (
+                    <p className="mt-2 text-xs font-medium text-zinc-700">
+                      {line.segment === "youth" ? "Jeugd (YOUTH)" : "Volwassenen (ADULT)"}
+                    </p>
+                  )}
+                  {model ? (
+                    <p className="mt-1 text-xs text-zinc-500">
+                      Model: <span className="font-mono text-zinc-800">{model}</span>
+                    </p>
+                  ) : null}
+                </div>
+
                 <label className="md:col-span-2">
                   <span className="text-xs font-medium text-zinc-600">Maat</span>
                   {!line.productId ? (
                     <select disabled className="mt-1 w-full rounded-md border border-zinc-300 bg-zinc-100 px-2 py-2 text-sm">
-                      <option value="">— Kies eerst product —</option>
+                      <option value="">—</option>
                     </select>
                   ) : sizeOptions.length > 0 ? (
                     <select
@@ -228,7 +315,7 @@ export function NewDeliveryForm({ products }: { products: ProductPickOption[] })
                     />
                   )}
                 </label>
-                <label className="md:col-span-3">
+                <label className="md:col-span-2">
                   <span className="text-xs font-medium text-zinc-600">Inkoop / stuk excl. btw (€)</span>
                   <input
                     value={line.unitExclEuro}
@@ -237,7 +324,7 @@ export function NewDeliveryForm({ products }: { products: ProductPickOption[] })
                     className="mt-1 w-full rounded-md border border-zinc-300 px-2 py-2 text-sm"
                   />
                 </label>
-                <div className="flex md:col-span-2 md:justify-end">
+                <div className="flex md:col-span-12 md:justify-end">
                   <button
                     type="button"
                     onClick={() => setLines((prev) => prev.filter((x) => x.key !== line.key))}

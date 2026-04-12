@@ -5,19 +5,11 @@ import { getSettingService } from "@/lib/settings-service";
 import { createSupabaseServiceClient } from "@/lib/supabase/service";
 import { orderUnitPriceCentsFromProductRow } from "@/lib/checkout/order-unit-price";
 import { lineSizeAllowed } from "@/lib/checkout/validate-line-size";
+import { sumAvailableStockForLine } from "@/lib/stock/available-for-line";
 import { checkoutRequestSchema } from "@/lib/validation/checkout";
 import { mollieSettingsSchema } from "@/lib/validation/settings";
 
 export const runtime = "nodejs";
-
-async function availableStock(
-  svc: ReturnType<typeof createSupabaseServiceClient>,
-  productId: string
-): Promise<number> {
-  const { data, error } = await svc.from("stock_batches").select("quantity_remaining").eq("product_id", productId);
-  if (error) throw error;
-  return (data ?? []).reduce((s, r) => s + (r.quantity_remaining ?? 0), 0);
-}
 
 type CheckoutLine = {
   productId: string;
@@ -74,13 +66,9 @@ export async function POST(request: Request) {
     }
   }
 
-  const needByProduct = new Map<string, number>();
   for (const line of lines) {
-    needByProduct.set(line.productId, (needByProduct.get(line.productId) ?? 0) + line.quantity);
-  }
-  for (const [productId, need] of needByProduct) {
-    const have = await availableStock(svc, productId);
-    if (have < need) {
+    const have = await sumAvailableStockForLine(svc, line.productId, line.variant ?? null, line.size ?? null);
+    if (have < line.quantity) {
       return NextResponse.json(
         { error: "Niet genoeg voorraad voor alle gekozen hoeveelheden. Pas je winkelmand aan." },
         { status: 409 }
@@ -94,6 +82,8 @@ export async function POST(request: Request) {
     quantity: number;
     unit_price_cents: number;
     line_total_cents: number;
+    variant_segment: string | null;
+    size_label: string | null;
   }[] = [];
 
   for (const line of lines) {
@@ -119,7 +109,9 @@ export async function POST(request: Request) {
       product_id: line.productId,
       quantity: line.quantity,
       unit_price_cents: unit,
-      line_total_cents: lineTotal
+      line_total_cents: lineTotal,
+      variant_segment: line.variant ?? null,
+      size_label: line.size?.trim() || null
     });
   }
 
