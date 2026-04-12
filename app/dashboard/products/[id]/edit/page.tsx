@@ -23,6 +23,18 @@ async function updateProduct(productId: string, formData: FormData) {
 
   const d = parsed.value;
   const service = createSupabaseServiceClient();
+
+  const { count: imageCount, error: imgCountErr } = await service
+    .from("product_images")
+    .select("*", { count: "exact", head: true })
+    .eq("product_id", productId);
+  if (imgCountErr) redirect(`/dashboard/products/${productId}/edit?error=${encodeURIComponent(imgCountErr.message)}`);
+  if (!imageCount || imageCount < 1) {
+    redirect(
+      `/dashboard/products/${productId}/edit?error=${encodeURIComponent("Er moet minstens één productfoto zijn. Upload eerst een hoofdfoto bij Afbeeldingen.")}`
+    );
+  }
+
   const { error } = await service
     .from("products")
     .update({
@@ -102,6 +114,16 @@ async function deleteImage(productId: string, formData: FormData) {
   if (!imageId || !path) redirect(`/dashboard/products/${productId}/edit?error=Missing%20image`);
 
   const service = createSupabaseServiceClient();
+  const { count: beforeCount } = await service
+    .from("product_images")
+    .select("*", { count: "exact", head: true })
+    .eq("product_id", productId);
+  if (!beforeCount || beforeCount <= 1) {
+    redirect(
+      `/dashboard/products/${productId}/edit?error=${encodeURIComponent("Je kunt de enige productfoto niet verwijderen. Upload eerst een andere foto.")}`
+    );
+  }
+
   const { error } = await service.from("product_images").delete().eq("id", imageId).eq("product_id", productId);
   if (error) redirect(`/dashboard/products/${productId}/edit?error=${encodeURIComponent(error.message)}`);
 
@@ -153,7 +175,6 @@ export default async function EditProductPage({
     name: product.name,
     slug: product.slug,
     description: product.description,
-    priceCents: product.price_cents,
     temporaryDiscountPercent: Number(product.temporary_discount_percent ?? 0),
     active: product.active,
     categoryId: product.category_id,
@@ -172,6 +193,11 @@ export default async function EditProductPage({
       ) : null}
       {error ? (
         <p className="mt-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
+      ) : null}
+      {(images ?? []).length === 0 ? (
+        <p className="mt-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+          Upload minstens één productfoto hieronder. Zonder foto kun je de productgegevens niet opslaan.
+        </p>
       ) : null}
 
       <div className="mt-6">

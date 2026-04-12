@@ -11,6 +11,13 @@ async function createProduct(formData: FormData) {
   const gate = await requirePermission(permissions.products.write);
   if (!gate.ok) redirect("/dashboard/products?error=Geen%20toegang");
 
+  const file = formData.get("image");
+  if (!(file instanceof File) || file.size === 0) {
+    redirect(
+      `/dashboard/products/new?error=${encodeURIComponent("Hoofdfoto is verplicht. Kies een afbeelding om te uploaden.")}`
+    );
+  }
+
   const parsed = parseProductUpsertFormData(formData);
   if (!parsed.ok) {
     redirect(`/dashboard/products/new?error=${encodeURIComponent(parsed.message)}`);
@@ -38,14 +45,11 @@ async function createProduct(formData: FormData) {
 
   if (error || !created) redirect(`/dashboard/products/new?error=${encodeURIComponent(error?.message ?? "Create failed")}`);
 
-  const file = formData.get("image");
-  if (file instanceof File && file.size > 0) {
-    const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
-    const path = `products/${created.id}.${ext}`;
-    const upload = await service.storage.from("product-images").upload(path, file, { upsert: true, contentType: file.type });
-    if (upload.error) redirect(`/dashboard/products/${created.id}/edit?error=${encodeURIComponent(upload.error.message)}`);
-    await service.from("product_images").insert({ product_id: created.id, path, sort_order: 0, is_primary: true });
-  }
+  const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
+  const path = `products/${created.id}.${ext}`;
+  const upload = await service.storage.from("product-images").upload(path, file, { upsert: true, contentType: file.type });
+  if (upload.error) redirect(`/dashboard/products/${created.id}/edit?error=${encodeURIComponent(upload.error.message)}`);
+  await service.from("product_images").insert({ product_id: created.id, path, sort_order: 0, is_primary: true });
 
   redirect(`/dashboard/products/${created.id}/edit?ok=1`);
 }

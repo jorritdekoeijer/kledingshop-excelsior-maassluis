@@ -1,6 +1,6 @@
 import type { z } from "zod";
-import { parseDutchEuroToCents } from "@/lib/money/nl-euro";
-import { productUpsertSchema } from "@/lib/validation/products";
+import { canonicalPriceCentsFromVariants } from "@/lib/products/variant-pricing";
+import { productUpsertSchema, productVariantBlockSchema } from "@/lib/validation/products";
 import { slugify } from "@/lib/utils/slugify";
 
 export type ProductUpsertParsed = z.infer<typeof productUpsertSchema>;
@@ -26,21 +26,33 @@ export function parseProductUpsertFormData(formData: FormData): ProductFormParse
     return { ok: false, message: "Vul een productnaam in." };
   }
 
-  const priceIncl = parseDutchEuroToCents(formData.get("priceInclEur"));
-  if (Number.isNaN(priceIncl)) {
-    return {
-      ok: false,
-      message: "Ongeldige prijs. Gebruik een bedrag zoals 42,30 (euro’s incl. btw)."
-    };
-  }
-
   const rawDetails = parseJsonField<unknown>(formData.get("productDetailsJson"), []);
   const productDetails = Array.isArray(rawDetails)
     ? rawDetails.filter((row: { label?: string }) => row && String(row.label ?? "").trim().length > 0)
     : [];
 
-  const variantYouth = parseJsonField<unknown>(formData.get("variantYouthJson"), {});
-  const variantAdult = parseJsonField<unknown>(formData.get("variantAdultJson"), {});
+  const variantYouthRaw = parseJsonField<unknown>(formData.get("variantYouthJson"), {});
+  const variantAdultRaw = parseJsonField<unknown>(formData.get("variantAdultJson"), {});
+
+  const youthZ = productVariantBlockSchema.safeParse(variantYouthRaw);
+  if (!youthZ.success) {
+    return { ok: false, message: youthZ.error.issues[0]?.message ?? "Ongeldige jeugd-variant." };
+  }
+  const adultZ = productVariantBlockSchema.safeParse(variantAdultRaw);
+  if (!adultZ.success) {
+    return { ok: false, message: adultZ.error.issues[0]?.message ?? "Ongeldige volwassen-variant." };
+  }
+
+  const variantYouth = youthZ.data;
+  const variantAdult = adultZ.data;
+
+  const priceCents = canonicalPriceCentsFromVariants(variantYouth, variantAdult);
+  if (priceCents === null) {
+    return {
+      ok: false,
+      message: "Vul minstens één verkoopprijs in bij Jeugd (YOUTH) of Volwassenen (ADULT), incl. btw."
+    };
+  }
 
   const discountRaw = formData.get("discountPercent");
   const temporaryDiscountPercent =
@@ -55,7 +67,7 @@ export function parseProductUpsertFormData(formData: FormData): ProductFormParse
     name,
     slug,
     description: String(formData.get("description") ?? "").trim() || null,
-    priceCents: priceIncl,
+    priceCents,
     temporaryDiscountPercent,
     active: formData.get("active"),
     categoryId: cid.length ? cid : null,

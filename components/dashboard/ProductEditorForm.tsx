@@ -24,7 +24,6 @@ type Defaults = {
   name: string;
   slug: string;
   description: string | null;
-  priceCents: number;
   temporaryDiscountPercent: number;
   active: boolean;
   categoryId: string | null;
@@ -42,6 +41,11 @@ const emptyVariant = (): ProductVariantBlock => ({
 
 type Cat = { id: string; name: string };
 
+function saleExclFromInclCents(cents: number | null | undefined): string {
+  if (cents == null || cents < 0) return "";
+  return centsToNlInput(exclCentsFromIncl21(cents));
+}
+
 export function ProductEditorForm({
   action,
   categories,
@@ -51,14 +55,12 @@ export function ProductEditorForm({
   action: (formData: FormData) => void | Promise<void>;
   categories: Cat[];
   defaults?: Partial<Defaults>;
-  /** Eerste upload bij nieuw product; bewerkpagina gebruikt galerij-upload. */
   showImageUpload?: boolean;
 }) {
   const d: Defaults = {
     name: defaults?.name ?? "",
     slug: defaults?.slug ?? "",
     description: defaults?.description ?? "",
-    priceCents: defaults?.priceCents ?? 0,
     temporaryDiscountPercent: defaults?.temporaryDiscountPercent ?? 0,
     active: defaults?.active ?? true,
     categoryId: defaults?.categoryId ?? null,
@@ -67,17 +69,18 @@ export function ProductEditorForm({
     variantAdult: defaults?.variantAdult ?? emptyVariant()
   };
 
-  const [inclStr, setInclStr] = useState(() => centsToNlInput(d.priceCents));
-  const [exclStr, setExclStr] = useState(() => centsToNlInput(exclCentsFromIncl21(d.priceCents)));
-
   const [details, setDetails] = useState<ProductDetailRow[]>(d.productDetails);
   const [youth, setYouth] = useState<ProductVariantBlock>(d.variantYouth);
   const [adult, setAdult] = useState<ProductVariantBlock>(d.variantAdult);
 
   const [youthPurchase, setYouthPurchase] = useState(() => centsToOptionalNl(d.variantYouth.purchase_cents));
-  const [youthSale, setYouthSale] = useState(() => centsToOptionalNl(d.variantYouth.sale_cents));
   const [adultPurchase, setAdultPurchase] = useState(() => centsToOptionalNl(d.variantAdult.purchase_cents));
-  const [adultSale, setAdultSale] = useState(() => centsToOptionalNl(d.variantAdult.sale_cents));
+
+  const [youthSaleIncl, setYouthSaleIncl] = useState(() => centsToOptionalNl(d.variantYouth.sale_cents));
+  const [youthSaleExcl, setYouthSaleExcl] = useState(() => saleExclFromInclCents(d.variantYouth.sale_cents ?? null));
+
+  const [adultSaleIncl, setAdultSaleIncl] = useState(() => centsToOptionalNl(d.variantAdult.sale_cents));
+  const [adultSaleExcl, setAdultSaleExcl] = useState(() => saleExclFromInclCents(d.variantAdult.sale_cents ?? null));
 
   const productDetailsJson = useMemo(
     () =>
@@ -88,25 +91,38 @@ export function ProductEditorForm({
       ),
     [details]
   );
+
   const variantYouthJson = useMemo(() => {
     const purchase_cents = nlInputToCents(youthPurchase) || null;
-    const sale_cents = nlInputToCents(youthSale) || null;
+    const sale_cents =
+      youthSaleIncl.trim().length > 0
+        ? (() => {
+            const c = nlInputToCents(youthSaleIncl);
+            return Number.isFinite(c) && c >= 0 ? c : null;
+          })()
+        : null;
     return JSON.stringify({
       ...youth,
       purchase_cents: youthPurchase.trim() ? purchase_cents : null,
-      sale_cents: youthSale.trim() ? sale_cents : null
+      sale_cents
     });
-  }, [youth, youthPurchase, youthSale]);
+  }, [youth, youthPurchase, youthSaleIncl]);
 
   const variantAdultJson = useMemo(() => {
     const purchase_cents = nlInputToCents(adultPurchase) || null;
-    const sale_cents = nlInputToCents(adultSale) || null;
+    const sale_cents =
+      adultSaleIncl.trim().length > 0
+        ? (() => {
+            const c = nlInputToCents(adultSaleIncl);
+            return Number.isFinite(c) && c >= 0 ? c : null;
+          })()
+        : null;
     return JSON.stringify({
       ...adult,
       purchase_cents: adultPurchase.trim() ? purchase_cents : null,
-      sale_cents: adultSale.trim() ? sale_cents : null
+      sale_cents
     });
-  }, [adult, adultPurchase, adultSale]);
+  }, [adult, adultPurchase, adultSaleIncl]);
 
   function toggleSize(list: string[], size: string, on: boolean): string[] {
     const s = new Set(list);
@@ -130,43 +146,8 @@ export function ProductEditorForm({
         <input name="slug" defaultValue={d.slug} className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm" />
       </label>
 
-      <div className="md:col-span-2 rounded-lg border border-zinc-200 bg-zinc-50/80 p-4">
-        <p className="text-sm font-semibold text-zinc-900">Prijzen (incl. en excl. 21% btw)</p>
-        <p className="mt-1 text-xs text-zinc-600">Vul één veld in; het andere wordt berekend.</p>
-        <div className="mt-3 grid gap-3 sm:grid-cols-2">
-          <label className="block">
-            <span className="text-sm text-zinc-700">Verkoopprijs incl. btw (€)</span>
-            <input
-              name="priceInclEur"
-              value={inclStr}
-              onChange={(e) => setInclStr(e.target.value)}
-              onBlur={() => {
-                const c = nlInputToCents(inclStr);
-                if (Number.isFinite(c) && c >= 0) setExclStr(centsToNlInput(exclCentsFromIncl21(c)));
-              }}
-              className="mt-1 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm"
-              placeholder="42,30"
-              required
-            />
-          </label>
-          <label className="block">
-            <span className="text-sm text-zinc-700">Verkoopprijs excl. btw (€)</span>
-            <input
-              value={exclStr}
-              onChange={(e) => setExclStr(e.target.value)}
-              onBlur={() => {
-                const c = nlInputToCents(exclStr);
-                if (Number.isFinite(c) && c >= 0) setInclStr(centsToNlInput(inclCentsFromExcl21(c)));
-              }}
-              className="mt-1 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm"
-              placeholder="34,96"
-            />
-          </label>
-        </div>
-      </div>
-
       <label className="block md:col-span-2">
-        <span className="text-sm text-zinc-700">Tijdelijke korting (% op prijs incl. btw)</span>
+        <span className="text-sm text-zinc-700">Tijdelijke korting (% op verkoopprijs incl. btw)</span>
         <input
           name="discountPercent"
           type="number"
@@ -176,7 +157,9 @@ export function ProductEditorForm({
           defaultValue={d.temporaryDiscountPercent}
           className="mt-1 w-full max-w-xs rounded-md border border-zinc-300 px-3 py-2 text-sm"
         />
-        <span className="mt-1 block text-xs text-zinc-500">Op overzicht en productpagina: lintje &quot;EXTRA KORTING&quot;.</span>
+        <span className="mt-1 block text-xs text-zinc-500">
+          Geldt voor zowel Jeugd als Volwassenen. Op overzicht en productpagina: lintje &quot;EXTRA KORTING&quot;.
+        </span>
       </label>
 
       <div className="flex items-center gap-3 md:col-span-2">
@@ -252,6 +235,10 @@ export function ProductEditorForm({
         </button>
       </div>
 
+      <p className="md:col-span-2 rounded-lg border border-amber-200 bg-amber-50/80 px-3 py-2 text-sm text-amber-950">
+        <strong className="font-semibold">Verkoopprijs per variant:</strong> vul bij Jeugd en/of Volwassenen de verkoopprijs in (incl./excl. 21% btw). Minstens één van beide varianten moet een verkoopprijs hebben. De tijdelijke korting hierboven geldt voor beide prijzen.
+      </p>
+
       <VariantBlock
         title="Jeugd (YOUTH)"
         sizes={YOUTH_SIZE_OPTIONS as unknown as string[]}
@@ -260,9 +247,19 @@ export function ProductEditorForm({
         selected={youth.sizes ?? []}
         onToggle={(size, on) => setYouth({ ...youth, sizes: toggleSize(youth.sizes ?? [], size, on) })}
         purchaseStr={youthPurchase}
-        saleStr={youthSale}
         onPurchaseChange={setYouthPurchase}
-        onSaleChange={setYouthSale}
+        saleInclStr={youthSaleIncl}
+        saleExclStr={youthSaleExcl}
+        onSaleInclChange={setYouthSaleIncl}
+        onSaleExclChange={setYouthSaleExcl}
+        onSaleInclBlur={() => {
+          const c = nlInputToCents(youthSaleIncl);
+          if (Number.isFinite(c) && c >= 0) setYouthSaleExcl(centsToNlInput(exclCentsFromIncl21(c)));
+        }}
+        onSaleExclBlur={() => {
+          const c = nlInputToCents(youthSaleExcl);
+          if (Number.isFinite(c) && c >= 0) setYouthSaleIncl(centsToNlInput(inclCentsFromExcl21(c)));
+        }}
       />
 
       <VariantBlock
@@ -273,15 +270,28 @@ export function ProductEditorForm({
         selected={adult.sizes ?? []}
         onToggle={(size, on) => setAdult({ ...adult, sizes: toggleSize(adult.sizes ?? [], size, on) })}
         purchaseStr={adultPurchase}
-        saleStr={adultSale}
         onPurchaseChange={setAdultPurchase}
-        onSaleChange={setAdultSale}
+        saleInclStr={adultSaleIncl}
+        saleExclStr={adultSaleExcl}
+        onSaleInclChange={setAdultSaleIncl}
+        onSaleExclChange={setAdultSaleExcl}
+        onSaleInclBlur={() => {
+          const c = nlInputToCents(adultSaleIncl);
+          if (Number.isFinite(c) && c >= 0) setAdultSaleExcl(centsToNlInput(exclCentsFromIncl21(c)));
+        }}
+        onSaleExclBlur={() => {
+          const c = nlInputToCents(adultSaleExcl);
+          if (Number.isFinite(c) && c >= 0) setAdultSaleIncl(centsToNlInput(inclCentsFromExcl21(c)));
+        }}
       />
 
       {showImageUpload ? (
         <label className="block md:col-span-2">
-          <span className="text-sm text-zinc-700">Hoofdfoto (optioneel)</span>
-          <input name="image" type="file" accept="image/*" className="mt-1 block w-full text-sm" />
+          <span className="text-sm text-zinc-700">Hoofdfoto (verplicht)</span>
+          <input name="image" type="file" accept="image/*" required className="mt-1 block w-full text-sm" />
+          <span className="mt-1 block text-xs text-zinc-500">
+            Extra foto&apos;s kun je daarna op de bewerkpagina toevoegen (optioneel).
+          </span>
         </label>
       ) : null}
 
@@ -302,9 +312,13 @@ function VariantBlock({
   selected,
   onToggle,
   purchaseStr,
-  saleStr,
   onPurchaseChange,
-  onSaleChange
+  saleInclStr,
+  saleExclStr,
+  onSaleInclChange,
+  onSaleExclChange,
+  onSaleInclBlur,
+  onSaleExclBlur
 }: {
   title: string;
   sizes: string[];
@@ -313,15 +327,47 @@ function VariantBlock({
   selected: string[];
   onToggle: (size: string, on: boolean) => void;
   purchaseStr: string;
-  saleStr: string;
   onPurchaseChange: (v: string) => void;
-  onSaleChange: (v: string) => void;
+  saleInclStr: string;
+  saleExclStr: string;
+  onSaleInclChange: (v: string) => void;
+  onSaleExclChange: (v: string) => void;
+  onSaleInclBlur: () => void;
+  onSaleExclBlur: () => void;
 }) {
   return (
     <div className="md:col-span-2 rounded-lg border border-zinc-200 p-4">
       <h3 className="text-sm font-semibold text-zinc-900">{title}</h3>
+
+      <div className="mt-3 rounded-lg border border-zinc-100 bg-zinc-50/80 p-3">
+        <p className="text-xs font-medium text-zinc-800">Verkoopprijs (incl. en excl. 21% btw)</p>
+        <p className="mt-0.5 text-xs text-zinc-600">Vul één van de twee velden in; het andere wordt berekend.</p>
+        <div className="mt-2 grid gap-3 sm:grid-cols-2">
+          <label className="block">
+            <span className="text-xs text-zinc-600">Verkoopprijs incl. btw (€)</span>
+            <input
+              value={saleInclStr}
+              onChange={(e) => onSaleInclChange(e.target.value)}
+              onBlur={onSaleInclBlur}
+              className="mt-1 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm"
+              placeholder="42,30"
+            />
+          </label>
+          <label className="block">
+            <span className="text-xs text-zinc-600">Verkoopprijs excl. btw (€)</span>
+            <input
+              value={saleExclStr}
+              onChange={(e) => onSaleExclChange(e.target.value)}
+              onBlur={onSaleExclBlur}
+              className="mt-1 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm"
+              placeholder="34,96"
+            />
+          </label>
+        </div>
+      </div>
+
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
-        <label className="block">
+        <label className="block sm:col-span-2">
           <span className="text-xs text-zinc-600">Inkoopprijs (€)</span>
           <input
             value={purchaseStr}
@@ -330,17 +376,8 @@ function VariantBlock({
             placeholder="0,00"
           />
         </label>
-        <label className="block">
-          <span className="text-xs text-zinc-600">Verkoopprijs variant (€ incl. btw, optioneel)</span>
-          <input
-            value={saleStr}
-            onChange={(e) => onSaleChange(e.target.value)}
-            className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
-            placeholder="Leeg = zie hoofdprijs"
-          />
-        </label>
         <label className="block sm:col-span-2">
-          <span className="text-xs text-zinc-600">Modelnummer</span>
+          <span className="text-xs text-zinc-600">Modelnummer (alleen intern — niet zichtbaar in de shop)</span>
           <input
             value={model}
             onChange={(e) => onModelChange(e.target.value)}
@@ -348,6 +385,7 @@ function VariantBlock({
           />
         </label>
       </div>
+
       <p className="mt-4 text-xs font-medium text-zinc-700">Beschikbare maten</p>
       <div className="mt-2 flex flex-wrap gap-2">
         {sizes.map((sz) => (

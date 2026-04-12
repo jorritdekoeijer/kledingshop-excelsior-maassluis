@@ -6,6 +6,7 @@ import { PublicHeader } from "@/components/shop/PublicHeader";
 import { orderedImagePaths, type ProductImageRow } from "@/lib/shop/product-images";
 import { shopDisplayPricing } from "@/lib/shop/display-pricing";
 import { normalizeProductDetails, normalizeVariantBlock } from "@/lib/shop/product-json";
+import { effectivePriceCents } from "@/lib/products/pricing";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { AddToCartButton } from "@/components/shop/AddToCartButton";
 import { ProductImageGallery } from "@/components/shop/ProductImageGallery";
@@ -21,6 +22,29 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { data } = await supabase.from("products").select("name").eq("slug", slug).eq("active", true).maybeSingle();
   if (!data) return { title: "Product" };
   return { title: `${data.name} | Kledingshop Excelsior Maassluis` };
+}
+
+function VariantPriceLines({
+  label,
+  origCents,
+  discountPercent
+}: {
+  label: string;
+  origCents: number;
+  discountPercent: number;
+}) {
+  const eff = effectivePriceCents(origCents, discountPercent);
+  const strike = discountPercent > 0 && eff < origCents;
+  return (
+    <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+      <span className="min-w-[8rem] text-sm font-medium text-zinc-700">{label}</span>
+      <div className="flex flex-wrap items-baseline gap-2">
+        {strike ? <span className="text-sm text-zinc-400 line-through">{eur(origCents)}</span> : null}
+        <span className="text-xl font-semibold text-zinc-900">{eur(eff)}</span>
+        <span className="text-xs text-zinc-500">incl. btw</span>
+      </div>
+    </div>
+  );
 }
 
 export default async function ProductDetailPage({ params }: Props) {
@@ -42,6 +66,10 @@ export default async function ProductDetailPage({ params }: Props) {
   const details = normalizeProductDetails(product.product_details);
   const youth = normalizeVariantBlock(product.variant_youth);
   const adult = normalizeVariantBlock(product.variant_adult);
+  const pct = Number(product.temporary_discount_percent ?? 0);
+
+  const youthSale = youth.sale_cents != null && youth.sale_cents >= 0 ? youth.sale_cents : null;
+  const adultSale = adult.sale_cents != null && adult.sale_cents >= 0 ? adult.sale_cents : null;
 
   return (
     <div className="flex min-h-dvh flex-col bg-white">
@@ -65,12 +93,22 @@ export default async function ProductDetailPage({ params }: Props) {
               </p>
             ) : null}
 
-            <div className="mt-4 flex flex-wrap items-baseline gap-3">
-              {pricing.showExtraDiscount ? (
-                <span className="text-lg text-zinc-400 line-through">{eur(pricing.originalCents)}</span>
+            <div className="mt-4 space-y-3">
+              {youthSale != null ? (
+                <VariantPriceLines label="Jeugd (YOUTH)" origCents={youthSale} discountPercent={pct} />
               ) : null}
-              <span className="text-2xl font-semibold text-zinc-900">{eur(pricing.effectiveCents)}</span>
-              <span className="text-sm text-zinc-500">incl. btw</span>
+              {adultSale != null ? (
+                <VariantPriceLines label="Volwassenen (ADULT)" origCents={adultSale} discountPercent={pct} />
+              ) : null}
+              {youthSale == null && adultSale == null ? (
+                <div className="flex flex-wrap items-baseline gap-3">
+                  {pricing.showExtraDiscount ? (
+                    <span className="text-lg text-zinc-400 line-through">{eur(pricing.originalCents)}</span>
+                  ) : null}
+                  <span className="text-2xl font-semibold text-zinc-900">{eur(pricing.effectiveCents)}</span>
+                  <span className="text-sm text-zinc-500">incl. btw</span>
+                </div>
+              ) : null}
             </div>
 
             <div className="mt-8">
@@ -85,49 +123,25 @@ export default async function ProductDetailPage({ params }: Props) {
               </p>
             </div>
 
-            {(youth.sizes?.length || youth.model_number || adult.sizes?.length || adult.model_number) && (
+            {(youth.sizes?.length ?? 0) > 0 || (adult.sizes?.length ?? 0) > 0 ? (
               <div className="mt-10 border-t border-zinc-200 pt-8">
-                <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-900">Maten &amp; modellen</h2>
-                <dl className="mt-4 space-y-4 text-sm text-zinc-700">
-                  {(youth.sizes?.length || youth.model_number) && (
+                <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-900">Maten</h2>
+                <dl className="mt-4 space-y-3 text-sm text-zinc-700">
+                  {(youth.sizes?.length ?? 0) > 0 ? (
                     <div>
                       <dt className="font-medium text-zinc-900">Jeugd (YOUTH)</dt>
-                      <dd className="mt-1">
-                        {youth.model_number ? (
-                          <span>
-                            Model: <span className="font-medium">{youth.model_number}</span>
-                            {youth.sizes?.length ? " · " : ""}
-                          </span>
-                        ) : null}
-                        {youth.sizes?.length ? (
-                          <span>Maten: {youth.sizes.join(", ")}</span>
-                        ) : !youth.model_number ? (
-                          <span className="text-zinc-400">—</span>
-                        ) : null}
-                      </dd>
+                      <dd className="mt-1">{youth.sizes?.join(", ")}</dd>
                     </div>
-                  )}
-                  {(adult.sizes?.length || adult.model_number) && (
+                  ) : null}
+                  {(adult.sizes?.length ?? 0) > 0 ? (
                     <div>
                       <dt className="font-medium text-zinc-900">Volwassenen (ADULT)</dt>
-                      <dd className="mt-1">
-                        {adult.model_number ? (
-                          <span>
-                            Model: <span className="font-medium">{adult.model_number}</span>
-                            {adult.sizes?.length ? " · " : ""}
-                          </span>
-                        ) : null}
-                        {adult.sizes?.length ? (
-                          <span>Maten: {adult.sizes.join(", ")}</span>
-                        ) : !adult.model_number ? (
-                          <span className="text-zinc-400">—</span>
-                        ) : null}
-                      </dd>
+                      <dd className="mt-1">{adult.sizes?.join(", ")}</dd>
                     </div>
-                  )}
+                  ) : null}
                 </dl>
               </div>
-            )}
+            ) : null}
           </div>
         </div>
 
