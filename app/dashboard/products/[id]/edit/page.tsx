@@ -10,6 +10,8 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseServiceClient } from "@/lib/supabase/service";
 import { getPublicProductImageUrl } from "@/lib/utils/supabase-storage";
 
+export const dynamic = "force-dynamic";
+
 const paramsSchema = z.object({ id: z.string().uuid() });
 
 async function updateProduct(productId: string, formData: FormData) {

@@ -69,6 +69,11 @@ export function ProductEditorForm({
     variantAdult: defaults?.variantAdult ?? emptyVariant()
   };
 
+  // Als product.category_id niet meer in de lijst staat (verwijderde categorie), geen ongeldige defaultValue:
+  // sommige browsers kunnen dan een UUID posten die niet meer in public.categories staat → FK-fout.
+  const categorySelectDefault =
+    d.categoryId && categories.some((c) => c.id === d.categoryId) ? d.categoryId : "";
+
   const [details, setDetails] = useState<ProductDetailRow[]>(d.productDetails);
   const [youth, setYouth] = useState<ProductVariantBlock>(d.variantYouth);
   const [adult, setAdult] = useState<ProductVariantBlock>(d.variantAdult);
@@ -168,7 +173,7 @@ export function ProductEditorForm({
 
       <label className="block md:col-span-2">
         <span className="text-sm text-zinc-700">Categorie</span>
-        <select name="categoryId" defaultValue={d.categoryId ?? ""} className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm">
+        <select name="categoryId" defaultValue={categorySelectDefault} className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm">
           <option value="">(geen)</option>
           {categories.map((c) => (
             <option key={c.id} value={c.id}>

@@ -7,6 +7,8 @@ import { resolveProductCategoryId } from "@/lib/dashboard/resolve-product-catego
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseServiceClient } from "@/lib/supabase/service";
 
+export const dynamic = "force-dynamic";
+
 async function createProduct(formData: FormData) {
   "use server";
   const gate = await requirePermission(permissions.products.write);
