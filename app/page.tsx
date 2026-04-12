@@ -112,24 +112,16 @@ export default async function HomePage() {
         />
         <div className="relative z-[1] mx-auto flex h-full min-h-[min(70vh,560px)] max-w-[1800px] items-end justify-end px-4 pb-12 pt-24 sm:px-6 sm:pb-16">
           <div className="max-w-md text-right text-white drop-shadow-md">
-            <p className="text-xs font-medium uppercase tracking-[0.25em] text-white/90">Excelsior</p>
-            <h1 className="mt-2 whitespace-pre-line text-3xl font-semibold leading-[1.05] tracking-tight sm:text-5xl">
+            <h1 className="whitespace-pre-line text-3xl font-semibold leading-[1.05] tracking-tight sm:text-5xl">
               {heroTitle}
             </h1>
             <p className="mt-4 text-sm leading-relaxed text-white/90 sm:text-base">{heroSubtitle}</p>
-            <div className="mt-8 flex flex-wrap items-center justify-end gap-3">
+            <div className="mt-8 flex flex-wrap items-center justify-end">
               <Link
                 href="/shop"
                 className="inline-flex min-h-[44px] items-center justify-center rounded-none bg-brand-blue px-6 py-3 text-sm font-semibold text-white transition hover:brightness-110"
               >
                 Naar het assortiment
-              </Link>
-              <Link
-                href="/login"
-                className="text-sm font-medium text-white/95 underline-offset-4 hover:underline"
-                title="Alleen voor medewerkers van de kledingcommissie"
-              >
-                Inloggen commissie
               </Link>
             </div>
           </div>
