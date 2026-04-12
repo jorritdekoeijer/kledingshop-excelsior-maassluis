@@ -1,12 +1,16 @@
 import { NextResponse } from "next/server";
-import { resolveSupabaseProjectUrl } from "@/lib/utils/supabase-project-url";
+import { parseSupabaseHttpsOrigin } from "@/lib/utils/supabase-project-url";
 
 export const runtime = "nodejs";
 
 const BUCKET = "product-images";
 
+/**
+ * Publieke Storage-URL: alleen `SUPABASE_URL` (https://…supabase.co).
+ * `SUPABASE_SERVICE_ROLE_KEY` hoort nergens in de URL; publieke objecten vereisen geen Authorization-header.
+ */
 function supabasePublicObjectUrl(pathInBucket: string): string | null {
-  const base = resolveSupabaseProjectUrl();
+  const base = parseSupabaseHttpsOrigin(process.env.SUPABASE_URL);
   if (!base) return null;
   const segments = pathInBucket
     .split("/")

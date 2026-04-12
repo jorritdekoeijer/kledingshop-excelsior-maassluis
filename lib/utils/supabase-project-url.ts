@@ -1,7 +1,6 @@
 /**
- * Bepaalt de Supabase-project-URL (https://…supabase.co).
- * JWT’s (anon/service role) beginnen met "eyJ" en worden nooit als URL gebruikt.
- * Als NEXT_PUBLIC_SUPABASE_URL per ongeluk een key is, vallen we terug op SUPABASE_URL.
+ * Valideert een Supabase-projectbasis (https://…supabase.co).
+ * JWT’s (anon/service role) beginnen met "eyJ" en mogen nooit als URL gebruikt worden.
  */
 export function parseSupabaseHttpsOrigin(raw: string | undefined | null): string | null {
   if (!raw?.trim()) return null;
@@ -14,13 +13,4 @@ export function parseSupabaseHttpsOrigin(raw: string | undefined | null): string
   } catch {
     return null;
   }
-}
-
-export function resolveSupabaseProjectUrl(): string | null {
-  const candidates = [process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_URL];
-  for (const c of candidates) {
-    const ok = parseSupabaseHttpsOrigin(c);
-    if (ok) return ok;
-  }
-  return null;
 }
