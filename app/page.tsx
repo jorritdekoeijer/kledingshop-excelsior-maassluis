@@ -11,6 +11,13 @@ import { pickPrimaryImagePath } from "@/lib/shop/product-images";
 import { getPublicProductImageUrl } from "@/lib/utils/supabase-storage";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
+/** Zelfde kleuren als eerder: `from-brand-blue via-[#061a40] to-zinc-900` */
+const HERO_GRADIENT_FALLBACK = {
+  from: "#04235a",
+  via: "#061a40",
+  to: "#18181b"
+} as const;
+
 const DEFAULT_FALLBACK_TILES: { title: string; href: string }[] = [
   { title: "Clubcollectie", href: "/shop" },
   { title: "Trainingskleding", href: "/shop" },
@@ -75,6 +82,9 @@ export default async function HomePage() {
   const heroTitle = hp.heroTitle.trim() || fb.heroTitle;
   const heroSubtitle = hp.heroSubtitle.trim() || fb.heroSubtitle;
   const heroBannerUrl = getPublicProductImageUrl(hp.heroBannerPath ?? null);
+  const gradMid = hp.heroGradientMidStopPercent;
+  const heroOverlayGradient = `linear-gradient(to bottom right, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0.55) ${gradMid}%, rgba(0,0,0,0.8) 100%)`;
+  const heroFallbackGradient = `linear-gradient(to bottom right, ${HERO_GRADIENT_FALLBACK.from} 0%, ${HERO_GRADIENT_FALLBACK.via} ${gradMid}%, ${HERO_GRADIENT_FALLBACK.to} 100%)`;
 
   return (
     <div className="flex min-h-dvh flex-col bg-white">
@@ -90,14 +100,11 @@ export default async function HomePage() {
               alt=""
               className="absolute inset-0 h-full w-full object-cover"
             />
-            <div className="absolute inset-0 bg-gradient-to-br from-black/75 via-black/55 to-black/80" aria-hidden />
+            <div className="absolute inset-0" style={{ background: heroOverlayGradient }} aria-hidden />
           </>
         ) : (
           <>
-            <div
-              className="absolute inset-0 bg-gradient-to-br from-brand-blue via-[#061a40] to-zinc-900"
-              aria-hidden
-            />
+            <div className="absolute inset-0" style={{ background: heroFallbackGradient }} aria-hidden />
             <div
               className="absolute inset-0 opacity-[0.12] mix-blend-overlay"
               style={{

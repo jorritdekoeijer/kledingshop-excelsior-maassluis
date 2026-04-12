@@ -16,6 +16,17 @@ const tileSchema = z.object({
   imagePath: optionalStoragePath
 });
 
+/** Positie van de middelste gradientstop (0–100), voor `linear-gradient` (middenkleur). */
+const gradientMidPercent = z.preprocess(
+  (v) => {
+    if (v === undefined || v === null || v === "") return 50;
+    const n = typeof v === "string" ? parseFloat(v) : Number(v);
+    if (Number.isNaN(n)) return 50;
+    return Math.min(100, Math.max(0, Math.round(n)));
+  },
+  z.number().int().min(0).max(100)
+);
+
 export const homepageSettingsSchema = z.object({
   bannerLine1: z.string().max(280).default(""),
   bannerLine2: z.string().max(280).default(""),
@@ -28,6 +39,8 @@ export const homepageSettingsSchema = z.object({
   /** Meerdere regels mogelijk (whitespace-pre-line) */
   heroTitle: z.string().max(400).default(""),
   heroSubtitle: z.string().max(500).default(""),
+  /** Middenstop van de hero-gradient (overlay op foto én fallback zonder foto). */
+  heroGradientMidStopPercent: gradientMidPercent.default(50),
   /** Vier tegels onder de hero */
   tiles: z.array(tileSchema).length(4).default(() => [
     { imagePath: null, categoryId: null },
@@ -68,6 +81,7 @@ function normalizeHomepageRaw(raw: Record<string, unknown>): Record<string, unkn
     bannerEnabled1: raw.bannerEnabled1 ?? raw.banner_enabled1,
     bannerEnabled2: raw.bannerEnabled2 ?? raw.banner_enabled2,
     bannerEnabled3: raw.bannerEnabled3 ?? raw.banner_enabled3,
+    heroGradientMidStopPercent: raw.heroGradientMidStopPercent ?? raw.hero_gradient_mid_stop_percent,
     tiles: normalizeTiles(raw.tiles)
   };
 }
@@ -86,7 +100,11 @@ export function parseHomepageSettings(raw: unknown): HomepageSettings {
     heroSubtitle: typeof base.heroSubtitle === "string" ? base.heroSubtitle : "",
     bannerLine1: typeof base.bannerLine1 === "string" ? base.bannerLine1 : "",
     bannerLine2: typeof base.bannerLine2 === "string" ? base.bannerLine2 : "",
-    bannerLine3: typeof base.bannerLine3 === "string" ? base.bannerLine3 : ""
+    bannerLine3: typeof base.bannerLine3 === "string" ? base.bannerLine3 : "",
+    heroGradientMidStopPercent:
+      typeof base.heroGradientMidStopPercent === "number"
+        ? base.heroGradientMidStopPercent
+        : undefined
   });
   if (loose.success) return loose.data;
   return homepageSettingsSchema.parse({});

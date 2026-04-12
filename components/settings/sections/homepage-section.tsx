@@ -123,6 +123,31 @@ export async function HomepageSettingsSection({
           </section>
 
           <section className="space-y-3">
+            <h2 className="text-sm font-semibold text-zinc-900">Hero-gradient</h2>
+            <p className="text-xs text-zinc-600">
+              Positie van de middelste kleur in de diagonale gradient (0% = meer naar linkboven, 100% = meer naar
+              rechtsonder). Geldt voor de donkere laag over een achtergrondfoto én voor de gradient zonder foto.
+            </p>
+            <div className="flex max-w-xl flex-col gap-2 sm:flex-row sm:items-center">
+              <input
+                type="range"
+                name="heroGradientMidStopPercent"
+                min={0}
+                max={100}
+                step={1}
+                defaultValue={config.heroGradientMidStopPercent}
+                className="h-2 w-full cursor-pointer accent-brand-blue"
+              />
+              <span className="shrink-0 text-sm tabular-nums text-zinc-700">
+                {config.heroGradientMidStopPercent}% middenstop
+              </span>
+            </div>
+            <p className="text-xs text-zinc-500">
+              Na opslaan zie je de nieuwe waarde hier; sleep de schuifregelaar en klik op &quot;Homepage opslaan&quot;.
+            </p>
+          </section>
+
+          <section className="space-y-3">
             <h2 className="text-sm font-semibold text-zinc-900">Hoofdtitel en ondertitel</h2>
             <label className="block text-sm">
               <span className="text-zinc-700">Titel (meerdere regels met Enter)</span>

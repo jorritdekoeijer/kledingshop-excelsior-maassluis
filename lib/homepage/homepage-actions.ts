@@ -60,6 +60,11 @@ export async function saveHomepageSettings(formData: FormData) {
 
   const heroTitle = String(formData.get("heroTitle") ?? "").trim().slice(0, 400);
   const heroSubtitle = String(formData.get("heroSubtitle") ?? "").trim().slice(0, 500);
+  const heroGradientMidRaw = String(formData.get("heroGradientMidStopPercent") ?? "").trim();
+  const heroGradientMidStopPercent = Math.min(
+    100,
+    Math.max(0, Math.round(Number.parseFloat(heroGradientMidRaw) || 50))
+  );
 
   let logoPath = prev.logoPath ?? null;
   if (formData.get("clearLogo") === "on") {
@@ -117,6 +122,7 @@ export async function saveHomepageSettings(formData: FormData) {
     heroBannerPath,
     heroTitle,
     heroSubtitle,
+    heroGradientMidStopPercent,
     tiles
   });
 
