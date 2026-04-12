@@ -3,7 +3,8 @@ import { getSiteUrl } from "@/lib/checkout/site-url";
 import { mollieCreatePayment } from "@/lib/mollie/client";
 import { getSettingService } from "@/lib/settings-service";
 import { createSupabaseServiceClient } from "@/lib/supabase/service";
-import { effectivePriceCents } from "@/lib/products/pricing";
+import { orderUnitPriceCentsFromProductRow } from "@/lib/checkout/order-unit-price";
+import { lineSizeAllowed } from "@/lib/checkout/validate-line-size";
 import { checkoutRequestSchema } from "@/lib/validation/checkout";
 import { mollieSettingsSchema } from "@/lib/validation/settings";
 
@@ -18,12 +19,22 @@ async function availableStock(
   return (data ?? []).reduce((s, r) => s + (r.quantity_remaining ?? 0), 0);
 }
 
-function mergeLines(items: { productId: string; quantity: number }[]) {
-  const m = new Map<string, number>();
+type CheckoutLine = {
+  productId: string;
+  quantity: number;
+  variant?: "youth" | "adult";
+  size?: string;
+};
+
+function mergeCheckoutLines(items: CheckoutLine[]): CheckoutLine[] {
+  const m = new Map<string, CheckoutLine>();
   for (const it of items) {
-    m.set(it.productId, (m.get(it.productId) ?? 0) + it.quantity);
+    const key = `${it.productId}\u0001${it.variant ?? ""}\u0001${it.size ?? ""}`;
+    const prev = m.get(key);
+    if (prev) prev.quantity += it.quantity;
+    else m.set(key, { ...it });
   }
-  return [...m.entries()].map(([productId, quantity]) => ({ productId, quantity }));
+  return [...m.values()];
 }
 
 export async function POST(request: Request) {
@@ -45,13 +56,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Mollie is niet geconfigureerd in het dashboard." }, { status: 503 });
   }
 
-  const lines = mergeLines(parsed.data.items);
+  const lines = mergeCheckoutLines(parsed.data.items);
   const svc = createSupabaseServiceClient();
 
-  const productIds = lines.map((l) => l.productId);
+  const productIds = [...new Set(lines.map((l) => l.productId))];
   const { data: products, error: pe } = await svc
     .from("products")
-    .select("id,price_cents,temporary_discount_percent,active")
+    .select("id,price_cents,temporary_discount_percent,active,variant_youth,variant_adult")
     .in("id", productIds);
   if (pe) return NextResponse.json({ error: pe.message }, { status: 500 });
 
@@ -63,9 +74,12 @@ export async function POST(request: Request) {
     }
   }
 
+  const needByProduct = new Map<string, number>();
   for (const line of lines) {
-    const need = line.quantity;
-    const have = await availableStock(svc, line.productId);
+    needByProduct.set(line.productId, (needByProduct.get(line.productId) ?? 0) + line.quantity);
+  }
+  for (const [productId, need] of needByProduct) {
+    const have = await availableStock(svc, productId);
     if (have < need) {
       return NextResponse.json(
         { error: "Niet genoeg voorraad voor alle gekozen hoeveelheden. Pas je winkelmand aan." },
@@ -84,8 +98,21 @@ export async function POST(request: Request) {
 
   for (const line of lines) {
     const p = byId.get(line.productId)!;
-    const discount = Number(p.temporary_discount_percent ?? 0);
-    const unit = effectivePriceCents(p.price_cents, discount);
+    if (
+      !lineSizeAllowed(line.variant, line.size, p.variant_youth as unknown, p.variant_adult as unknown)
+    ) {
+      return NextResponse.json(
+        { error: "Ongeldige maat voor een of meer productregels. Pas je winkelmand aan." },
+        { status: 400 }
+      );
+    }
+    const unit = orderUnitPriceCentsFromProductRow({
+      price_cents: p.price_cents,
+      temporary_discount_percent: p.temporary_discount_percent,
+      variant_youth: p.variant_youth,
+      variant_adult: p.variant_adult,
+      variant: line.variant
+    });
     const lineTotal = unit * line.quantity;
     totalCents += lineTotal;
     orderLines.push({

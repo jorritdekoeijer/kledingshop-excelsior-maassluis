@@ -1,15 +1,14 @@
 import { z } from "zod";
 
+const checkoutItemSchema = z.object({
+  productId: z.string().uuid(),
+  quantity: z.number().int().min(1).max(99),
+  variant: z.enum(["youth", "adult"]).optional(),
+  size: z.string().max(32).optional()
+});
+
 export const checkoutRequestSchema = z.object({
-  items: z
-    .array(
-      z.object({
-        productId: z.string().uuid(),
-        quantity: z.number().int().min(1).max(99)
-      })
-    )
-    .min(1)
-    .max(50),
+  items: z.array(checkoutItemSchema).min(1).max(50),
   guestEmail: z.string().email(),
   guestName: z.string().min(1).max(200).trim(),
   guestPhone: z.string().max(40).optional(),

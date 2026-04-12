@@ -31,7 +31,7 @@ export function CartView() {
     <div className="space-y-6">
       <ul className="divide-y divide-zinc-200 rounded-lg border border-zinc-200 bg-white">
         {lines.map((l) => (
-          <li key={l.productId} className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <li key={l.lineId} className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <Link href={`/shop/${l.slug}`} className="font-medium text-brand-blue hover:underline">
                 {l.name}
@@ -48,7 +48,7 @@ export function CartView() {
                   value={l.quantity}
                   onChange={(e) => {
                     const n = Number(e.target.value);
-                    if (Number.isFinite(n)) setQuantity(l.productId, Math.floor(n));
+                    if (Number.isFinite(n)) setQuantity(l.lineId, Math.floor(n));
                   }}
                   className="w-16 rounded-md border border-zinc-300 px-2 py-1 text-sm"
                 />
@@ -56,7 +56,7 @@ export function CartView() {
               <span className="text-sm font-medium">{eur(l.priceCents * l.quantity)}</span>
               <button
                 type="button"
-                onClick={() => removeLine(l.productId)}
+                onClick={() => removeLine(l.lineId)}
                 className="text-sm text-red-700 hover:underline"
               >
                 Verwijderen

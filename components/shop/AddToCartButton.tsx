@@ -20,7 +20,7 @@ export function AddToCartButton({ productId, name, slug, priceCents }: Props) {
       <button
         type="button"
         onClick={() => {
-          addLine({ productId, name, slug, priceCents, quantity: 1 });
+          addLine({ lineId: productId, productId, name, slug, priceCents, quantity: 1 });
           setDone(true);
           window.setTimeout(() => setDone(false), 2000);
         }}

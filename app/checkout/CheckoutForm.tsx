@@ -23,7 +23,12 @@ export function CheckoutForm() {
     setError(null);
     setSubmitting(true);
     const fd = new FormData(e.currentTarget);
-    const items = lines.map((l) => ({ productId: l.productId, quantity: l.quantity }));
+    const items = lines.map((l) => ({
+      productId: l.productId,
+      quantity: l.quantity,
+      variant: l.variant,
+      size: l.sizeLabel
+    }));
     const body = {
       items,
       guestEmail: String(fd.get("guestEmail") ?? "").trim(),
