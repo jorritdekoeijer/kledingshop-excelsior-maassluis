@@ -73,9 +73,6 @@ export function ProductEditorForm({
   const [youth, setYouth] = useState<ProductVariantBlock>(d.variantYouth);
   const [adult, setAdult] = useState<ProductVariantBlock>(d.variantAdult);
 
-  const [youthPurchase, setYouthPurchase] = useState(() => centsToOptionalNl(d.variantYouth.purchase_cents));
-  const [adultPurchase, setAdultPurchase] = useState(() => centsToOptionalNl(d.variantAdult.purchase_cents));
-
   const [youthSaleIncl, setYouthSaleIncl] = useState(() => centsToOptionalNl(d.variantYouth.sale_cents));
   const [youthSaleExcl, setYouthSaleExcl] = useState(() => saleExclFromInclCents(d.variantYouth.sale_cents ?? null));
 
@@ -93,7 +90,6 @@ export function ProductEditorForm({
   );
 
   const variantYouthJson = useMemo(() => {
-    const purchase_cents = nlInputToCents(youthPurchase) || null;
     const sale_cents =
       youthSaleIncl.trim().length > 0
         ? (() => {
@@ -103,13 +99,12 @@ export function ProductEditorForm({
         : null;
     return JSON.stringify({
       ...youth,
-      purchase_cents: youthPurchase.trim() ? purchase_cents : null,
+      purchase_cents: null,
       sale_cents
     });
-  }, [youth, youthPurchase, youthSaleIncl]);
+  }, [youth, youthSaleIncl]);
 
   const variantAdultJson = useMemo(() => {
-    const purchase_cents = nlInputToCents(adultPurchase) || null;
     const sale_cents =
       adultSaleIncl.trim().length > 0
         ? (() => {
@@ -119,10 +114,10 @@ export function ProductEditorForm({
         : null;
     return JSON.stringify({
       ...adult,
-      purchase_cents: adultPurchase.trim() ? purchase_cents : null,
+      purchase_cents: null,
       sale_cents
     });
-  }, [adult, adultPurchase, adultSaleIncl]);
+  }, [adult, adultSaleIncl]);
 
   function toggleSize(list: string[], size: string, on: boolean): string[] {
     const s = new Set(list);
@@ -246,8 +241,6 @@ export function ProductEditorForm({
         onModelChange={(v) => setYouth({ ...youth, model_number: v })}
         selected={youth.sizes ?? []}
         onToggle={(size, on) => setYouth({ ...youth, sizes: toggleSize(youth.sizes ?? [], size, on) })}
-        purchaseStr={youthPurchase}
-        onPurchaseChange={setYouthPurchase}
         saleInclStr={youthSaleIncl}
         saleExclStr={youthSaleExcl}
         onSaleInclChange={setYouthSaleIncl}
@@ -269,8 +262,6 @@ export function ProductEditorForm({
         onModelChange={(v) => setAdult({ ...adult, model_number: v })}
         selected={adult.sizes ?? []}
         onToggle={(size, on) => setAdult({ ...adult, sizes: toggleSize(adult.sizes ?? [], size, on) })}
-        purchaseStr={adultPurchase}
-        onPurchaseChange={setAdultPurchase}
         saleInclStr={adultSaleIncl}
         saleExclStr={adultSaleExcl}
         onSaleInclChange={setAdultSaleIncl}
@@ -311,8 +302,6 @@ function VariantBlock({
   onModelChange,
   selected,
   onToggle,
-  purchaseStr,
-  onPurchaseChange,
   saleInclStr,
   saleExclStr,
   onSaleInclChange,
@@ -326,8 +315,6 @@ function VariantBlock({
   onModelChange: (v: string) => void;
   selected: string[];
   onToggle: (size: string, on: boolean) => void;
-  purchaseStr: string;
-  onPurchaseChange: (v: string) => void;
   saleInclStr: string;
   saleExclStr: string;
   onSaleInclChange: (v: string) => void;
@@ -366,25 +353,14 @@ function VariantBlock({
         </div>
       </div>
 
-      <div className="mt-3 grid gap-3 sm:grid-cols-2">
-        <label className="block sm:col-span-2">
-          <span className="text-xs text-zinc-600">Inkoopprijs (€)</span>
-          <input
-            value={purchaseStr}
-            onChange={(e) => onPurchaseChange(e.target.value)}
-            className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
-            placeholder="0,00"
-          />
-        </label>
-        <label className="block sm:col-span-2">
-          <span className="text-xs text-zinc-600">Modelnummer (alleen intern — niet zichtbaar in de shop)</span>
-          <input
-            value={model}
-            onChange={(e) => onModelChange(e.target.value)}
-            className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
-          />
-        </label>
-      </div>
+      <label className="mt-3 block">
+        <span className="text-xs text-zinc-600">Modelnummer (alleen intern — niet zichtbaar in de shop)</span>
+        <input
+          value={model}
+          onChange={(e) => onModelChange(e.target.value)}
+          className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
+        />
+      </label>
 
       <p className="mt-4 text-xs font-medium text-zinc-700">Beschikbare maten</p>
       <div className="mt-2 flex flex-wrap gap-2">
