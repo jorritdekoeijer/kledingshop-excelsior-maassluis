@@ -35,7 +35,7 @@ export const productUpsertSchema = z.object({
     (v) => v === "on" || v === true || v === "true",
     z.boolean()
   ),
-  categoryId: z.string().uuid().optional().nullable(),
+  categoryId: z.string().min(1, "Kies een categorie.").uuid("Kies een geldige categorie."),
   productDetails: z.array(productDetailRowSchema).max(40).default([]),
   variantYouth: productVariantBlockSchema,
   variantAdult: productVariantBlockSchema

@@ -70,7 +70,7 @@ export function parseProductUpsertFormData(formData: FormData): ProductFormParse
     priceCents,
     temporaryDiscountPercent,
     active: formData.get("active"),
-    categoryId: cid.length ? cid : null,
+    categoryId: cid,
     productDetails,
     variantYouth,
     variantAdult

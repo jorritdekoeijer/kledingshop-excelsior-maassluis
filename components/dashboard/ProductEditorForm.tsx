@@ -69,10 +69,11 @@ export function ProductEditorForm({
     variantAdult: defaults?.variantAdult ?? emptyVariant()
   };
 
-  // Als product.category_id niet meer in de lijst staat (verwijderde categorie), geen ongeldige defaultValue:
-  // sommige browsers kunnen dan een UUID posten die niet meer in public.categories staat → FK-fout.
+  // Verplichte categorie: alleen een id uit de huidige lijst als default; anders eerste optie (nooit leeg als er categorieën zijn).
   const categorySelectDefault =
-    d.categoryId && categories.some((c) => c.id === d.categoryId) ? d.categoryId : "";
+    d.categoryId && categories.some((c) => c.id === d.categoryId)
+      ? d.categoryId
+      : (categories[0]?.id ?? "");
 
   const [details, setDetails] = useState<ProductDetailRow[]>(d.productDetails);
   const [youth, setYouth] = useState<ProductVariantBlock>(d.variantYouth);
@@ -172,15 +173,25 @@ export function ProductEditorForm({
       </div>
 
       <label className="block md:col-span-2">
-        <span className="text-sm text-zinc-700">Categorie</span>
-        <select name="categoryId" defaultValue={categorySelectDefault} className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm">
-          <option value="">(geen)</option>
-          {categories.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </select>
+        <span className="text-sm text-zinc-700">Categorie (verplicht)</span>
+        {categories.length === 0 ? (
+          <p className="mt-1 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+            Er zijn nog geen categorieën. Maak eerst categorieën aan onder Dashboard → Producten → Categorieën (of voer de seed-migratie uit), daarna kun je een product opslaan.
+          </p>
+        ) : (
+          <select
+            name="categoryId"
+            defaultValue={categorySelectDefault}
+            required
+            className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
+          >
+            {categories.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        )}
       </label>
 
       <label className="block md:col-span-2">
@@ -292,7 +303,11 @@ export function ProductEditorForm({
       ) : null}
 
       <div className="md:col-span-2">
-        <button className="rounded-md bg-brand-blue px-4 py-2.5 text-sm font-medium text-white" type="submit">
+        <button
+          className="rounded-md bg-brand-blue px-4 py-2.5 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+          type="submit"
+          disabled={categories.length === 0}
+        >
           Opslaan
         </button>
       </div>
