@@ -35,7 +35,6 @@ async function createProduct(formData: FormData) {
       temporary_discount_percent: d.temporaryDiscountPercent,
       active: d.active,
       category_id: d.categoryId,
-      cost_group_id: null,
       product_details: d.productDetails,
       variant_youth: d.variantYouth,
       variant_adult: d.variantAdult
