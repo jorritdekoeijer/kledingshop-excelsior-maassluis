@@ -6,6 +6,7 @@ import { ProductCard } from "@/components/shop/ProductCard";
 import { ShopSearchBar } from "@/components/shop/ShopSearchBar";
 import { shopDisplayPricing } from "@/lib/shop/display-pricing";
 import { pickPrimaryImagePath } from "@/lib/shop/product-images";
+import { PUBLIC_PRODUCT_CATEGORIES_TABLE } from "@/lib/db/public-tables";
 import { normalizeSearchQuery } from "@/lib/shop/search";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -37,7 +38,7 @@ export default async function ShopPage({
   let categoryId: string | null = null;
   let categoryName: string | null = null;
   if (categorySlug) {
-    const { data: cat } = await supabase.from("categories").select("id,name").eq("slug", categorySlug).maybeSingle();
+    const { data: cat } = await supabase.from(PUBLIC_PRODUCT_CATEGORIES_TABLE).select("id,name").eq("slug", categorySlug).maybeSingle();
     if (cat) {
       categoryId = cat.id;
       categoryName = cat.name;

@@ -1,3 +1,4 @@
+import { PUBLIC_PRODUCT_CATEGORIES_TABLE } from "@/lib/db/public-tables";
 import { createSupabaseServiceClient } from "@/lib/supabase/service";
 
 type ServiceClient = ReturnType<typeof createSupabaseServiceClient>;
@@ -13,7 +14,11 @@ export async function resolveProductCategoryId(
     return { ok: false, message: "Kies een categorie." };
   }
 
-  const { data, error } = await service.from("categories").select("id").eq("id", categoryId).maybeSingle();
+  const { data, error } = await service
+    .from(PUBLIC_PRODUCT_CATEGORIES_TABLE)
+    .select("id")
+    .eq("id", categoryId)
+    .maybeSingle();
 
   if (error) {
     return { ok: false, message: `Categorie kon niet gecontroleerd worden: ${error.message}` };

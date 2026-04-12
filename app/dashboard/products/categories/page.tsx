@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { requirePermission } from "@/lib/auth/permissions-server";
 import { permissions } from "@/lib/auth/permissions";
+import { PUBLIC_PRODUCT_CATEGORIES_TABLE } from "@/lib/db/public-tables";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseServiceClient } from "@/lib/supabase/service";
 import { slugify } from "@/lib/utils/slugify";
@@ -27,7 +28,7 @@ async function createCategory(formData: FormData) {
 
   const slug = slugify(parsed.data.slug ? parsed.data.slug : parsed.data.name);
   const supabase = createSupabaseServiceClient();
-  const { error } = await supabase.from("categories").insert({ name: parsed.data.name, slug });
+  const { error } = await supabase.from(PUBLIC_PRODUCT_CATEGORIES_TABLE).insert({ name: parsed.data.name, slug });
   if (error) redirect(`/dashboard/products/categories?error=${encodeURIComponent(error.message)}`);
 
   redirect("/dashboard/products/categories?ok=1");
@@ -46,7 +47,10 @@ async function updateCategory(formData: FormData) {
   if (!parsed.success) redirect("/dashboard/products/categories?error=Invalid");
 
   const supabase = createSupabaseServiceClient();
-  const { error } = await supabase.from("categories").update({ name: parsed.data.name, slug: parsed.data.slug }).eq("id", parsed.data.id);
+  const { error } = await supabase
+    .from(PUBLIC_PRODUCT_CATEGORIES_TABLE)
+    .update({ name: parsed.data.name, slug: parsed.data.slug })
+    .eq("id", parsed.data.id);
   if (error) redirect(`/dashboard/products/categories?error=${encodeURIComponent(error.message)}`);
 
   redirect("/dashboard/products/categories?ok=1");
@@ -61,7 +65,7 @@ async function deleteCategory(formData: FormData) {
   if (!parsed.success) redirect("/dashboard/products/categories?error=Invalid");
 
   const supabase = createSupabaseServiceClient();
-  const { error } = await supabase.from("categories").delete().eq("id", parsed.data.id);
+  const { error } = await supabase.from(PUBLIC_PRODUCT_CATEGORIES_TABLE).delete().eq("id", parsed.data.id);
   if (error) redirect(`/dashboard/products/categories?error=${encodeURIComponent(error.message)}`);
 
   redirect("/dashboard/products/categories?ok=1");
@@ -80,7 +84,10 @@ export default async function CategoriesPage({
   const error = typeof sp.error === "string" ? sp.error : "";
 
   const supabase = await createSupabaseServerClient();
-  const { data: categories } = await supabase.from("categories").select("id,name,slug,created_at").order("created_at");
+  const { data: categories } = await supabase
+    .from(PUBLIC_PRODUCT_CATEGORIES_TABLE)
+    .select("id,name,slug,created_at")
+    .order("created_at");
 
   return (
     <div className="space-y-4">

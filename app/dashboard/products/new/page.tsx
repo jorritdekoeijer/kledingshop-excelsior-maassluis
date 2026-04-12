@@ -5,6 +5,7 @@ import { permissions } from "@/lib/auth/permissions";
 import { productParsedToInsertRow } from "@/lib/dashboard/product-db-row";
 import { parseProductUpsertFormData } from "@/lib/dashboard/product-form-parse";
 import { resolveProductCategoryId } from "@/lib/dashboard/resolve-product-category-id";
+import { PUBLIC_PRODUCT_CATEGORIES_TABLE } from "@/lib/db/public-tables";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { formatPostgrestError } from "@/lib/supabase/format-postgrest-error";
 import { createSupabaseServiceClient } from "@/lib/supabase/service";
@@ -69,7 +70,10 @@ export default async function NewProductPage({
   const error = typeof sp.error === "string" ? sp.error : "";
 
   const supabase = await createSupabaseServerClient();
-  const { data: categories } = await supabase.from("categories").select("id,name").order("name");
+  const { data: categories } = await supabase
+    .from(PUBLIC_PRODUCT_CATEGORIES_TABLE)
+    .select("id,name")
+    .order("name");
 
   return (
     <div className="rounded-lg border border-zinc-200 bg-white p-6">

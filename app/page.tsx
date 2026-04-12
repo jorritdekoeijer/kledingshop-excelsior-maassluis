@@ -10,6 +10,7 @@ import { HOMEPAGE_FALLBACK, loadHomepageSettings } from "@/lib/homepage/load-pub
 import { shopDisplayPricing } from "@/lib/shop/display-pricing";
 import { pickPrimaryImagePath } from "@/lib/shop/product-images";
 import { getPublicProductImageUrl } from "@/lib/utils/supabase-storage";
+import { PUBLIC_PRODUCT_CATEGORIES_TABLE } from "@/lib/db/public-tables";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 /** Zelfde kleuren als eerder: `from-brand-blue via-[#061a40] to-zinc-900` */
@@ -45,7 +46,10 @@ export default async function HomePage() {
   const tileCategoryIds = hp.tiles.map((t) => t.categoryId).filter((id): id is string => !!id);
   let tileCategoryRows: { id: string; name: string; slug: string }[] = [];
   if (tileCategoryIds.length > 0) {
-    const { data } = await supabase.from("categories").select("id,name,slug").in("id", tileCategoryIds);
+    const { data } = await supabase
+      .from(PUBLIC_PRODUCT_CATEGORIES_TABLE)
+      .select("id,name,slug")
+      .in("id", tileCategoryIds);
     tileCategoryRows = data ?? [];
   }
   const tileCatMap = new Map(tileCategoryRows.map((c) => [c.id, c]));

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { saveHomepageSettings } from "@/lib/homepage/homepage-actions";
 import type { SettingsSectionBase } from "@/lib/settings/settings-base";
+import { PUBLIC_PRODUCT_CATEGORIES_TABLE } from "@/lib/db/public-tables";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getPublicProductImageUrl } from "@/lib/utils/supabase-storage";
 import type { HomepageSettings } from "@/lib/validation/homepage";
@@ -238,6 +239,6 @@ export async function HomepageSettingsSection({
 
 export async function loadCategoriesForHomepageSettings(): Promise<Cat[]> {
   const supabase = await createSupabaseServerClient();
-  const { data } = await supabase.from("categories").select("id,name,slug").order("name");
+  const { data } = await supabase.from(PUBLIC_PRODUCT_CATEGORIES_TABLE).select("id,name,slug").order("name");
   return (data ?? []) as Cat[];
 }

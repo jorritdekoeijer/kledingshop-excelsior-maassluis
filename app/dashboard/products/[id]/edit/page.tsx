@@ -7,6 +7,7 @@ import { resolveProductCategoryId } from "@/lib/dashboard/resolve-product-catego
 import { normalizeProductDetails, normalizeVariantBlock } from "@/lib/shop/product-json";
 import { requirePermission } from "@/lib/auth/permissions-server";
 import { permissions } from "@/lib/auth/permissions";
+import { PUBLIC_PRODUCT_CATEGORIES_TABLE } from "@/lib/db/public-tables";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { formatPostgrestError } from "@/lib/supabase/format-postgrest-error";
 import { createSupabaseServiceClient } from "@/lib/supabase/service";
@@ -176,7 +177,10 @@ export default async function EditProductPage({
     .order("sort_order", { ascending: true })
     .order("created_at", { ascending: true });
 
-  const { data: categories } = await supabase.from("categories").select("id,name").order("name");
+  const { data: categories } = await supabase
+    .from(PUBLIC_PRODUCT_CATEGORIES_TABLE)
+    .select("id,name")
+    .order("name");
 
   const primaryImg = (images ?? []).find((i) => i.is_primary) ?? null;
   const img = getPublicProductImageUrl(primaryImg?.path);
