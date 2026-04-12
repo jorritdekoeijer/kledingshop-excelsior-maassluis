@@ -1,4 +1,7 @@
 import Link from "next/link";
+
+/** Geen statische snapshot met lege homepage bij build — logo/banner komen uit DB. */
+export const dynamic = "force-dynamic";
 import { AnnouncementBar } from "@/components/shop/AnnouncementBar";
 import { CompactProductCard } from "@/components/shop/CompactProductCard";
 import { PublicFooter } from "@/components/shop/PublicFooter";
