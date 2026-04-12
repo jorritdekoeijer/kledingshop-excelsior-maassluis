@@ -1,17 +1,18 @@
 import { NextResponse } from "next/server";
+import { resolveSupabaseProjectUrl } from "@/lib/utils/supabase-project-url";
 
 export const runtime = "nodejs";
 
 const BUCKET = "product-images";
 
 function supabasePublicObjectUrl(pathInBucket: string): string | null {
-  const base = process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL;
+  const base = resolveSupabaseProjectUrl();
   if (!base) return null;
   const segments = pathInBucket
     .split("/")
     .filter(Boolean)
     .map((s) => encodeURIComponent(s));
-  return `${base.replace(/\/$/, "")}/storage/v1/object/public/${BUCKET}/${segments.join("/")}`;
+  return `${base}/storage/v1/object/public/${BUCKET}/${segments.join("/")}`;
 }
 
 /**
