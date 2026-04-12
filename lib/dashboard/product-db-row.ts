@@ -33,9 +33,15 @@ export function productParsedToDbRow(d: ProductUpsertParsed) {
   };
 }
 
+/**
+ * Nieuwe rij: expliciet `image_paths` meegeven (`text[]` NOT NULL, default `'{}'` in DB).
+ * Zonder deze sleutel kan PostgREST in sommige setups `null` sturen waardoor de insert faalt.
+ * Bij updates geen `image_paths` zetten — bestaande paden niet wissen (foto's staan in `product_images`).
+ */
 export function productParsedToInsertRow(d: ProductUpsertParsed, categoryId: string) {
   return {
     ...productParsedToDbRow(d),
-    category_id: categoryId
+    category_id: categoryId,
+    image_paths: [] as string[]
   };
 }
