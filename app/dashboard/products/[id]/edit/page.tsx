@@ -8,6 +8,7 @@ import { normalizeProductDetails, normalizeVariantBlock } from "@/lib/shop/produ
 import { requirePermission } from "@/lib/auth/permissions-server";
 import { permissions } from "@/lib/auth/permissions";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { formatPostgrestError } from "@/lib/supabase/format-postgrest-error";
 import { createSupabaseServiceClient } from "@/lib/supabase/service";
 import { getPublicProductImageUrl } from "@/lib/utils/supabase-storage";
 
@@ -32,7 +33,9 @@ async function updateProduct(productId: string, formData: FormData) {
     .from("product_images")
     .select("*", { count: "exact", head: true })
     .eq("product_id", productId);
-  if (imgCountErr) redirect(`/dashboard/products/${productId}/edit?error=${encodeURIComponent(imgCountErr.message)}`);
+  if (imgCountErr) {
+    redirect(`/dashboard/products/${productId}/edit?error=${encodeURIComponent(formatPostgrestError(imgCountErr))}`);
+  }
   if (!imageCount || imageCount < 1) {
     redirect(
       `/dashboard/products/${productId}/edit?error=${encodeURIComponent("Er moet minstens één productfoto zijn. Upload eerst een hoofdfoto bij Afbeeldingen.")}`
@@ -51,7 +54,9 @@ async function updateProduct(productId: string, formData: FormData) {
       category_id: cat.category_id
     })
     .eq("id", productId);
-  if (error) redirect(`/dashboard/products/${productId}/edit?error=${encodeURIComponent(error.message)}`);
+  if (error) {
+    redirect(`/dashboard/products/${productId}/edit?error=${encodeURIComponent(formatPostgrestError(error))}`);
+  }
 
   redirect(`/dashboard/products/${productId}/edit?ok=1`);
 }
@@ -100,7 +105,9 @@ async function setPrimaryImage(productId: string, formData: FormData) {
   const service = createSupabaseServiceClient();
   await service.from("product_images").update({ is_primary: false }).eq("product_id", productId);
   const { error } = await service.from("product_images").update({ is_primary: true }).eq("id", imageId).eq("product_id", productId);
-  if (error) redirect(`/dashboard/products/${productId}/edit?error=${encodeURIComponent(error.message)}`);
+  if (error) {
+    redirect(`/dashboard/products/${productId}/edit?error=${encodeURIComponent(formatPostgrestError(error))}`);
+  }
 
   redirect(`/dashboard/products/${productId}/edit?ok=1`);
 }
@@ -126,7 +133,9 @@ async function deleteImage(productId: string, formData: FormData) {
   }
 
   const { error } = await service.from("product_images").delete().eq("id", imageId).eq("product_id", productId);
-  if (error) redirect(`/dashboard/products/${productId}/edit?error=${encodeURIComponent(error.message)}`);
+  if (error) {
+    redirect(`/dashboard/products/${productId}/edit?error=${encodeURIComponent(formatPostgrestError(error))}`);
+  }
 
   await service.storage.from("product-images").remove([path]);
 

@@ -6,6 +6,7 @@ import { productParsedToInsertRow } from "@/lib/dashboard/product-db-row";
 import { parseProductUpsertFormData } from "@/lib/dashboard/product-form-parse";
 import { resolveProductCategoryId } from "@/lib/dashboard/resolve-product-category-id";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { formatPostgrestError } from "@/lib/supabase/format-postgrest-error";
 import { createSupabaseServiceClient } from "@/lib/supabase/service";
 
 export const dynamic = "force-dynamic";
@@ -41,7 +42,11 @@ async function createProduct(formData: FormData) {
     .select("id")
     .single();
 
-  if (error || !created) redirect(`/dashboard/products/new?error=${encodeURIComponent(error?.message ?? "Create failed")}`);
+  if (error || !created) {
+    redirect(
+      `/dashboard/products/new?error=${encodeURIComponent(error ? formatPostgrestError(error) : "Product aanmaken mislukt (geen id).")}`
+    );
+  }
 
   const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
   const path = `products/${created.id}.${ext}`;
