@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { ProductEditorForm } from "@/components/dashboard/ProductEditorForm";
+import { productParsedToDbRow } from "@/lib/dashboard/product-db-row";
 import { parseProductUpsertFormData } from "@/lib/dashboard/product-form-parse";
 import { resolveProductCategoryId } from "@/lib/dashboard/resolve-product-category-id";
 import { normalizeProductDetails, normalizeVariantBlock } from "@/lib/shop/product-json";
@@ -46,16 +47,8 @@ async function updateProduct(productId: string, formData: FormData) {
   const { error } = await service
     .from("products")
     .update({
-      name: d.name,
-      slug: d.slug,
-      description: d.description,
-      price_cents: d.priceCents,
-      temporary_discount_percent: d.temporaryDiscountPercent,
-      active: d.active,
-      category_id: cat.category_id,
-      product_details: d.productDetails,
-      variant_youth: d.variantYouth,
-      variant_adult: d.variantAdult
+      ...productParsedToDbRow(d),
+      category_id: cat.category_id
     })
     .eq("id", productId);
   if (error) redirect(`/dashboard/products/${productId}/edit?error=${encodeURIComponent(error.message)}`);

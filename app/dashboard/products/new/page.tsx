@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { ProductEditorForm } from "@/components/dashboard/ProductEditorForm";
 import { requirePermission } from "@/lib/auth/permissions-server";
 import { permissions } from "@/lib/auth/permissions";
+import { productParsedToInsertRow } from "@/lib/dashboard/product-db-row";
 import { parseProductUpsertFormData } from "@/lib/dashboard/product-form-parse";
 import { resolveProductCategoryId } from "@/lib/dashboard/resolve-product-category-id";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -36,18 +37,7 @@ async function createProduct(formData: FormData) {
 
   const { data: created, error } = await service
     .from("products")
-    .insert({
-      name: d.name,
-      slug: d.slug,
-      description: d.description,
-      price_cents: d.priceCents,
-      temporary_discount_percent: d.temporaryDiscountPercent,
-      active: d.active,
-      category_id: cat.category_id,
-      product_details: d.productDetails,
-      variant_youth: d.variantYouth,
-      variant_adult: d.variantAdult
-    })
+    .insert(productParsedToInsertRow(d, cat.category_id))
     .select("id")
     .single();
 

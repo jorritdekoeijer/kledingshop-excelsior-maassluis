@@ -105,7 +105,6 @@ export function ProductEditorForm({
         : null;
     return JSON.stringify({
       ...youth,
-      purchase_cents: null,
       sale_cents
     });
   }, [youth, youthSaleIncl]);
@@ -120,7 +119,6 @@ export function ProductEditorForm({
         : null;
     return JSON.stringify({
       ...adult,
-      purchase_cents: null,
       sale_cents
     });
   }, [adult, adultSaleIncl]);
