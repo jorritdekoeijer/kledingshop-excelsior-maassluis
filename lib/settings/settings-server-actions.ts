@@ -2,7 +2,11 @@
 
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { ALL_KNOWN_PERMISSION_KEYS } from "@/lib/auth/permission-options";
+import {
+  ALL_KNOWN_PERMISSION_KEYS,
+  DASHBOARD_ACCESS_KEY,
+  PERMISSION_LEVEL_PAIRS
+} from "@/lib/auth/permission-options";
 import { requireAdminOrPermission } from "@/lib/auth/permissions-server";
 import { permissions } from "@/lib/auth/permissions";
 import { getSetting, upsertSetting } from "@/lib/settings";
@@ -136,7 +140,23 @@ export async function updateUserPermissions(formData: FormData) {
   if (!parsed.success) redirect(`${base}/users?error=Invalid`);
 
   const known = new Set(ALL_KNOWN_PERMISSION_KEYS);
-  const fromCheckboxes = formData.getAll("permissions").map(String).filter((p) => known.has(p));
+  const fullDashboard = formData.get("full_dashboard") === "1";
+
+  let fromKnown: string[];
+  if (fullDashboard) {
+    fromKnown = [DASHBOARD_ACCESS_KEY];
+  } else {
+    fromKnown = [];
+    for (const pair of PERMISSION_LEVEL_PAIRS) {
+      const raw = String(formData.get(pair.formField) ?? "none");
+      const v = raw === "read" || raw === "write" || raw === "none" ? raw : "none";
+      if (v === "write") {
+        fromKnown.push(pair.readKey, pair.writeKey);
+      } else if (v === "read") {
+        fromKnown.push(pair.readKey);
+      }
+    }
+  }
 
   const supabase = await createSupabaseServerClient();
   const { data: existing, error: loadError } = await supabase
@@ -148,7 +168,7 @@ export async function updateUserPermissions(formData: FormData) {
 
   const current = (existing?.permissions ?? []) as string[];
   const unknownLegacy = current.filter((p) => !known.has(p));
-  const merged = [...new Set([...unknownLegacy, ...fromCheckboxes])];
+  const merged = [...new Set([...unknownLegacy, ...fromKnown])];
 
   const { error } = await supabase.from("user_profiles").update({ permissions: merged }).eq("id", parsed.data.id);
   if (error) redirect(`${base}/users?error=${encodeURIComponent(error.message)}`);

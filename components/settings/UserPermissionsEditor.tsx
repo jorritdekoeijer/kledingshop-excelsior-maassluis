@@ -1,7 +1,12 @@
-import { PERMISSION_OPTION_GROUPS } from "@/lib/auth/permission-options";
+import {
+  accessLevelForPair,
+  DASHBOARD_ACCESS_KEY,
+  PERMISSION_LEVEL_PAIRS,
+  type AccessLevel
+} from "@/lib/auth/permission-options";
+import { SettingsBaseHidden } from "@/components/settings/SettingsBaseHidden";
 import type { SettingsSectionBase } from "@/lib/settings/settings-base";
 import { updateUserPermissions } from "@/lib/settings/settings-server-actions";
-import { SettingsBaseHidden } from "@/components/settings/SettingsBaseHidden";
 
 type Props = {
   userId: string;
@@ -10,42 +15,97 @@ type Props = {
   base: SettingsSectionBase;
 };
 
+function LevelRadios({
+  name,
+  userId,
+  level
+}: {
+  name: string;
+  userId: string;
+  level: AccessLevel;
+}) {
+  const opts: { value: AccessLevel; label: string; hint?: string }[] = [
+    { value: "none", label: "Geen toegang", hint: "Dit onderdeel niet tonen in het menu." },
+    { value: "read", label: "Alleen bekijken", hint: "Inzien, niet wijzigen." },
+    { value: "write", label: "Bekijken en wijzigen", hint: "Alles doen binnen dit onderdeel." }
+  ];
+
+  return (
+    <div className="mt-3 grid gap-2 sm:grid-cols-3">
+      {opts.map((o) => {
+        const id = `${userId}-${name}-${o.value}`;
+        return (
+          <label
+            key={o.value}
+            htmlFor={id}
+            className={`flex cursor-pointer rounded-lg border px-3 py-2.5 text-sm transition ${
+              level === o.value
+                ? "border-brand-blue bg-brand-blue/5 ring-1 ring-brand-blue/30"
+                : "border-zinc-200 bg-white hover:border-zinc-300"
+            }`}
+          >
+            <input
+              id={id}
+              type="radio"
+              name={name}
+              value={o.value}
+              defaultChecked={level === o.value}
+              className="mt-0.5 h-4 w-4 shrink-0 border-zinc-300 text-brand-blue focus:ring-brand-blue"
+            />
+            <span className="ml-2 min-w-0">
+              <span className="font-medium text-zinc-900">{o.label}</span>
+              {o.hint ? <span className="mt-0.5 block text-xs font-normal text-zinc-600">{o.hint}</span> : null}
+            </span>
+          </label>
+        );
+      })}
+    </div>
+  );
+}
+
 export function UserPermissionsEditor({ userId, email, currentPermissions, base }: Props) {
   const selected = new Set(currentPermissions);
+  const hasFullDashboard = selected.has(DASHBOARD_ACCESS_KEY);
 
   return (
     <form action={updateUserPermissions} className="space-y-5">
       <SettingsBaseHidden value={base} />
       <input type="hidden" name="id" value={userId} />
 
+      <fieldset className="rounded-lg border border-brand-blue/30 bg-brand-blue/[0.06] p-4">
+        <legend className="px-1 text-sm font-semibold text-zinc-900">Snelkoppeling</legend>
+        <p className="mt-1 text-xs text-zinc-600">
+          Als je dit aanzet, telt dat als toegang tot alle onderdelen hieronder. Zet het uit om per onderdeel te kiezen.
+        </p>
+        <label className="mt-3 flex cursor-pointer gap-3 rounded-lg border border-zinc-200 bg-white p-3">
+          <input
+            type="checkbox"
+            name="full_dashboard"
+            value="1"
+            defaultChecked={hasFullDashboard}
+            className="mt-1 h-4 w-4 rounded border-zinc-300 text-brand-blue focus:ring-brand-blue"
+          />
+          <span>
+            <span className="font-medium text-zinc-900">Volledige toegang tot het hele beheer</span>
+            <span className="mt-0.5 block text-xs text-zinc-600">
+              Zelfde als overal &quot;Bekijken en wijzigen&quot; — handig voor hoofdbeheerders.
+            </span>
+          </span>
+        </label>
+      </fieldset>
+
       <div className="space-y-6">
-        {PERMISSION_OPTION_GROUPS.map((group) => (
-          <fieldset key={group.title} className="rounded-lg border border-zinc-200 bg-zinc-50/80 p-4">
-            <legend className="px-1 text-sm font-semibold text-zinc-900">{group.title}</legend>
-            {group.description ? <p className="mt-2 text-xs text-zinc-600">{group.description}</p> : null}
-            <ul className="mt-3 space-y-3">
-              {group.options.map((opt) => {
-                const id = `${userId}-${opt.key}`;
-                return (
-                  <li key={opt.key} className="flex gap-3">
-                    <input
-                      id={id}
-                      type="checkbox"
-                      name="permissions"
-                      value={opt.key}
-                      defaultChecked={selected.has(opt.key)}
-                      className="mt-1 h-4 w-4 shrink-0 rounded border-zinc-300 text-brand-blue focus:ring-brand-blue"
-                    />
-                    <label htmlFor={id} className="min-w-0 flex-1 cursor-pointer text-sm leading-snug">
-                      <span className="font-medium text-zinc-900">{opt.label}</span>
-                      {opt.hint ? <span className="mt-0.5 block text-xs font-normal text-zinc-600">{opt.hint}</span> : null}
-                    </label>
-                  </li>
-                );
-              })}
-            </ul>
-          </fieldset>
-        ))}
+        <p className="text-sm font-medium text-zinc-800">Per onderdeel</p>
+        {PERMISSION_LEVEL_PAIRS.map((pair) => {
+          const level = accessLevelForPair(selected, pair.readKey, pair.writeKey);
+          return (
+            <fieldset key={pair.formField} className="rounded-lg border border-zinc-200 bg-zinc-50/80 p-4">
+              <legend className="px-1 text-sm font-semibold text-zinc-900">{pair.title}</legend>
+              {pair.description ? <p className="mt-1 text-xs text-zinc-600">{pair.description}</p> : null}
+              <LevelRadios name={pair.formField} userId={userId} level={level} />
+            </fieldset>
+          );
+        })}
       </div>
 
       <div className="flex flex-wrap items-center gap-3 border-t border-zinc-200 pt-4">
