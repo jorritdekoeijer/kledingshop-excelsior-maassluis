@@ -73,34 +73,28 @@ export default async function ProductDetailPage({ params }: Props) {
               fallbackEffectiveCents={pricing.effectiveCents}
             />
 
-            <p className="mt-6 text-sm text-zinc-500">
-              Geen account nodig — je betaalt veilig via Mollie (bijv. iDEAL).
-            </p>
+            {product.description ? (
+              <section className="mt-10">
+                <h2 className="text-lg font-semibold text-zinc-900">Productomschrijving</h2>
+                <div className="prose prose-sm mt-3 max-w-none text-zinc-700">
+                  <p className="whitespace-pre-wrap">{product.description}</p>
+                </div>
+              </section>
+            ) : null}
+
+            {details.length > 0 ? (
+              <section className={product.description ? "mt-8" : "mt-10"}>
+                <h2 className="text-lg font-semibold text-zinc-900">Productdetails</h2>
+                <ul className="mt-3 space-y-2 text-sm text-zinc-700">
+                  {details.map((row, i) => (
+                    <li key={`${row.label}-${i}`}>
+                      <span className="font-medium text-zinc-900">{row.label}:</span> {row.value}
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            ) : null}
           </div>
-        </div>
-
-        <div className="mx-auto mt-12 max-w-3xl border-t border-zinc-200 pt-10">
-          {product.description ? (
-            <section className="mb-10">
-              <h2 className="text-lg font-semibold text-zinc-900">Productomschrijving</h2>
-              <div className="prose prose-sm mt-3 max-w-none text-zinc-700">
-                <p className="whitespace-pre-wrap">{product.description}</p>
-              </div>
-            </section>
-          ) : null}
-
-          {details.length > 0 ? (
-            <section>
-              <h2 className="text-lg font-semibold text-zinc-900">Productdetails</h2>
-              <ul className="mt-3 space-y-2 text-sm text-zinc-700">
-                {details.map((row, i) => (
-                  <li key={`${row.label}-${i}`}>
-                    <span className="font-medium text-zinc-900">{row.label}:</span> {row.value}
-                  </li>
-                ))}
-              </ul>
-            </section>
-          ) : null}
         </div>
       </main>
       <PublicFooter />

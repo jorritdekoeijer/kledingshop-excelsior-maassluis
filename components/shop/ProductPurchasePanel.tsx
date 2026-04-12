@@ -51,7 +51,6 @@ export function ProductPurchasePanel({
     setSegment(initialSegment);
   }, [initialSegment]);
 
-  const currentBlock = segment === "youth" ? youth : segment === "adult" ? adult : null;
   const sizes = useMemo(() => {
     if (segment === "youth") return youth.sizes ?? [];
     if (segment === "adult") return adult.sizes ?? [];
@@ -109,9 +108,8 @@ export function ProductPurchasePanel({
     <div className="mt-4 space-y-6">
       {hasY && hasA ? (
         <div>
-          <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">Variant</p>
           <div
-            className="mt-2 inline-flex rounded-full border border-zinc-300 bg-zinc-50 p-1"
+            className="inline-flex rounded-full border border-zinc-300 bg-zinc-50 p-1"
             role="group"
             aria-label="Kies Jeugd of Volwassenen"
           >
