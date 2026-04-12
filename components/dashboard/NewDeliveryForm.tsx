@@ -1,0 +1,313 @@
+"use client";
+
+import Link from "next/link";
+import { useMemo, useState, useTransition } from "react";
+import { createStockDeliveryAction } from "@/app/dashboard/stock/levering/nieuw/actions";
+import { inclCentsFromExcl21, parseDutchEuroToCents } from "@/lib/money/nl-euro";
+
+export type ProductPickOption = {
+  id: string;
+  label: string;
+  sizes: string[];
+};
+
+const eur = (cents: number) =>
+  new Intl.NumberFormat("nl-NL", { style: "currency", currency: "EUR" }).format(cents / 100);
+
+type LineState = {
+  key: string;
+  productId: string;
+  quantity: number;
+  sizeLabel: string;
+  unitExclEuro: string;
+};
+
+function emptyLine(): LineState {
+  return {
+    key: typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : String(Math.random()),
+    productId: "",
+    quantity: 1,
+    sizeLabel: "",
+    unitExclEuro: ""
+  };
+}
+
+export function NewDeliveryForm({ products }: { products: ProductPickOption[] }) {
+  const [invoiceDate, setInvoiceDate] = useState("");
+  const [supplier, setSupplier] = useState("");
+  const [invoiceNumber, setInvoiceNumber] = useState("");
+  const [invoiceTotalInclEuro, setInvoiceTotalInclEuro] = useState("");
+  const [lines, setLines] = useState<LineState[]>(() => [emptyLine()]);
+  const [pending, startTransition] = useTransition();
+
+  const productMap = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
+
+  const totals = useMemo(() => {
+    let excl = 0;
+    for (const line of lines) {
+      if (!line.productId) continue;
+      const unit = parseDutchEuroToCents(line.unitExclEuro);
+      if (!Number.isFinite(unit)) continue;
+      excl += unit * Math.max(0, line.quantity);
+    }
+    const incl = inclCentsFromExcl21(excl);
+    const vat = incl - excl;
+    return { excl, vat, incl };
+  }, [lines]);
+
+  const invoiceInclParsed = useMemo(() => {
+    const v = parseDutchEuroToCents(invoiceTotalInclEuro);
+    if (!Number.isFinite(v) || !invoiceTotalInclEuro.trim()) return null;
+    return v;
+  }, [invoiceTotalInclEuro]);
+
+  const controlDiff =
+    invoiceInclParsed != null ? totals.incl - invoiceInclParsed : null;
+
+  function updateLine(key: string, patch: Partial<LineState>) {
+    setLines((prev) => prev.map((l) => (l.key === key ? { ...l, ...patch } : l)));
+  }
+
+  function onProductChange(key: string, productId: string) {
+    const p = productMap.get(productId);
+    const firstSize = p && p.sizes.length > 0 ? p.sizes[0] : "";
+    updateLine(key, { productId, sizeLabel: firstSize });
+  }
+
+  function onSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const outLines: {
+      productId: string;
+      quantity: number;
+      sizeLabel: string;
+      unitPurchaseExclCents: number;
+    }[] = [];
+
+    for (const line of lines) {
+      if (!line.productId) continue;
+      const unit = parseDutchEuroToCents(line.unitExclEuro);
+      if (!Number.isFinite(unit) || unit < 0) {
+        alert("Vul per regel een geldige inkoopprijs excl. btw in (bijv. 12,50).");
+        return;
+      }
+      if (!line.sizeLabel.trim()) {
+        alert("Kies per regel een maat.");
+        return;
+      }
+      if (line.quantity < 1) {
+        alert("Aantal moet minstens 1 zijn.");
+        return;
+      }
+      const p = productMap.get(line.productId);
+      if (p && p.sizes.length > 0 && !p.sizes.includes(line.sizeLabel.trim())) {
+        alert(`Maat "${line.sizeLabel}" hoort niet bij het gekozen product.`);
+        return;
+      }
+      outLines.push({
+        productId: line.productId,
+        quantity: line.quantity,
+        sizeLabel: line.sizeLabel.trim(),
+        unitPurchaseExclCents: unit
+      });
+    }
+
+    if (outLines.length === 0) {
+      alert("Voeg minstens één regel met product toe.");
+      return;
+    }
+
+    const payload = {
+      invoiceDate: invoiceDate.trim() || null,
+      supplier: supplier.trim() || null,
+      invoiceNumber: invoiceNumber.trim() || null,
+      invoiceTotalInclCents: invoiceInclParsed,
+      lines: outLines
+    };
+
+    startTransition(() => {
+      createStockDeliveryAction(payload);
+    });
+  }
+
+  return (
+    <form onSubmit={onSubmit} className="space-y-8">
+      <div className="grid gap-4 sm:grid-cols-3">
+        <label className="block">
+          <span className="text-sm font-medium text-zinc-700">Factuurdatum</span>
+          <input
+            type="date"
+            value={invoiceDate}
+            onChange={(e) => setInvoiceDate(e.target.value)}
+            className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
+          />
+        </label>
+        <label className="block sm:col-span-2">
+          <span className="text-sm font-medium text-zinc-700">Leverancier</span>
+          <input
+            value={supplier}
+            onChange={(e) => setSupplier(e.target.value)}
+            className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
+            placeholder="Naam leverancier"
+          />
+        </label>
+        <label className="block sm:col-span-3">
+          <span className="text-sm font-medium text-zinc-700">Factuurnummer</span>
+          <input
+            value={invoiceNumber}
+            onChange={(e) => setInvoiceNumber(e.target.value)}
+            className="mt-1 w-full max-w-md rounded-md border border-zinc-300 px-3 py-2 text-sm"
+            placeholder="Factuurnummer"
+          />
+        </label>
+      </div>
+
+      <div>
+        <h2 className="text-sm font-semibold text-zinc-900">Regels</h2>
+        <p className="mt-1 text-xs text-zinc-500">
+          Inkoopprijs is <strong>excl. btw</strong> per stuk. Maten komen uit het product (dashboard).
+        </p>
+
+        <div className="mt-4 space-y-4">
+          {lines.map((line) => {
+            const p = line.productId ? productMap.get(line.productId) : undefined;
+            const sizeOptions = p?.sizes ?? [];
+            return (
+              <div
+                key={line.key}
+                className="grid gap-3 rounded-lg border border-zinc-200 bg-zinc-50/50 p-4 md:grid-cols-12 md:items-end"
+              >
+                <label className="md:col-span-1">
+                  <span className="text-xs font-medium text-zinc-600">Aantal</span>
+                  <input
+                    type="number"
+                    min={1}
+                    value={line.quantity}
+                    onChange={(e) => updateLine(line.key, { quantity: Math.max(1, Number(e.target.value) || 1) })}
+                    className="mt-1 w-full rounded-md border border-zinc-300 px-2 py-2 text-sm"
+                  />
+                </label>
+                <label className="md:col-span-4">
+                  <span className="text-xs font-medium text-zinc-600">Product</span>
+                  <select
+                    value={line.productId}
+                    onChange={(e) => onProductChange(line.key, e.target.value)}
+                    className="mt-1 w-full rounded-md border border-zinc-300 px-2 py-2 text-sm"
+                  >
+                    <option value="">— Kies product —</option>
+                    {products.map((pr) => (
+                      <option key={pr.id} value={pr.id}>
+                        {pr.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="md:col-span-2">
+                  <span className="text-xs font-medium text-zinc-600">Maat</span>
+                  {!line.productId ? (
+                    <select disabled className="mt-1 w-full rounded-md border border-zinc-300 bg-zinc-100 px-2 py-2 text-sm">
+                      <option value="">— Kies eerst product —</option>
+                    </select>
+                  ) : sizeOptions.length > 0 ? (
+                    <select
+                      value={line.sizeLabel}
+                      onChange={(e) => updateLine(line.key, { sizeLabel: e.target.value })}
+                      className="mt-1 w-full rounded-md border border-zinc-300 px-2 py-2 text-sm"
+                    >
+                      {sizeOptions.map((sz) => (
+                        <option key={sz} value={sz}>
+                          {sz}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      value={line.sizeLabel}
+                      onChange={(e) => updateLine(line.key, { sizeLabel: e.target.value })}
+                      placeholder="Bv. onesize"
+                      className="mt-1 w-full rounded-md border border-zinc-300 px-2 py-2 text-sm"
+                    />
+                  )}
+                </label>
+                <label className="md:col-span-3">
+                  <span className="text-xs font-medium text-zinc-600">Inkoop / stuk excl. btw (€)</span>
+                  <input
+                    value={line.unitExclEuro}
+                    onChange={(e) => updateLine(line.key, { unitExclEuro: e.target.value })}
+                    placeholder="12,50"
+                    className="mt-1 w-full rounded-md border border-zinc-300 px-2 py-2 text-sm"
+                  />
+                </label>
+                <div className="flex md:col-span-2 md:justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setLines((prev) => prev.filter((x) => x.key !== line.key))}
+                    disabled={lines.length <= 1}
+                    className="text-sm text-red-700 hover:underline disabled:opacity-40"
+                  >
+                    Regel verwijderen
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setLines((prev) => [...prev, emptyLine()])}
+          className="mt-4 rounded-md border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-800 hover:bg-zinc-50"
+        >
+          + Regel toevoegen
+        </button>
+      </div>
+
+      <div className="rounded-lg border border-amber-200 bg-amber-50/80 p-4">
+        <h2 className="text-sm font-semibold text-amber-950">Controle (btw 21%)</h2>
+        <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
+          <div className="flex justify-between gap-4 sm:block">
+            <dt className="text-zinc-600">Totaal excl. btw (som regels)</dt>
+            <dd className="font-medium tabular-nums text-zinc-900">{eur(totals.excl)}</dd>
+          </div>
+          <div className="flex justify-between gap-4 sm:block">
+            <dt className="text-zinc-600">Btw 21%</dt>
+            <dd className="font-medium tabular-nums text-zinc-900">{eur(totals.vat)}</dd>
+          </div>
+          <div className="flex justify-between gap-4 border-t border-amber-200 pt-2 sm:col-span-2 sm:flex sm:justify-between">
+            <dt className="font-semibold text-amber-950">Totaal incl. btw (berekend)</dt>
+            <dd className="text-lg font-bold tabular-nums text-amber-950">{eur(totals.incl)}</dd>
+          </div>
+        </dl>
+
+        <label className="mt-4 block max-w-xs">
+          <span className="text-xs font-medium text-zinc-700">Factuurbedrag incl. btw (ter controle, optioneel)</span>
+          <input
+            value={invoiceTotalInclEuro}
+            onChange={(e) => setInvoiceTotalInclEuro(e.target.value)}
+            placeholder="Vul in zoals op factuur"
+            className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
+          />
+        </label>
+        {controlDiff != null && invoiceInclParsed != null ? (
+          <p className={`mt-2 text-sm ${controlDiff === 0 ? "text-green-800" : "text-red-800"}`}>
+            {controlDiff === 0
+              ? "Komt overeen met de factuur."
+              : `Verschil met ingevoerde factuur: ${controlDiff > 0 ? "+" : ""}${eur(controlDiff)}`}
+          </p>
+        ) : null}
+      </div>
+
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          type="submit"
+          disabled={pending}
+          className="rounded-md bg-brand-blue px-5 py-2.5 text-sm font-semibold text-white hover:brightness-110 disabled:opacity-50"
+        >
+          {pending ? "Bezig…" : "Levering opslaan"}
+        </button>
+        <Link href="/dashboard/stock" className="text-sm text-zinc-600 hover:text-zinc-900">
+          Annuleren
+        </Link>
+      </div>
+    </form>
+  );
+}
