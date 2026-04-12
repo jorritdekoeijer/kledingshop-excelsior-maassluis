@@ -23,6 +23,12 @@ const CARDS: NavCard[] = [
     needs: permissions.settings.read
   },
   {
+    href: "/dashboard/settings/homepage",
+    title: "Homepage",
+    description: "Banner, logo, hero en tegels naar categorieën.",
+    needs: permissions.settings.read
+  },
+  {
     href: "/dashboard/products",
     title: "Producten",
     description: "Assortiment, categorieën en afbeeldingen.",

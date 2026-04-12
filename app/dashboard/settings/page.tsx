@@ -31,10 +31,14 @@ export default async function DashboardSettingsPage() {
 
       <div className="rounded-lg border border-zinc-200 bg-white p-6">
         <h1 className="text-xl font-semibold">Settings</h1>
-        <p className="mt-2 text-sm text-zinc-600">Beheer gebruikers, e-mail, Mollie en kostengroepen.</p>
+        <p className="mt-2 text-sm text-zinc-600">Beheer homepage, gebruikers, e-mail, Mollie en kostengroepen.</p>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
+        <Link href="/dashboard/settings/homepage" className="rounded-lg border border-zinc-200 bg-white p-6 hover:bg-zinc-50">
+          <div className="font-medium">Homepage</div>
+          <div className="mt-1 text-sm text-zinc-600">Banner, logo, hero, tegels naar categorieën.</div>
+        </Link>
         <Link href="/dashboard/settings/users" className="rounded-lg border border-zinc-200 bg-white p-6 hover:bg-zinc-50">
           <div className="font-medium">Gebruikersbeheer</div>
           <div className="mt-1 text-sm text-zinc-600">Permissions per gebruiker.</div>

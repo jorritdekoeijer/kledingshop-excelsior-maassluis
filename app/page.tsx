@@ -3,11 +3,12 @@ import { AnnouncementBar } from "@/components/shop/AnnouncementBar";
 import { CompactProductCard } from "@/components/shop/CompactProductCard";
 import { PublicFooter } from "@/components/shop/PublicFooter";
 import { PublicHeader } from "@/components/shop/PublicHeader";
+import { HOMEPAGE_FALLBACK, loadHomepageSettings } from "@/lib/homepage/load-public";
 import { pickPrimaryImagePath } from "@/lib/shop/product-images";
 import { getPublicProductImageUrl } from "@/lib/utils/supabase-storage";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
-const DEFAULT_COLLECTIONS: { title: string; href: string }[] = [
+const DEFAULT_FALLBACK_TILES: { title: string; href: string }[] = [
   { title: "Clubcollectie", href: "/shop" },
   { title: "Trainingskleding", href: "/shop" },
   { title: "Accessoires", href: "/shop" },
@@ -16,6 +17,7 @@ const DEFAULT_COLLECTIONS: { title: string; href: string }[] = [
 
 export default async function HomePage() {
   const supabase = await createSupabaseServerClient();
+  const hp = await loadHomepageSettings();
 
   const { data: productRows } = await supabase
     .from("products")
@@ -29,10 +31,16 @@ export default async function HomePage() {
   const featuredSecondary = products.slice(6, 12);
   const moreProducts = products.slice(12, 18);
 
-  const { data: categoryRows } = await supabase.from("categories").select("id,name,slug").order("name").limit(4);
+  const tileCategoryIds = hp.tiles.map((t) => t.categoryId).filter((id): id is string => !!id);
+  let tileCategoryRows: { id: string; name: string; slug: string }[] = [];
+  if (tileCategoryIds.length > 0) {
+    const { data } = await supabase.from("categories").select("id,name,slug").in("id", tileCategoryIds);
+    tileCategoryRows = data ?? [];
+  }
+  const tileCatMap = new Map(tileCategoryRows.map((c) => [c.id, c]));
 
   const coverByCategory = new Map<string, string | null>();
-  if (categoryRows?.length && products.length) {
+  if (products.length) {
     for (const p of products) {
       const cid = p.category_id as string | null;
       if (cid && !coverByCategory.has(cid)) {
@@ -41,35 +49,62 @@ export default async function HomePage() {
     }
   }
 
-  const collectionTiles =
-    categoryRows && categoryRows.length > 0
-      ? categoryRows.map((c) => ({
-          title: c.name,
-          href: `/shop?c=${encodeURIComponent(c.slug)}`,
-          imagePath: coverByCategory.get(c.id) ?? null
-        }))
-      : DEFAULT_COLLECTIONS.map((d) => ({ ...d, imagePath: null as string | null }));
+  const collectionTiles = [0, 1, 2, 3].map((idx) => {
+    const t = hp.tiles[idx];
+    const cat = t?.categoryId ? tileCatMap.get(t.categoryId) : null;
+    const fallback = DEFAULT_FALLBACK_TILES[idx] ?? DEFAULT_FALLBACK_TILES[0];
+    const title = cat?.name ?? fallback.title;
+    const href = cat ? `/shop?c=${encodeURIComponent(cat.slug)}` : fallback.href;
+    let imagePath: string | null = t?.imagePath ?? null;
+    if (!imagePath && cat?.id) imagePath = coverByCategory.get(cat.id) ?? null;
+    return { title, href, imagePath, key: `home-tile-${idx}` };
+  });
 
   const videoId = process.env.NEXT_PUBLIC_YOUTUBE_VIDEO_ID?.trim();
 
+  const fb = HOMEPAGE_FALLBACK;
+  const announcementLines = [
+    { text: hp.bannerLine1.trim() || fb.bannerLines[0], enabled: hp.bannerEnabled1 },
+    { text: hp.bannerLine2.trim() || fb.bannerLines[1], enabled: hp.bannerEnabled2 },
+    { text: hp.bannerLine3.trim() || fb.bannerLines[2], enabled: hp.bannerEnabled3 }
+  ];
+
+  const heroTitle = hp.heroTitle.trim() || fb.heroTitle;
+  const heroSubtitle = hp.heroSubtitle.trim() || fb.heroSubtitle;
+  const heroBannerUrl = getPublicProductImageUrl(hp.heroBannerPath ?? null);
+
   return (
     <div className="flex min-h-dvh flex-col bg-white">
-      <AnnouncementBar />
+      <AnnouncementBar lines={announcementLines} />
       <PublicHeader />
 
       <section className="relative isolate min-h-[min(70vh,560px)] w-full overflow-hidden bg-zinc-900">
-        <div
-          className="absolute inset-0 bg-gradient-to-br from-brand-blue via-[#061a40] to-zinc-900"
-          aria-hidden
-        />
-        <div
-          className="absolute inset-0 opacity-[0.12] mix-blend-overlay"
-          style={{
-            backgroundImage:
-              "url(\"data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.35'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E\")"
-          }}
-          aria-hidden
-        />
+        {heroBannerUrl ? (
+          <>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={heroBannerUrl}
+              alt=""
+              className="absolute inset-0 h-full w-full object-cover"
+            />
+            <div className="absolute inset-0 bg-gradient-to-br from-black/75 via-black/55 to-black/80" aria-hidden />
+          </>
+        ) : (
+          <>
+            <div
+              className="absolute inset-0 bg-gradient-to-br from-brand-blue via-[#061a40] to-zinc-900"
+              aria-hidden
+            />
+            <div
+              className="absolute inset-0 opacity-[0.12] mix-blend-overlay"
+              style={{
+                backgroundImage:
+                  "url(\"data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.35'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E\")"
+              }}
+              aria-hidden
+            />
+          </>
+        )}
         <Link
           href="/shop"
           className="absolute inset-0 z-0"
@@ -78,14 +113,10 @@ export default async function HomePage() {
         <div className="relative z-[1] mx-auto flex h-full min-h-[min(70vh,560px)] max-w-[1800px] items-end justify-end px-4 pb-12 pt-24 sm:px-6 sm:pb-16">
           <div className="max-w-md text-right text-white drop-shadow-md">
             <p className="text-xs font-medium uppercase tracking-[0.25em] text-white/90">Excelsior</p>
-            <h1 className="mt-2 text-3xl font-semibold leading-[1.05] tracking-tight sm:text-5xl">
-              Clubkleding
-              <br />
-              &amp; merchandise
+            <h1 className="mt-2 whitespace-pre-line text-3xl font-semibold leading-[1.05] tracking-tight sm:text-5xl">
+              {heroTitle}
             </h1>
-            <p className="mt-4 text-sm leading-relaxed text-white/90 sm:text-base">
-              Voor leden, supporters en staf: bestel direct — geen account nodig.
-            </p>
+            <p className="mt-4 text-sm leading-relaxed text-white/90 sm:text-base">{heroSubtitle}</p>
             <div className="mt-8 flex flex-wrap items-center justify-end gap-3">
               <Link
                 href="/shop"
@@ -108,7 +139,12 @@ export default async function HomePage() {
       <section className="mx-auto w-full max-w-[1800px] px-4 py-10 sm:px-6 sm:py-14">
         <div className="grid grid-cols-2 gap-4 md:grid-cols-4 md:gap-5">
           {collectionTiles.map((tile) => (
-            <CollectionTile key={tile.href + tile.title} title={tile.title} href={tile.href} imagePath={tile.imagePath} />
+            <CollectionTile
+              key={tile.key}
+              title={tile.title}
+              href={tile.href}
+              imagePath={tile.imagePath}
+            />
           ))}
         </div>
       </section>

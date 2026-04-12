@@ -11,11 +11,16 @@ export default async function AdminSettingsHubPage() {
       <div className="rounded-lg border border-zinc-200 bg-white p-6">
         <h1 className="text-xl font-semibold">Instellingen</h1>
         <p className="mt-2 text-sm text-zinc-600">
-          SMTP, Mollie, maandelijkse e-mail, kostengroepen en gebruikersrechten — hetzelfde als onder Beheer, maar hier voor admins.
+          Homepage, SMTP, Mollie, maandelijkse e-mail, kostengroepen en gebruikersrechten — hetzelfde als onder Beheer,
+          maar hier voor admins.
         </p>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
+        <Link href="/admin/settings/homepage" className="rounded-lg border border-zinc-200 bg-white p-6 hover:bg-zinc-50">
+          <div className="font-medium">Homepage</div>
+          <div className="mt-1 text-sm text-zinc-600">Banner, logo, hero, tegels naar categorieën.</div>
+        </Link>
         <Link href="/admin/settings/users" className="rounded-lg border border-zinc-200 bg-white p-6 hover:bg-zinc-50">
           <div className="font-medium">Gebruikersbeheer</div>
           <div className="mt-1 text-sm text-zinc-600">Permissions per gebruiker.</div>

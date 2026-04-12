@@ -3,19 +3,32 @@
 import Link from "next/link";
 import { useCart } from "@/components/shop/cart/CartContext";
 
-export function PublicHeaderClient({ isLoggedIn }: { isLoggedIn: boolean }) {
+export function PublicHeaderClient({
+  isLoggedIn,
+  logoUrl
+}: {
+  isLoggedIn: boolean;
+  logoUrl: string | null;
+}) {
   const { totalQuantity } = useCart();
 
   return (
     <header className="sticky top-0 z-50 border-b border-black/10 bg-white shadow-[0_0_1px_rgba(0,0,0,0.2)]">
-      <div className="mx-auto flex max-w-[1800px] items-center justify-between gap-4 px-4 py-4 sm:px-6">
+      <div className="mx-auto flex max-w-[1800px] items-center justify-between gap-4 px-4 py-3 sm:px-6">
         <Link href="/" className="min-w-0 shrink-0">
-          <span className="block truncate text-lg font-semibold tracking-tight text-brand-blue sm:text-xl">
-            Excelsior Maassluis
-          </span>
-          <span className="hidden text-[10px] font-normal uppercase tracking-[0.2em] text-zinc-500 sm:block">
-            Kledingshop
-          </span>
+          {logoUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={logoUrl} alt="Excelsior Maassluis" className="h-10 max-h-12 w-auto max-w-[220px] object-contain" />
+          ) : (
+            <>
+              <span className="block truncate text-lg font-semibold tracking-tight text-brand-blue sm:text-xl">
+                Excelsior Maassluis
+              </span>
+              <span className="hidden text-[10px] font-normal uppercase tracking-[0.2em] text-zinc-500 sm:block">
+                Kledingshop
+              </span>
+            </>
+          )}
         </Link>
         <nav className="flex flex-wrap items-center justify-end gap-x-4 gap-y-2 text-[11px] font-medium uppercase tracking-[0.2em] text-black sm:gap-x-8 sm:text-xs">
           <Link href="/shop" className="hover:text-brand-blue">
