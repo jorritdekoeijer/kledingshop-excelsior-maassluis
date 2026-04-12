@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { ProductEditorForm } from "@/components/dashboard/ProductEditorForm";
 import { parseProductUpsertFormData } from "@/lib/dashboard/product-form-parse";
+import { resolveProductCategoryId } from "@/lib/dashboard/resolve-product-category-id";
 import { normalizeProductDetails, normalizeVariantBlock } from "@/lib/shop/product-json";
 import { requirePermission } from "@/lib/auth/permissions-server";
 import { permissions } from "@/lib/auth/permissions";
@@ -35,6 +36,11 @@ async function updateProduct(productId: string, formData: FormData) {
     );
   }
 
+  const cat = await resolveProductCategoryId(service, d.categoryId);
+  if (!cat.ok) {
+    redirect(`/dashboard/products/${productId}/edit?error=${encodeURIComponent(cat.message)}`);
+  }
+
   const { error } = await service
     .from("products")
     .update({
@@ -44,7 +50,7 @@ async function updateProduct(productId: string, formData: FormData) {
       price_cents: d.priceCents,
       temporary_discount_percent: d.temporaryDiscountPercent,
       active: d.active,
-      category_id: d.categoryId,
+      category_id: cat.category_id,
       product_details: d.productDetails,
       variant_youth: d.variantYouth,
       variant_adult: d.variantAdult

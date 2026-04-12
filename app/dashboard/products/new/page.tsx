@@ -3,6 +3,7 @@ import { ProductEditorForm } from "@/components/dashboard/ProductEditorForm";
 import { requirePermission } from "@/lib/auth/permissions-server";
 import { permissions } from "@/lib/auth/permissions";
 import { parseProductUpsertFormData } from "@/lib/dashboard/product-form-parse";
+import { resolveProductCategoryId } from "@/lib/dashboard/resolve-product-category-id";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseServiceClient } from "@/lib/supabase/service";
 
@@ -25,6 +26,12 @@ async function createProduct(formData: FormData) {
 
   const d = parsed.value;
   const service = createSupabaseServiceClient();
+
+  const cat = await resolveProductCategoryId(service, d.categoryId);
+  if (!cat.ok) {
+    redirect(`/dashboard/products/new?error=${encodeURIComponent(cat.message)}`);
+  }
+
   const { data: created, error } = await service
     .from("products")
     .insert({
@@ -34,7 +41,7 @@ async function createProduct(formData: FormData) {
       price_cents: d.priceCents,
       temporary_discount_percent: d.temporaryDiscountPercent,
       active: d.active,
-      category_id: d.categoryId,
+      category_id: cat.category_id,
       product_details: d.productDetails,
       variant_youth: d.variantYouth,
       variant_adult: d.variantAdult
