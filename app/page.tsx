@@ -7,6 +7,7 @@ import { CompactProductCard } from "@/components/shop/CompactProductCard";
 import { PublicFooter } from "@/components/shop/PublicFooter";
 import { PublicHeader } from "@/components/shop/PublicHeader";
 import { HOMEPAGE_FALLBACK, loadHomepageSettings } from "@/lib/homepage/load-public";
+import { shopDisplayPricing } from "@/lib/shop/display-pricing";
 import { pickPrimaryImagePath } from "@/lib/shop/product-images";
 import { getPublicProductImageUrl } from "@/lib/utils/supabase-storage";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -31,7 +32,7 @@ export default async function HomePage() {
 
   const { data: productRows } = await supabase
     .from("products")
-    .select("name,slug,price_cents,description,created_at,category_id,product_images(path,is_primary,sort_order)")
+    .select("name,slug,price_cents,temporary_discount_percent,description,created_at,category_id,product_images(path,is_primary,sort_order)")
     .eq("active", true)
     .order("created_at", { ascending: false })
     .limit(24);
@@ -291,6 +292,7 @@ function ProductSection({
     name: string;
     slug: string;
     price_cents: number;
+    temporary_discount_percent?: number | null;
     product_images: unknown;
   }[];
   viewAllHref: string;
@@ -310,16 +312,21 @@ function ProductSection({
           </Link>
         </div>
         <ul className="mt-8 grid grid-cols-2 gap-x-4 gap-y-8 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
-          {products.map((p) => (
-            <li key={p.slug}>
-              <CompactProductCard
-                name={p.name}
-                slug={p.slug}
-                priceCents={p.price_cents}
-                imagePath={pickPrimaryImagePath(p.product_images as any)}
-              />
-            </li>
-          ))}
+          {products.map((p) => {
+            const pr = shopDisplayPricing(p);
+            return (
+              <li key={p.slug}>
+                <CompactProductCard
+                  name={p.name}
+                  slug={p.slug}
+                  priceCents={pr.effectiveCents}
+                  compareAtCents={pr.showExtraDiscount ? pr.originalCents : null}
+                  showExtraDiscount={pr.showExtraDiscount}
+                  imagePath={pickPrimaryImagePath(p.product_images as any)}
+                />
+              </li>
+            );
+          })}
         </ul>
       </div>
     </section>

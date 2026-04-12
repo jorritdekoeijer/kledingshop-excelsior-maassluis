@@ -1,0 +1,366 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import { ADULT_SIZE_OPTIONS, YOUTH_SIZE_OPTIONS } from "@/lib/products/variant-constants";
+import { exclCentsFromIncl21, inclCentsFromExcl21, parseDutchEuroToCents } from "@/lib/money/nl-euro";
+import type { ProductDetailRow, ProductVariantBlock } from "@/lib/validation/products";
+
+function centsToNlInput(cents: number): string {
+  if (!Number.isFinite(cents) || cents < 0) return "0,00";
+  return (cents / 100).toFixed(2).replace(".", ",");
+}
+
+function centsToOptionalNl(c: number | null | undefined): string {
+  if (c === null || c === undefined) return "";
+  return centsToNlInput(c);
+}
+
+function nlInputToCents(s: string): number {
+  const n = parseDutchEuroToCents(s);
+  return Number.isNaN(n) ? 0 : n;
+}
+
+type Defaults = {
+  name: string;
+  slug: string;
+  description: string | null;
+  priceCents: number;
+  temporaryDiscountPercent: number;
+  active: boolean;
+  categoryId: string | null;
+  productDetails: ProductDetailRow[];
+  variantYouth: ProductVariantBlock;
+  variantAdult: ProductVariantBlock;
+};
+
+const emptyVariant = (): ProductVariantBlock => ({
+  purchase_cents: null,
+  sale_cents: null,
+  model_number: "",
+  sizes: []
+});
+
+type Cat = { id: string; name: string };
+
+export function ProductEditorForm({
+  action,
+  categories,
+  defaults,
+  showImageUpload = false
+}: {
+  action: (formData: FormData) => void | Promise<void>;
+  categories: Cat[];
+  defaults?: Partial<Defaults>;
+  /** Eerste upload bij nieuw product; bewerkpagina gebruikt galerij-upload. */
+  showImageUpload?: boolean;
+}) {
+  const d: Defaults = {
+    name: defaults?.name ?? "",
+    slug: defaults?.slug ?? "",
+    description: defaults?.description ?? "",
+    priceCents: defaults?.priceCents ?? 0,
+    temporaryDiscountPercent: defaults?.temporaryDiscountPercent ?? 0,
+    active: defaults?.active ?? true,
+    categoryId: defaults?.categoryId ?? null,
+    productDetails: defaults?.productDetails ?? [],
+    variantYouth: defaults?.variantYouth ?? emptyVariant(),
+    variantAdult: defaults?.variantAdult ?? emptyVariant()
+  };
+
+  const [inclStr, setInclStr] = useState(() => centsToNlInput(d.priceCents));
+  const [exclStr, setExclStr] = useState(() => centsToNlInput(exclCentsFromIncl21(d.priceCents)));
+
+  const [details, setDetails] = useState<ProductDetailRow[]>(d.productDetails);
+  const [youth, setYouth] = useState<ProductVariantBlock>(d.variantYouth);
+  const [adult, setAdult] = useState<ProductVariantBlock>(d.variantAdult);
+
+  const [youthPurchase, setYouthPurchase] = useState(() => centsToOptionalNl(d.variantYouth.purchase_cents));
+  const [youthSale, setYouthSale] = useState(() => centsToOptionalNl(d.variantYouth.sale_cents));
+  const [adultPurchase, setAdultPurchase] = useState(() => centsToOptionalNl(d.variantAdult.purchase_cents));
+  const [adultSale, setAdultSale] = useState(() => centsToOptionalNl(d.variantAdult.sale_cents));
+
+  const productDetailsJson = useMemo(
+    () =>
+      JSON.stringify(
+        details
+          .filter((r) => r.label.trim().length > 0)
+          .map((r) => ({ label: r.label.trim(), value: r.value.trim() }))
+      ),
+    [details]
+  );
+  const variantYouthJson = useMemo(() => {
+    const purchase_cents = nlInputToCents(youthPurchase) || null;
+    const sale_cents = nlInputToCents(youthSale) || null;
+    return JSON.stringify({
+      ...youth,
+      purchase_cents: youthPurchase.trim() ? purchase_cents : null,
+      sale_cents: youthSale.trim() ? sale_cents : null
+    });
+  }, [youth, youthPurchase, youthSale]);
+
+  const variantAdultJson = useMemo(() => {
+    const purchase_cents = nlInputToCents(adultPurchase) || null;
+    const sale_cents = nlInputToCents(adultSale) || null;
+    return JSON.stringify({
+      ...adult,
+      purchase_cents: adultPurchase.trim() ? purchase_cents : null,
+      sale_cents: adultSale.trim() ? sale_cents : null
+    });
+  }, [adult, adultPurchase, adultSale]);
+
+  function toggleSize(list: string[], size: string, on: boolean): string[] {
+    const s = new Set(list);
+    if (on) s.add(size);
+    else s.delete(size);
+    return [...s];
+  }
+
+  return (
+    <form action={action} className="grid gap-4 md:grid-cols-2">
+      <input type="hidden" name="productDetailsJson" value={productDetailsJson} readOnly />
+      <input type="hidden" name="variantYouthJson" value={variantYouthJson} readOnly />
+      <input type="hidden" name="variantAdultJson" value={variantAdultJson} readOnly />
+
+      <label className="block md:col-span-2">
+        <span className="text-sm text-zinc-700">Naam</span>
+        <input name="name" required defaultValue={d.name} className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm" />
+      </label>
+      <label className="block md:col-span-2">
+        <span className="text-sm text-zinc-700">Slug (optioneel)</span>
+        <input name="slug" defaultValue={d.slug} className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm" />
+      </label>
+
+      <div className="md:col-span-2 rounded-lg border border-zinc-200 bg-zinc-50/80 p-4">
+        <p className="text-sm font-semibold text-zinc-900">Prijzen (incl. en excl. 21% btw)</p>
+        <p className="mt-1 text-xs text-zinc-600">Vul één veld in; het andere wordt berekend.</p>
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          <label className="block">
+            <span className="text-sm text-zinc-700">Verkoopprijs incl. btw (€)</span>
+            <input
+              name="priceInclEur"
+              value={inclStr}
+              onChange={(e) => setInclStr(e.target.value)}
+              onBlur={() => {
+                const c = nlInputToCents(inclStr);
+                if (Number.isFinite(c) && c >= 0) setExclStr(centsToNlInput(exclCentsFromIncl21(c)));
+              }}
+              className="mt-1 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm"
+              placeholder="42,30"
+              required
+            />
+          </label>
+          <label className="block">
+            <span className="text-sm text-zinc-700">Verkoopprijs excl. btw (€)</span>
+            <input
+              value={exclStr}
+              onChange={(e) => setExclStr(e.target.value)}
+              onBlur={() => {
+                const c = nlInputToCents(exclStr);
+                if (Number.isFinite(c) && c >= 0) setInclStr(centsToNlInput(inclCentsFromExcl21(c)));
+              }}
+              className="mt-1 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm"
+              placeholder="34,96"
+            />
+          </label>
+        </div>
+      </div>
+
+      <label className="block md:col-span-2">
+        <span className="text-sm text-zinc-700">Tijdelijke korting (% op prijs incl. btw)</span>
+        <input
+          name="discountPercent"
+          type="number"
+          min={0}
+          max={100}
+          step={0.1}
+          defaultValue={d.temporaryDiscountPercent}
+          className="mt-1 w-full max-w-xs rounded-md border border-zinc-300 px-3 py-2 text-sm"
+        />
+        <span className="mt-1 block text-xs text-zinc-500">Op overzicht en productpagina: lintje &quot;EXTRA KORTING&quot;.</span>
+      </label>
+
+      <div className="flex items-center gap-3 md:col-span-2">
+        <span className="text-sm text-zinc-700">Actief in shop</span>
+        <label className="relative inline-flex cursor-pointer items-center">
+          <input type="checkbox" name="active" value="on" defaultChecked={d.active} className="peer sr-only" />
+          <span className="h-7 w-12 rounded-full bg-zinc-300 transition peer-checked:bg-brand-blue peer-focus:ring-2 peer-focus:ring-brand-blue/40" />
+          <span className="absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow transition peer-checked:translate-x-5" />
+        </label>
+      </div>
+
+      <label className="block md:col-span-2">
+        <span className="text-sm text-zinc-700">Categorie</span>
+        <select name="categoryId" defaultValue={d.categoryId ?? ""} className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm">
+          <option value="">(geen)</option>
+          {categories.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.name}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <label className="block md:col-span-2">
+        <span className="text-sm text-zinc-700">Productbeschrijving</span>
+        <textarea
+          name="description"
+          rows={6}
+          defaultValue={d.description ?? ""}
+          className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
+        />
+      </label>
+
+      <div className="md:col-span-2 space-y-2">
+        <span className="text-sm font-medium text-zinc-800">Productdetails (bijv. kleur, materiaal, pasvorm)</span>
+        {details.map((row, i) => (
+          <div key={i} className="flex flex-wrap gap-2">
+            <input
+              className="min-w-[120px] flex-1 rounded-md border border-zinc-300 px-2 py-1.5 text-sm"
+              placeholder="Label"
+              value={row.label}
+              onChange={(e) => {
+                const next = [...details];
+                next[i] = { ...next[i], label: e.target.value };
+                setDetails(next);
+              }}
+            />
+            <input
+              className="min-w-[160px] flex-[2] rounded-md border border-zinc-300 px-2 py-1.5 text-sm"
+              placeholder="Waarde"
+              value={row.value}
+              onChange={(e) => {
+                const next = [...details];
+                next[i] = { ...next[i], value: e.target.value };
+                setDetails(next);
+              }}
+            />
+            <button
+              type="button"
+              className="text-sm text-red-600 hover:underline"
+              onClick={() => setDetails(details.filter((_, j) => j !== i))}
+            >
+              Verwijder
+            </button>
+          </div>
+        ))}
+        <button
+          type="button"
+          className="text-sm font-medium text-brand-blue hover:underline"
+          onClick={() => setDetails([...details, { label: "", value: "" }])}
+        >
+          + Detail toevoegen
+        </button>
+      </div>
+
+      <VariantBlock
+        title="Jeugd (YOUTH)"
+        sizes={YOUTH_SIZE_OPTIONS as unknown as string[]}
+        model={youth.model_number ?? ""}
+        onModelChange={(v) => setYouth({ ...youth, model_number: v })}
+        selected={youth.sizes ?? []}
+        onToggle={(size, on) => setYouth({ ...youth, sizes: toggleSize(youth.sizes ?? [], size, on) })}
+        purchaseStr={youthPurchase}
+        saleStr={youthSale}
+        onPurchaseChange={setYouthPurchase}
+        onSaleChange={setYouthSale}
+      />
+
+      <VariantBlock
+        title="Volwassenen (ADULT)"
+        sizes={ADULT_SIZE_OPTIONS as unknown as string[]}
+        model={adult.model_number ?? ""}
+        onModelChange={(v) => setAdult({ ...adult, model_number: v })}
+        selected={adult.sizes ?? []}
+        onToggle={(size, on) => setAdult({ ...adult, sizes: toggleSize(adult.sizes ?? [], size, on) })}
+        purchaseStr={adultPurchase}
+        saleStr={adultSale}
+        onPurchaseChange={setAdultPurchase}
+        onSaleChange={setAdultSale}
+      />
+
+      {showImageUpload ? (
+        <label className="block md:col-span-2">
+          <span className="text-sm text-zinc-700">Hoofdfoto (optioneel)</span>
+          <input name="image" type="file" accept="image/*" className="mt-1 block w-full text-sm" />
+        </label>
+      ) : null}
+
+      <div className="md:col-span-2">
+        <button className="rounded-md bg-brand-blue px-4 py-2.5 text-sm font-medium text-white" type="submit">
+          Opslaan
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function VariantBlock({
+  title,
+  sizes,
+  model,
+  onModelChange,
+  selected,
+  onToggle,
+  purchaseStr,
+  saleStr,
+  onPurchaseChange,
+  onSaleChange
+}: {
+  title: string;
+  sizes: string[];
+  model: string;
+  onModelChange: (v: string) => void;
+  selected: string[];
+  onToggle: (size: string, on: boolean) => void;
+  purchaseStr: string;
+  saleStr: string;
+  onPurchaseChange: (v: string) => void;
+  onSaleChange: (v: string) => void;
+}) {
+  return (
+    <div className="md:col-span-2 rounded-lg border border-zinc-200 p-4">
+      <h3 className="text-sm font-semibold text-zinc-900">{title}</h3>
+      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        <label className="block">
+          <span className="text-xs text-zinc-600">Inkoopprijs (€)</span>
+          <input
+            value={purchaseStr}
+            onChange={(e) => onPurchaseChange(e.target.value)}
+            className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
+            placeholder="0,00"
+          />
+        </label>
+        <label className="block">
+          <span className="text-xs text-zinc-600">Verkoopprijs variant (€ incl. btw, optioneel)</span>
+          <input
+            value={saleStr}
+            onChange={(e) => onSaleChange(e.target.value)}
+            className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
+            placeholder="Leeg = zie hoofdprijs"
+          />
+        </label>
+        <label className="block sm:col-span-2">
+          <span className="text-xs text-zinc-600">Modelnummer</span>
+          <input
+            value={model}
+            onChange={(e) => onModelChange(e.target.value)}
+            className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
+          />
+        </label>
+      </div>
+      <p className="mt-4 text-xs font-medium text-zinc-700">Beschikbare maten</p>
+      <div className="mt-2 flex flex-wrap gap-2">
+        {sizes.map((sz) => (
+          <label key={sz} className="flex cursor-pointer items-center gap-1.5 rounded border border-zinc-200 px-2 py-1 text-sm">
+            <input
+              type="checkbox"
+              checked={selected.includes(sz)}
+              onChange={(e) => onToggle(sz, e.target.checked)}
+            />
+            {sz}
+          </label>
+        ))}
+      </div>
+    </div>
+  );
+}

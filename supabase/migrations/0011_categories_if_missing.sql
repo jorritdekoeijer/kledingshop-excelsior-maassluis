@@ -1,5 +1,8 @@
 -- Reparatie: public.categories ontbreekt (bijv. 0002_core_schema.sql nooit op dit project gedraaid).
 -- Idempotent: veilig om opnieuw uit te voeren.
+--
+-- Opmerking Postgres: voor functies bestaat geen CREATE ... IF NOT EXISTS; we gebruiken
+-- CREATE OR REPLACE FUNCTION (even idempotent). Voor policies: DROP IF EXISTS + CREATE.
 
 create extension if not exists pgcrypto;
 
@@ -13,22 +16,17 @@ begin
 end;
 $$;
 
--- Zelfde als start van 0002: profiles → user_profiles
+-- Zelfde als start van 0002: profiles → user_profiles (alleen als die nog zo heet)
 alter table if exists public.profiles rename to user_profiles;
 
-do $check$
-begin
-  if not exists (
-    select 1
-    from information_schema.tables
-    where table_schema = 'public'
-      and table_name = 'user_profiles'
-  ) then
-    raise exception
-      'public.user_profiles ontbreekt. Voer eerst migrations/0001_init.sql uit (of: supabase db push vanaf een lege DB).';
-  end if;
-end;
-$check$;
+-- Minimale profieltabel als 0001/0002 nog niet gedraaid zijn (structuur sluit aan op 0001 + permissions uit 0002)
+create table if not exists public.user_profiles (
+  id uuid primary key references auth.users (id) on delete cascade,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  email text,
+  permissions text[] not null default '{}'
+);
 
 alter table public.user_profiles
   add column if not exists permissions text[] not null default '{}';

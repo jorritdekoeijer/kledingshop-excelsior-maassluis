@@ -3,6 +3,7 @@ import { getSiteUrl } from "@/lib/checkout/site-url";
 import { mollieCreatePayment } from "@/lib/mollie/client";
 import { getSettingService } from "@/lib/settings-service";
 import { createSupabaseServiceClient } from "@/lib/supabase/service";
+import { effectivePriceCents } from "@/lib/products/pricing";
 import { checkoutRequestSchema } from "@/lib/validation/checkout";
 import { mollieSettingsSchema } from "@/lib/validation/settings";
 
@@ -50,7 +51,7 @@ export async function POST(request: Request) {
   const productIds = lines.map((l) => l.productId);
   const { data: products, error: pe } = await svc
     .from("products")
-    .select("id,price_cents,active")
+    .select("id,price_cents,temporary_discount_percent,active")
     .in("id", productIds);
   if (pe) return NextResponse.json({ error: pe.message }, { status: 500 });
 
@@ -83,7 +84,8 @@ export async function POST(request: Request) {
 
   for (const line of lines) {
     const p = byId.get(line.productId)!;
-    const unit = p.price_cents;
+    const discount = Number(p.temporary_discount_percent ?? 0);
+    const unit = effectivePriceCents(p.price_cents, discount);
     const lineTotal = unit * line.quantity;
     totalCents += lineTotal;
     orderLines.push({

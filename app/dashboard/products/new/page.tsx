@@ -1,38 +1,37 @@
 import { redirect } from "next/navigation";
+import { ProductEditorForm } from "@/components/dashboard/ProductEditorForm";
 import { requirePermission } from "@/lib/auth/permissions-server";
 import { permissions } from "@/lib/auth/permissions";
+import { parseProductUpsertFormData } from "@/lib/dashboard/product-form-parse";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseServiceClient } from "@/lib/supabase/service";
-import { productUpsertSchema } from "@/lib/validation/products";
-import { slugify } from "@/lib/utils/slugify";
 
 async function createProduct(formData: FormData) {
   "use server";
   const gate = await requirePermission(permissions.products.write);
   if (!gate.ok) redirect("/dashboard/products?error=Geen%20toegang");
 
-  const parsed = productUpsertSchema.safeParse({
-    name: formData.get("name"),
-    slug: slugify(String(formData.get("slug") ?? "")) || slugify(String(formData.get("name") ?? "")),
-    description: String(formData.get("description") ?? "") || null,
-    priceCents: formData.get("priceCents"),
-    active: formData.get("active"),
-    categoryId: String(formData.get("categoryId") ?? "") || null,
-    costGroupId: String(formData.get("costGroupId") ?? "") || null
-  });
-  if (!parsed.success) redirect(`/dashboard/products/new?error=${encodeURIComponent(parsed.error.issues[0]?.message ?? "Invalid")}`);
+  const parsed = parseProductUpsertFormData(formData);
+  if (!parsed.ok) {
+    redirect(`/dashboard/products/new?error=${encodeURIComponent(parsed.message)}`);
+  }
 
+  const d = parsed.value;
   const service = createSupabaseServiceClient();
   const { data: created, error } = await service
     .from("products")
     .insert({
-      name: parsed.data.name,
-      slug: parsed.data.slug,
-      description: parsed.data.description,
-      price_cents: parsed.data.priceCents,
-      active: parsed.data.active,
-      category_id: parsed.data.categoryId,
-      cost_group_id: parsed.data.costGroupId
+      name: d.name,
+      slug: d.slug,
+      description: d.description,
+      price_cents: d.priceCents,
+      temporary_discount_percent: d.temporaryDiscountPercent,
+      active: d.active,
+      category_id: d.categoryId,
+      cost_group_id: null,
+      product_details: d.productDetails,
+      variant_youth: d.variantYouth,
+      variant_adult: d.variantAdult
     })
     .select("id")
     .single();
@@ -64,7 +63,6 @@ export default async function NewProductPage({
 
   const supabase = await createSupabaseServerClient();
   const { data: categories } = await supabase.from("categories").select("id,name").order("name");
-  const { data: costGroups } = await supabase.from("cost_groups").select("id,name").order("name");
 
   return (
     <div className="rounded-lg border border-zinc-200 bg-white p-6">
@@ -73,72 +71,9 @@ export default async function NewProductPage({
         <p className="mt-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
       ) : null}
 
-      <form action={createProduct} className="mt-6 grid gap-3 md:grid-cols-2">
-        <label className="block md:col-span-2">
-          <span className="text-sm text-zinc-700">Naam</span>
-          <input name="name" className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm" />
-        </label>
-        <label className="block md:col-span-2">
-          <span className="text-sm text-zinc-700">Slug (optioneel)</span>
-          <input name="slug" className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm" />
-        </label>
-        <label className="block">
-          <span className="text-sm text-zinc-700">Prijs (centen)</span>
-          <input
-            name="priceCents"
-            defaultValue="0"
-            className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
-          />
-        </label>
-        <label className="block">
-          <span className="text-sm text-zinc-700">Actief (true/false)</span>
-          <input
-            name="active"
-            defaultValue="true"
-            className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
-          />
-        </label>
-        <label className="block">
-          <span className="text-sm text-zinc-700">Categorie</span>
-          <select name="categoryId" className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm">
-            <option value="">(geen)</option>
-            {(categories ?? []).map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="block">
-          <span className="text-sm text-zinc-700">Kostengroep</span>
-          <select name="costGroupId" className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm">
-            <option value="">(geen)</option>
-            {(costGroups ?? []).map((cg) => (
-              <option key={cg.id} value={cg.id}>
-                {cg.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="block md:col-span-2">
-          <span className="text-sm text-zinc-700">Omschrijving</span>
-          <textarea
-            name="description"
-            className="mt-1 min-h-24 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
-          />
-        </label>
-        <label className="block md:col-span-2">
-          <span className="text-sm text-zinc-700">Productfoto</span>
-          <input name="image" type="file" accept="image/*" className="mt-1 w-full text-sm" />
-        </label>
-
-        <div className="md:col-span-2">
-          <button className="rounded-md bg-brand-blue px-3 py-2 text-sm font-medium text-white" type="submit">
-            Aanmaken
-          </button>
-        </div>
-      </form>
+      <div className="mt-6">
+        <ProductEditorForm action={createProduct} categories={categories ?? []} showImageUpload />
+      </div>
     </div>
   );
 }
-

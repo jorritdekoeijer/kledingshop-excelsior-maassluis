@@ -4,6 +4,7 @@ import { PublicFooter } from "@/components/shop/PublicFooter";
 import { PublicHeader } from "@/components/shop/PublicHeader";
 import { ProductCard } from "@/components/shop/ProductCard";
 import { ShopSearchBar } from "@/components/shop/ShopSearchBar";
+import { shopDisplayPricing } from "@/lib/shop/display-pricing";
 import { pickPrimaryImagePath } from "@/lib/shop/product-images";
 import { normalizeSearchQuery } from "@/lib/shop/search";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -45,7 +46,7 @@ export default async function ShopPage({
 
   let q = supabase
     .from("products")
-    .select("name,slug,price_cents,description,product_images(path,is_primary,sort_order)")
+    .select("name,slug,price_cents,temporary_discount_percent,description,product_images(path,is_primary,sort_order)")
     .eq("active", true)
     .order("created_at", { ascending: false });
 
@@ -102,17 +103,22 @@ export default async function ShopPage({
           </p>
         ) : (
           <ul className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {products.map((p) => (
-              <li key={p.slug}>
-                <ProductCard
-                  name={p.name}
-                  slug={p.slug}
-                  priceCents={p.price_cents}
-                  imagePath={pickPrimaryImagePath(p.product_images as any)}
-                  excerpt={excerpt(p.description)}
-                />
-              </li>
-            ))}
+            {products.map((p) => {
+              const pr = shopDisplayPricing(p);
+              return (
+                <li key={p.slug}>
+                  <ProductCard
+                    name={p.name}
+                    slug={p.slug}
+                    priceCents={pr.effectiveCents}
+                    compareAtCents={pr.showExtraDiscount ? pr.originalCents : null}
+                    showExtraDiscount={pr.showExtraDiscount}
+                    imagePath={pickPrimaryImagePath(p.product_images as any)}
+                    excerpt={excerpt(p.description)}
+                  />
+                </li>
+              );
+            })}
           </ul>
         )}
       </main>
