@@ -1,11 +1,13 @@
 import Link from "next/link";
 import { getIsAdmin, getUserPermissions, requireLogin } from "@/lib/auth/permissions-server";
+import { hasFinancialReportAccess } from "@/lib/auth/reporting-access";
 import { hasPermission, permissions } from "@/lib/auth/permissions";
 
 type NavCard = {
   href: string;
   title: string;
   description: string;
+  /** Permissie-string uit `permissions`, of `__reporting__` voor gecombineerde financiële rapportage. */
   needs: string | null;
 };
 
@@ -45,6 +47,12 @@ const CARDS: NavCard[] = [
     title: "Bestellingen",
     description: "Orders bekijken en afhandelen.",
     needs: permissions.orders.read
+  },
+  {
+    href: "/dashboard/rapportage",
+    title: "Rapportage",
+    description: "Omzet, marge, kostengroepen en voorraadwaarde.",
+    needs: "__reporting__"
   }
 ];
 
@@ -57,6 +65,9 @@ export default async function DashboardHome() {
   const visible = CARDS.filter((c) => {
     if (c.href === "/admin") return isAdmin;
     if (!c.needs) return false;
+    if (c.needs === "__reporting__") {
+      return hasFinancialReportAccess(perms, { isAdmin });
+    }
     return isAdmin || hasDashboardAccess || hasPermission(perms, c.needs);
   });
 

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { getIsAdmin, getUserPermissions, requireLogin } from "@/lib/auth/permissions-server";
+import { hasFinancialReportAccess } from "@/lib/auth/reporting-access";
 import { hasPermission, permissions } from "@/lib/auth/permissions";
 
 export default async function DashboardLayout({ children }: { children: ReactNode }) {
@@ -16,6 +17,7 @@ export default async function DashboardLayout({ children }: { children: ReactNod
   const showStock = isAdmin || hasDashboardAccess || hasPermission(perms, permissions.stock.read);
   const showOrders =
     isAdmin || hasDashboardAccess || hasPermission(perms, permissions.orders.read);
+  const showReporting = hasFinancialReportAccess(perms, { isAdmin });
 
   return (
     <div className="min-h-dvh">
@@ -48,6 +50,11 @@ export default async function DashboardLayout({ children }: { children: ReactNod
             {showOrders ? (
               <Link href="/dashboard/orders" className="text-zinc-700 hover:text-brand-blue">
                 Bestellingen
+              </Link>
+            ) : null}
+            {showReporting ? (
+              <Link href="/dashboard/rapportage" className="text-zinc-700 hover:text-brand-blue">
+                Rapportage
               </Link>
             ) : null}
             <Link href="/" className="text-zinc-500 hover:text-brand-blue">
