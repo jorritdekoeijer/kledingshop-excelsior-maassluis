@@ -5,6 +5,7 @@ import { permissions } from "@/lib/auth/permissions";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { normalizeVariantBlock } from "@/lib/shop/product-json";
 import { NewSupplierOrderForm, type SupplierOrderSuggestionLine } from "@/components/dashboard/NewSupplierOrderForm";
+import { buildProductPickOptions } from "@/lib/stock/build-product-pick-options";
 
 export const dynamic = "force-dynamic";
 
@@ -34,6 +35,9 @@ export default async function NewSupplierOrderPage({
     .eq("active", true)
     .order("name");
 
+  const productOptions = buildProductPickOptions(products ?? []);
+  const stockEntries: { productId: string; variantSegment: VariantSegment; sizeLabel: string; qty: number }[] = [];
+
   const { data: rules } = await supabase
     .from("stock_reorder_rules")
     .select("product_id,variant_segment,size_label,is_active,threshold_qty,target_qty")
@@ -53,6 +57,7 @@ export default async function NewSupplierOrderPage({
       if (!size) continue;
       const key = `${p.id}\0${variant}\0${size}`;
       stockMap.set(key, (stockMap.get(key) ?? 0) + qty);
+      stockEntries.push({ productId: p.id, variantSegment: variant as VariantSegment, sizeLabel: size, qty });
     }
   }
 
@@ -122,7 +127,13 @@ export default async function NewSupplierOrderPage({
       </div>
 
       <div className="rounded-lg border border-zinc-200 bg-white p-6">
-        <NewSupplierOrderForm defaultDate={defaultDate} suppliers={(suppliers ?? []) as any} suggestions={suggestions} />
+        <NewSupplierOrderForm
+          defaultDate={defaultDate}
+          suppliers={(suppliers ?? []) as any}
+          products={(productOptions ?? []) as any}
+          stock={stockEntries}
+          suggestions={suggestions}
+        />
       </div>
     </div>
   );

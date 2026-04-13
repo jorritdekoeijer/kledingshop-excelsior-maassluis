@@ -6,6 +6,15 @@ import { createSupplierOrderAction } from "@/app/dashboard/stock/leveranciersbes
 
 type VariantSegment = "youth" | "adult";
 
+type ProductPick = {
+  id: string;
+  name: string;
+  youth: { modelNumber: string; sizes: string[] };
+  adult: { modelNumber: string; sizes: string[] };
+};
+
+type StockEntry = { productId: string; variantSegment: VariantSegment; sizeLabel: string; qty: number };
+
 export type SupplierOrderSuggestionLine = {
   productId: string;
   productName: string;
@@ -23,10 +32,6 @@ type LineState = SupplierOrderSuggestionLine & {
   include: boolean;
 };
 
-function eur(cents: number) {
-  return new Intl.NumberFormat("nl-NL", { style: "currency", currency: "EUR" }).format(cents / 100);
-}
-
 function buildQtyOptions(min: number): number[] {
   const out = new Set<number>();
   const base = Math.max(1, Math.floor(min));
@@ -41,16 +46,30 @@ function buildQtyOptions(min: number): number[] {
 export function NewSupplierOrderForm({
   defaultDate,
   suppliers,
+  products,
+  stock,
   suggestions
 }: {
   defaultDate: string;
   suppliers: { id: string; name: string; email: string }[];
+  products: ProductPick[];
+  stock: StockEntry[];
   suggestions: SupplierOrderSuggestionLine[];
 }) {
   const [orderDate, setOrderDate] = useState(defaultDate);
   const [supplierId, setSupplierId] = useState("");
   const [note, setNote] = useState("");
   const [pending, startTransition] = useTransition();
+
+  const productMap = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
+  const stockMap = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const s of stock) {
+      const key = `${s.productId}\0${s.variantSegment}\0${s.sizeLabel}`;
+      m.set(key, (m.get(key) ?? 0) + (s.qty ?? 0));
+    }
+    return m;
+  }, [stock]);
 
   const [lines, setLines] = useState<LineState[]>(() =>
     suggestions.map((s) => ({
@@ -60,10 +79,69 @@ export function NewSupplierOrderForm({
     }))
   );
 
+  const [manualProductId, setManualProductId] = useState("");
+  const [manualSegment, setManualSegment] = useState<VariantSegment>("adult");
+  const [manualSize, setManualSize] = useState("");
+  const [manualQty, setManualQty] = useState(1);
+
+  const manualProduct = manualProductId ? productMap.get(manualProductId) : undefined;
+  const manualSizes = useMemo(() => {
+    if (!manualProduct) return [];
+    const arr = manualSegment === "youth" ? manualProduct.youth.sizes : manualProduct.adult.sizes;
+    return [...new Set((arr ?? []).map((s) => String(s).trim()).filter(Boolean))];
+  }, [manualProduct, manualSegment]);
+
+  const manualArticleCode = manualProduct
+    ? manualSegment === "youth"
+      ? manualProduct.youth.modelNumber
+      : manualProduct.adult.modelNumber
+    : "";
+
   const includedCount = useMemo(() => lines.filter((l) => l.include && l.selectedQty >= 1).length, [lines]);
 
   function updateLine(idx: number, patch: Partial<LineState>) {
     setLines((prev) => prev.map((l, i) => (i === idx ? { ...l, ...patch } : l)));
+  }
+
+  function addManualLine() {
+    if (!manualProduct) {
+      alert("Kies een product.");
+      return;
+    }
+    const size = manualSize.trim();
+    if (!size) {
+      alert("Kies een maat.");
+      return;
+    }
+    const qty = Math.max(1, manualQty);
+    const currentStock = stockMap.get(`${manualProduct.id}\0${manualSegment}\0${size}`) ?? 0;
+
+    const newLine: LineState = {
+      productId: manualProduct.id,
+      productName: manualProduct.name,
+      articleCode: String(manualArticleCode ?? "").trim(),
+      variantSegment: manualSegment,
+      sizeLabel: size,
+      currentStock,
+      thresholdQty: 0,
+      targetQty: 0,
+      suggestedQty: 1,
+      include: true,
+      selectedQty: qty
+    };
+
+    setLines((prev) => {
+      const existingIdx = prev.findIndex(
+        (l) => l.productId === newLine.productId && l.variantSegment === newLine.variantSegment && l.sizeLabel === newLine.sizeLabel
+      );
+      if (existingIdx >= 0) {
+        const ex = prev[existingIdx]!;
+        const min = Math.max(1, ex.suggestedQty);
+        const bumped = Math.max(ex.selectedQty, min, ex.selectedQty + qty);
+        return prev.map((l, i) => (i === existingIdx ? { ...l, include: true, selectedQty: bumped } : l));
+      }
+      return [newLine, ...prev];
+    });
   }
 
   function onSubmit(e: React.FormEvent) {
@@ -145,6 +223,123 @@ export function NewSupplierOrderForm({
           placeholder="Extra instructies voor de leverancier"
         />
       </label>
+
+      <div className="rounded-lg border border-zinc-200 bg-white p-4">
+        <h2 className="text-sm font-semibold text-zinc-900">Handmatig product toevoegen</h2>
+        <p className="mt-1 text-xs text-zinc-500">Voeg extra regels toe naast de automatische aanvulregels.</p>
+
+        <div className="mt-3 grid gap-3 md:grid-cols-12 md:items-end">
+          <label className="md:col-span-5">
+            <span className="text-xs font-medium text-zinc-600">Product</span>
+            <select
+              value={manualProductId}
+              onChange={(e) => {
+                const id = e.target.value;
+                setManualProductId(id);
+                const p = id ? productMap.get(id) : undefined;
+                const defaultSeg: VariantSegment =
+                  p && p.youth.sizes.length > 0 && p.adult.sizes.length === 0 ? "youth" : "adult";
+                setManualSegment(defaultSeg);
+                const sizes = p ? (defaultSeg === "youth" ? p.youth.sizes : p.adult.sizes) : [];
+                setManualSize(String(sizes?.[0] ?? ""));
+              }}
+              className="mt-1 w-full rounded-md border border-zinc-300 px-2 py-2 text-sm"
+            >
+              <option value="">— Kies product —</option>
+              {products.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <div className="md:col-span-3">
+            <span className="text-xs font-medium text-zinc-600">Variant</span>
+            <div className="mt-2 inline-flex rounded-full border border-zinc-300 bg-white p-1" role="group" aria-label="Variant">
+              <button
+                type="button"
+                onClick={() => {
+                  setManualSegment("youth");
+                  const p = manualProductId ? productMap.get(manualProductId) : undefined;
+                  const sizes = p ? p.youth.sizes : [];
+                  setManualSize(String(sizes?.[0] ?? ""));
+                }}
+                className={`rounded-full px-3 py-1.5 text-xs font-semibold ${
+                  manualSegment === "youth" ? "bg-brand-blue text-white" : "text-zinc-700 hover:bg-zinc-100"
+                }`}
+                disabled={!manualProduct || manualProduct.youth.sizes.length === 0}
+              >
+                YOUTH
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setManualSegment("adult");
+                  const p = manualProductId ? productMap.get(manualProductId) : undefined;
+                  const sizes = p ? p.adult.sizes : [];
+                  setManualSize(String(sizes?.[0] ?? ""));
+                }}
+                className={`rounded-full px-3 py-1.5 text-xs font-semibold ${
+                  manualSegment === "adult" ? "bg-brand-blue text-white" : "text-zinc-700 hover:bg-zinc-100"
+                }`}
+                disabled={!manualProduct || manualProduct.adult.sizes.length === 0}
+              >
+                ADULT
+              </button>
+            </div>
+            {manualArticleCode ? (
+              <p className="mt-1 text-xs text-zinc-500">
+                Artikelcode: <span className="font-mono text-zinc-800">{manualArticleCode}</span>
+              </p>
+            ) : null}
+          </div>
+
+          <label className="md:col-span-2">
+            <span className="text-xs font-medium text-zinc-600">Maat</span>
+            <select
+              value={manualSize}
+              onChange={(e) => setManualSize(e.target.value)}
+              className="mt-1 w-full rounded-md border border-zinc-300 px-2 py-2 text-sm"
+              disabled={!manualProduct}
+            >
+              {manualSizes.length === 0 ? <option value="">—</option> : null}
+              {manualSizes.map((sz) => (
+                <option key={sz} value={sz}>
+                  {sz}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="md:col-span-1">
+            <span className="text-xs font-medium text-zinc-600">Aantal</span>
+            <select
+              value={manualQty}
+              onChange={(e) => setManualQty(Math.max(1, Number(e.target.value) || 1))}
+              className="mt-1 w-full rounded-md border border-zinc-300 px-2 py-2 text-sm"
+              disabled={!manualProduct}
+            >
+              {buildQtyOptions(1).map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <div className="md:col-span-1">
+            <button
+              type="button"
+              onClick={addManualLine}
+              className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-semibold text-zinc-800 hover:bg-zinc-50 disabled:opacity-50"
+              disabled={!manualProduct}
+            >
+              + Toevoegen
+            </button>
+          </div>
+        </div>
+      </div>
 
       <div className="rounded-lg border border-zinc-200 bg-white">
         <div className="border-b border-zinc-200 px-6 py-4">
