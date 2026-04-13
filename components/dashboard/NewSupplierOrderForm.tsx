@@ -40,13 +40,15 @@ function buildQtyOptions(min: number): number[] {
 
 export function NewSupplierOrderForm({
   defaultDate,
+  suppliers,
   suggestions
 }: {
   defaultDate: string;
+  suppliers: { id: string; name: string; email: string }[];
   suggestions: SupplierOrderSuggestionLine[];
 }) {
   const [orderDate, setOrderDate] = useState(defaultDate);
-  const [supplier, setSupplier] = useState("");
+  const [supplierId, setSupplierId] = useState("");
   const [note, setNote] = useState("");
   const [pending, startTransition] = useTransition();
 
@@ -71,6 +73,10 @@ export function NewSupplierOrderForm({
       alert("Datum is verplicht.");
       return;
     }
+    if (!supplierId.trim()) {
+      alert("Leverancier is verplicht.");
+      return;
+    }
 
     const outLines = lines
       .filter((l) => l.include)
@@ -90,7 +96,7 @@ export function NewSupplierOrderForm({
     startTransition(() => {
       createSupplierOrderAction({
         orderDate: orderDate.trim(),
-        supplier: supplier.trim() || null,
+        supplierId: supplierId.trim(),
         note: note.trim() || null,
         lines: outLines
       });
@@ -112,13 +118,20 @@ export function NewSupplierOrderForm({
         </label>
 
         <label className="block sm:col-span-2">
-          <span className="text-sm font-medium text-zinc-700">Leverancier (optioneel)</span>
-          <input
-            value={supplier}
-            onChange={(e) => setSupplier(e.target.value)}
+          <span className="text-sm font-medium text-zinc-700">Leverancier</span>
+          <select
+            value={supplierId}
+            onChange={(e) => setSupplierId(e.target.value)}
             className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
-            placeholder="Bijv. Intersport / Stanno / ..."
-          />
+            required
+          >
+            <option value="">— Kies leverancier —</option>
+            {suppliers.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name} ({s.email})
+              </option>
+            ))}
+          </select>
         </label>
       </div>
 
@@ -220,9 +233,9 @@ export function NewSupplierOrderForm({
         <button
           type="submit"
           disabled={pending}
-          className="rounded-md bg-brand-blue px-5 py-2.5 text-sm font-semibold text-white hover:brightness-110 disabled:opacity-50"
+          className="rounded-md bg-green-600 px-5 py-2.5 text-sm font-semibold text-white hover:brightness-110 disabled:opacity-50"
         >
-          {pending ? "Bezig…" : "Leveranciersbestelling opslaan"}
+          {pending ? "Bezig…" : "BESTELLEN"}
         </button>
         <Link href="/dashboard/stock" className="text-sm text-zinc-600 hover:text-zinc-900">
           Annuleren

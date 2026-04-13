@@ -23,6 +23,11 @@ export default async function NewSupplierOrderPage({
 
   const supabase = await createSupabaseServerClient();
 
+  const { data: suppliers } = await supabase
+    .from("suppliers")
+    .select("id,name,email")
+    .order("name");
+
   const { data: products } = await supabase
     .from("products")
     .select("id,name,variant_youth,variant_adult,stock_batches(quantity_remaining,variant_segment,size_label)")
@@ -117,7 +122,7 @@ export default async function NewSupplierOrderPage({
       </div>
 
       <div className="rounded-lg border border-zinc-200 bg-white p-6">
-        <NewSupplierOrderForm defaultDate={defaultDate} suggestions={suggestions} />
+        <NewSupplierOrderForm defaultDate={defaultDate} suppliers={(suppliers ?? []) as any} suggestions={suggestions} />
       </div>
     </div>
   );

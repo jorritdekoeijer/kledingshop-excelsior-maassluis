@@ -9,7 +9,7 @@ export const supplierOrderLineSchema = z.object({
 
 export const createSupplierOrderSchema = z.object({
   orderDate: z.string().min(1).max(32),
-  supplier: z.string().max(200).optional().nullable(),
+  supplierId: z.string().uuid(),
   note: z.string().max(2000).optional().nullable(),
   lines: z.array(supplierOrderLineSchema).min(1).max(500)
 });
