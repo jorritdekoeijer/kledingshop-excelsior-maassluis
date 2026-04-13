@@ -9,6 +9,36 @@ begin
   if to_regclass('public.stock_batches') is null then
     raise exception 'missing table public.stock_batches; run stock migrations first.';
   end if;
+  if to_regclass('public.stock_consumptions') is null then
+    raise exception 'missing table public.stock_consumptions; run FIFO migration first (e.g. 0003_product_images_and_fifo.sql).';
+  end if;
+  if not exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'stock_batches'
+      and column_name = 'unit_purchase_excl_cents'
+  ) then
+    raise exception 'missing column stock_batches.unit_purchase_excl_cents; run stock delivery migration first (e.g. 0015_stock_deliveries.sql).';
+  end if;
+  if not exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'stock_batches'
+      and column_name = 'variant_segment'
+  ) then
+    raise exception 'missing column stock_batches.variant_segment; run variant migration first (e.g. 0016_stock_variant_segment.sql).';
+  end if;
+  if not exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'stock_batches'
+      and column_name = 'size_label'
+  ) then
+    raise exception 'missing column stock_batches.size_label; run stock delivery migration first (e.g. 0015_stock_deliveries.sql).';
+  end if;
 end;
 $preflight$;
 
@@ -93,7 +123,8 @@ create table if not exists public.internal_order_lines (
   variant_segment text,
   size_label text,
   quantity integer not null check (quantity > 0),
-  unit_purchase_excl_cents integer not null check (unit_purchase_excl_cents >= 0),
+  -- Gewogen gemiddelde inkoopprijs (informatief). Werkelijke kosten worden als totaal vastgelegd.
+  unit_purchase_excl_cents integer check (unit_purchase_excl_cents is null or unit_purchase_excl_cents >= 0),
   line_total_purchase_excl_cents integer not null check (line_total_purchase_excl_cents >= 0),
   created_at timestamptz not null default now()
 );
@@ -159,8 +190,11 @@ declare
   v_qty integer;
   v_variant text;
   v_size text;
-  v_unit integer;
   v_line_total integer;
+  v_avg_unit integer;
+  remaining integer;
+  b record;
+  take_qty integer;
 begin
   if not public.has_permission('stock:write') then
     raise exception 'permission denied';
@@ -189,7 +223,6 @@ begin
     v_qty := (li->>'quantity')::integer;
     v_variant := nullif(trim(coalesce(li->>'variantSegment', '')), '');
     v_size := nullif(trim(coalesce(li->>'sizeLabel', '')), '');
-    v_unit := (li->>'unitPurchaseExclCents')::integer;
 
     if v_product_id is null then
       raise exception 'line missing productId';
@@ -203,12 +236,45 @@ begin
     if v_size is null then
       raise exception 'line sizeLabel is required';
     end if;
-    if v_unit is null or v_unit < 0 then
-      raise exception 'line unitPurchaseExclCents must be >= 0';
+
+    -- FIFO-consumptie + kostprijs (uit batch.unit_purchase_excl_cents).
+    remaining := v_qty;
+    v_line_total := 0;
+
+    for b in
+      select id, quantity_remaining, unit_purchase_excl_cents
+      from public.stock_batches
+      where product_id = v_product_id
+        and quantity_remaining > 0
+        and variant_segment = v_variant
+        and trim(coalesce(size_label, '')) = v_size
+      order by received_at asc, created_at asc
+      for update
+    loop
+      exit when remaining <= 0;
+      take_qty := least(remaining, b.quantity_remaining);
+
+      if b.unit_purchase_excl_cents is null then
+        raise exception 'missing unit_purchase_excl_cents on stock batch %', b.id;
+      end if;
+
+      update public.stock_batches
+      set quantity_remaining = quantity_remaining - take_qty
+      where id = b.id;
+
+      insert into public.stock_consumptions (product_id, stock_batch_id, quantity, reason)
+      values (v_product_id, b.id, take_qty, 'internal_order');
+
+      v_line_total := v_line_total + (take_qty * b.unit_purchase_excl_cents);
+      remaining := remaining - take_qty;
+    end loop;
+
+    if remaining > 0 then
+      raise exception 'insufficient stock';
     end if;
 
-    v_line_total := v_unit * v_qty;
     v_total := v_total + v_line_total;
+    v_avg_unit := round(v_line_total::numeric / v_qty::numeric)::integer;
 
     insert into public.internal_order_lines (
       internal_order_id,
@@ -225,11 +291,9 @@ begin
       v_variant,
       v_size,
       v_qty,
-      v_unit,
+      v_avg_unit,
       v_line_total
     );
-
-    perform public.consume_stock_fifo(v_product_id, v_qty, 'internal_order', v_variant, v_size);
   end loop;
 
   update public.internal_orders

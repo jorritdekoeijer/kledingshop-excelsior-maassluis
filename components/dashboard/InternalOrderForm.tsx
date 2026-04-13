@@ -12,6 +12,14 @@ type ProductRow = {
   name: string;
   variant_youth: unknown;
   variant_adult: unknown;
+  stock_batches?: {
+    quantity_remaining: number | null;
+    variant_segment: string | null;
+    size_label: string | null;
+    unit_purchase_excl_cents: number | null;
+    received_at: string | null;
+    created_at: string | null;
+  }[];
 };
 
 type CostGroup = { id: string; name: string };
@@ -22,7 +30,6 @@ type LineState = {
   segment: VariantSegment;
   sizeLabel: string;
   quantity: number;
-  unitPurchaseExclCents: number | null;
 };
 
 function emptyLine(): LineState {
@@ -31,8 +38,7 @@ function emptyLine(): LineState {
     productId: "",
     segment: "adult",
     sizeLabel: "",
-    quantity: 1,
-    unitPurchaseExclCents: null
+    quantity: 1
   };
 }
 
@@ -51,12 +57,6 @@ function defaultSegmentForProduct(p: ProductRow | undefined): VariantSegment {
 function segmentSizes(p: ProductRow, seg: VariantSegment): string[] {
   const v = seg === "youth" ? normalizeVariantBlock(p.variant_youth) : normalizeVariantBlock(p.variant_adult);
   return [...new Set((v.sizes ?? []).map((s) => String(s).trim()).filter(Boolean))];
-}
-
-function segmentPurchaseCents(p: ProductRow, seg: VariantSegment): number | null {
-  const v = seg === "youth" ? normalizeVariantBlock(p.variant_youth) : normalizeVariantBlock(p.variant_adult);
-  const pc = v.purchase_cents;
-  return typeof pc === "number" && Number.isFinite(pc) && pc >= 0 ? pc : null;
 }
 
 function segmentModel(p: ProductRow, seg: VariantSegment): string {
@@ -79,16 +79,77 @@ export function InternalOrderForm({
 
   const productMap = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
 
-  const totalExcl = useMemo(() => {
-    let sum = 0;
-    for (const l of lines) {
-      if (!l.productId) continue;
-      const unit = l.unitPurchaseExclCents;
-      if (unit == null || !Number.isFinite(unit)) continue;
-      sum += Math.max(0, l.quantity) * Math.max(0, unit);
+  type BatchSnap = {
+    productId: string;
+    variant: VariantSegment;
+    size: string;
+    qty: number;
+    unit: number | null;
+    receivedAt: string;
+    createdAt: string;
+  };
+
+  const batchIndex = useMemo(() => {
+    const m = new Map<string, BatchSnap[]>();
+    for (const p of products) {
+      const bs = p.stock_batches ?? [];
+      for (const b of bs) {
+        const qty = b.quantity_remaining ?? 0;
+        if (qty <= 0) continue;
+        const variant = String(b.variant_segment ?? "").trim();
+        const size = String(b.size_label ?? "").trim();
+        if (variant !== "youth" && variant !== "adult") continue;
+        if (!size) continue;
+        const key = `${p.id}\0${variant}\0${size}`;
+        const arr = m.get(key) ?? [];
+        arr.push({
+          productId: p.id,
+          variant: variant as VariantSegment,
+          size,
+          qty,
+          unit: typeof b.unit_purchase_excl_cents === "number" && Number.isFinite(b.unit_purchase_excl_cents) ? b.unit_purchase_excl_cents : null,
+          receivedAt: String(b.received_at ?? ""),
+          createdAt: String(b.created_at ?? "")
+        });
+        m.set(key, arr);
+      }
     }
-    return sum;
-  }, [lines]);
+    for (const [k, arr] of m) {
+      arr.sort((a, b) => {
+        if (a.receivedAt < b.receivedAt) return -1;
+        if (a.receivedAt > b.receivedAt) return 1;
+        if (a.createdAt < b.createdAt) return -1;
+        if (a.createdAt > b.createdAt) return 1;
+        return 0;
+      });
+      m.set(k, arr);
+    }
+    return m;
+  }, [products]);
+
+  const totalExclEstimate = useMemo(() => {
+    const remainingByBatch = new Map<BatchSnap, number>();
+    for (const arr of batchIndex.values()) {
+      for (const b of arr) remainingByBatch.set(b, b.qty);
+    }
+    let total = 0;
+    for (const l of lines) {
+      if (!l.productId || !l.sizeLabel.trim()) continue;
+      let need = Math.max(0, l.quantity);
+      const key = `${l.productId}\0${l.segment}\0${l.sizeLabel.trim()}`;
+      const arr = batchIndex.get(key) ?? [];
+      for (const b of arr) {
+        if (need <= 0) break;
+        const have = remainingByBatch.get(b) ?? 0;
+        if (have <= 0) continue;
+        const take = Math.min(need, have);
+        remainingByBatch.set(b, have - take);
+        if (b.unit != null) total += take * b.unit;
+        need -= take;
+      }
+    }
+    return total;
+  }, [lines, batchIndex]);
 
   function updateLine(key: string, patch: Partial<LineState>) {
     setLines((prev) => prev.map((l) => (l.key === key ? { ...l, ...patch } : l)));
@@ -98,12 +159,10 @@ export function InternalOrderForm({
     const p = productId ? productMap.get(productId) : undefined;
     const seg = defaultSegmentForProduct(p);
     const sizes = p ? segmentSizes(p, seg) : [];
-    const unit = p ? segmentPurchaseCents(p, seg) : null;
     updateLine(key, {
       productId,
       segment: seg,
-      sizeLabel: sizes[0] ?? "",
-      unitPurchaseExclCents: unit
+      sizeLabel: sizes[0] ?? ""
     });
   }
 
@@ -111,11 +170,9 @@ export function InternalOrderForm({
     const p = productId ? productMap.get(productId) : undefined;
     if (!p) return;
     const sizes = segmentSizes(p, seg);
-    const unit = segmentPurchaseCents(p, seg);
     updateLine(key, {
       segment: seg,
-      sizeLabel: sizes[0] ?? "",
-      unitPurchaseExclCents: unit
+      sizeLabel: sizes[0] ?? ""
     });
   }
 
@@ -127,7 +184,6 @@ export function InternalOrderForm({
       variantSegment: VariantSegment;
       quantity: number;
       sizeLabel: string;
-      unitPurchaseExclCents: number;
     }[] = [];
 
     for (const l of lines) {
@@ -140,16 +196,11 @@ export function InternalOrderForm({
         alert("Aantal moet minstens 1 zijn.");
         return;
       }
-      if (l.unitPurchaseExclCents == null || !Number.isFinite(l.unitPurchaseExclCents) || l.unitPurchaseExclCents < 0) {
-        alert("Inkoopprijs ontbreekt. Zet in Producten → bewerk het product de inkoopprijs per variant, of vul per regel handmatig in.");
-        return;
-      }
       outLines.push({
         productId: l.productId,
         variantSegment: l.segment,
         quantity: l.quantity,
-        sizeLabel: l.sizeLabel.trim(),
-        unitPurchaseExclCents: l.unitPurchaseExclCents
+        sizeLabel: l.sizeLabel.trim()
       });
     }
 
@@ -227,7 +278,7 @@ export function InternalOrderForm({
       <div>
         <h2 className="text-sm font-semibold text-zinc-900">Regels</h2>
         <p className="mt-1 text-xs text-zinc-500">
-          Kies product, jeugd/volwassen en maat. Het totaal wordt berekend op basis van de inkoopprijs excl. btw per variant.
+          Kies product, jeugd/volwassen en maat. Het totaal wordt berekend op basis van de inkoopprijs uit de voorraadleveringen (FIFO).
         </p>
 
         <div className="mt-4 space-y-4">
@@ -236,8 +287,20 @@ export function InternalOrderForm({
             const sizes = p ? segmentSizes(p, line.segment) : [];
             const showToggle = Boolean(p && segmentSizes(p, "youth").length > 0 && segmentSizes(p, "adult").length > 0);
             const model = p ? segmentModel(p, line.segment) : "";
-            const unit = line.unitPurchaseExclCents;
-            const lineTotal = unit != null && Number.isFinite(unit) ? unit * Math.max(0, line.quantity) : null;
+            const lineTotal = (() => {
+              if (!line.productId || !line.sizeLabel.trim()) return null;
+              let need = Math.max(0, line.quantity);
+              const key = `${line.productId}\0${line.segment}\0${line.sizeLabel.trim()}`;
+              const arr = batchIndex.get(key) ?? [];
+              let t = 0;
+              for (const b of arr) {
+                if (need <= 0) break;
+                const take = Math.min(need, b.qty);
+                if (b.unit != null) t += take * b.unit;
+                need -= take;
+              }
+              return t;
+            })();
 
             return (
               <div
@@ -333,21 +396,10 @@ export function InternalOrderForm({
                   )}
                 </label>
 
-                <label className="md:col-span-2">
-                  <span className="text-xs font-medium text-zinc-600">Inkoop / stuk (excl. btw)</span>
-                  <input
-                    type="number"
-                    min={0}
-                    value={unit ?? ""}
-                    onChange={(e) => {
-                      const v = e.target.value === "" ? null : Number(e.target.value);
-                      updateLine(line.key, { unitPurchaseExclCents: v != null && Number.isFinite(v) ? Math.max(0, Math.round(v)) : null });
-                    }}
-                    className="mt-1 w-full rounded-md border border-zinc-300 px-2 py-2 text-sm"
-                    placeholder="centen"
-                  />
-                  <p className="mt-1 text-[11px] text-zinc-500">In centen (bijv. 1250 voor €12,50)</p>
-                </label>
+                <div className="md:col-span-2">
+                  <span className="text-xs font-medium text-zinc-600">Inkoop (FIFO)</span>
+                  <p className="mt-2 text-xs text-zinc-600">Automatisch uit voorraadleveringen.</p>
+                </div>
 
                 <div className="flex items-end justify-between gap-4 md:col-span-12">
                   <div className="text-xs text-zinc-600">
@@ -380,8 +432,9 @@ export function InternalOrderForm({
       <div className="rounded-lg border border-zinc-200 bg-white p-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="text-sm font-semibold text-zinc-900">Totaal inkoop excl. btw</div>
-          <div className="text-lg font-bold tabular-nums text-zinc-900">{eur(totalExcl)}</div>
+          <div className="text-lg font-bold tabular-nums text-zinc-900">{eur(totalExclEstimate)}</div>
         </div>
+        <p className="mt-1 text-xs text-zinc-500">Indicatie op basis van huidige FIFO-voorraad. Definitief totaal wordt bij opslaan vastgelegd.</p>
       </div>
 
       <div className="flex flex-wrap items-center gap-3">

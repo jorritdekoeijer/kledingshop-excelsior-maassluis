@@ -4,8 +4,7 @@ export const internalOrderLineSchema = z.object({
   productId: z.string().uuid(),
   variantSegment: z.enum(["youth", "adult"]),
   quantity: z.coerce.number().int().min(1).max(999999),
-  sizeLabel: z.string().min(1).max(32),
-  unitPurchaseExclCents: z.coerce.number().int().min(0)
+  sizeLabel: z.string().min(1).max(32)
 });
 
 export const createInternalOrderSchema = z.object({

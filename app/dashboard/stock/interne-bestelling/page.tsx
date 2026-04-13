@@ -19,7 +19,9 @@ export default async function InterneBestellingPage({
   const supabase = await createSupabaseServerClient();
   const { data: products } = await supabase
     .from("products")
-    .select("id,name,variant_youth,variant_adult")
+    .select(
+      "id,name,variant_youth,variant_adult,stock_batches(quantity_remaining,variant_segment,size_label,unit_purchase_excl_cents,received_at,created_at)"
+    )
     .eq("active", true)
     .order("name");
 
