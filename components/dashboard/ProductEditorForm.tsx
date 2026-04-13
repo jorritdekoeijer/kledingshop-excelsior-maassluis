@@ -26,6 +26,8 @@ type Defaults = {
   temporaryDiscountPercent: number;
   active: boolean;
   categoryId: string | null;
+  /** Kleding: jeugd/volwassen maatlijsten; sokken: vaste sokkenmaten onder voorraad per maat. */
+  garmentType: "clothing" | "socks";
   productDetails: ProductDetailRow[];
   variantYouth: ProductVariantBlock;
   variantAdult: ProductVariantBlock;
@@ -63,6 +65,7 @@ export function ProductEditorForm({
     temporaryDiscountPercent: defaults?.temporaryDiscountPercent ?? 0,
     active: defaults?.active ?? true,
     categoryId: defaults?.categoryId ?? null,
+    garmentType: defaults?.garmentType ?? "clothing",
     productDetails: defaults?.productDetails ?? [],
     variantYouth: defaults?.variantYouth ?? emptyVariant(),
     variantAdult: defaults?.variantAdult ?? emptyVariant()
@@ -127,6 +130,36 @@ export function ProductEditorForm({
       <input type="hidden" name="productDetailsJson" value={productDetailsJson} readOnly />
       <input type="hidden" name="variantYouthJson" value={variantYouthJson} readOnly />
       <input type="hidden" name="variantAdultJson" value={variantAdultJson} readOnly />
+
+      <fieldset className="md:col-span-2 rounded-lg border border-zinc-200 p-4">
+        <legend className="px-1 text-sm font-medium text-zinc-800">Kledingsoort</legend>
+        <p className="mb-3 text-xs text-zinc-600">
+          Bepaalt welke maatlijst onder <strong>Voorraad instellingen per maat</strong> wordt gebruikt (kledingmaten of
+          sokkenmaten).
+        </p>
+        <div className="flex flex-wrap gap-6">
+          <label className="flex cursor-pointer items-center gap-2 text-sm text-zinc-800">
+            <input
+              type="radio"
+              name="garmentType"
+              value="clothing"
+              defaultChecked={d.garmentType === "clothing"}
+              className="h-4 w-4 border-zinc-300 text-brand-blue focus:ring-brand-blue/40"
+            />
+            Kleding
+          </label>
+          <label className="flex cursor-pointer items-center gap-2 text-sm text-zinc-800">
+            <input
+              type="radio"
+              name="garmentType"
+              value="socks"
+              defaultChecked={d.garmentType === "socks"}
+              className="h-4 w-4 border-zinc-300 text-brand-blue focus:ring-brand-blue/40"
+            />
+            Sokken
+          </label>
+        </div>
+      </fieldset>
 
       <label className="block md:col-span-2">
         <span className="text-sm text-zinc-700">Naam</span>

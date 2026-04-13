@@ -1,5 +1,6 @@
 import type { ProductUpsertParsed } from "@/lib/dashboard/product-form-parse";
-import type { ProductVariantBlock } from "@/lib/validation/products";
+import { ADULT_SIZE_OPTIONS, SOCKS_SIZE_OPTIONS, YOUTH_SIZE_OPTIONS } from "@/lib/products/variant-constants";
+import type { GarmentType, ProductVariantBlock } from "@/lib/validation/products";
 
 /**
  * Alleen sleutels voor public.products JSONB-kolommen variant_youth / variant_adult.
@@ -14,12 +15,35 @@ export function variantBlockToDbJson(v: ProductVariantBlock) {
   };
 }
 
+function sizeTemplateForVariant(garmentType: GarmentType, segment: "youth" | "adult"): readonly string[] {
+  if (garmentType === "socks") return SOCKS_SIZE_OPTIONS;
+  return segment === "youth" ? YOUTH_SIZE_OPTIONS : ADULT_SIZE_OPTIONS;
+}
+
+/** Houdt variant-sizes alleen binnen de voor kledingsoort geldige maatlijst. */
+export function filterVariantBlockSizesForGarment(
+  garmentType: GarmentType,
+  segment: "youth" | "adult",
+  block: ProductVariantBlock
+): ProductVariantBlock {
+  const allowed = new Set(sizeTemplateForVariant(garmentType, segment));
+  return { ...block, sizes: (block.sizes ?? []).filter((s) => allowed.has(s)) };
+}
+
+/** Actieve maten in vaste volgorde van de template (voor sync naar `variant_*.sizes`). */
+export function activeSizesInTemplateOrder(active: string[], template: readonly string[]): string[] {
+  const set = new Set(active);
+  return template.filter((s) => set.has(s));
+}
+
 /**
  * Rij voor insert/update: alleen kolommen die op public.products bestaan.
  * - price_cents komt uit de parse (minimum van variant sale_cents, incl. btw).
  * - temporary_discount_percent komt uit het formulierveld discountPercent.
  */
 export function productParsedToDbRow(d: ProductUpsertParsed) {
+  const variantYouth = filterVariantBlockSizesForGarment(d.garmentType, "youth", d.variantYouth);
+  const variantAdult = filterVariantBlockSizesForGarment(d.garmentType, "adult", d.variantAdult);
   return {
     name: d.name,
     slug: d.slug,
@@ -27,9 +51,10 @@ export function productParsedToDbRow(d: ProductUpsertParsed) {
     price_cents: d.priceCents,
     temporary_discount_percent: d.temporaryDiscountPercent,
     active: d.active,
+    garment_type: d.garmentType,
     product_details: d.productDetails,
-    variant_youth: variantBlockToDbJson(d.variantYouth),
-    variant_adult: variantBlockToDbJson(d.variantAdult)
+    variant_youth: variantBlockToDbJson(variantYouth),
+    variant_adult: variantBlockToDbJson(variantAdult)
   };
 }
 

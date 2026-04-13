@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { ProductEditorForm } from "@/components/dashboard/ProductEditorForm";
 import { productParsedToDbRow } from "@/lib/dashboard/product-db-row";
+import { deleteReorderRulesNotInGarmentTemplates } from "@/lib/dashboard/reorder-rules-garment-cleanup";
 import { parseProductUpsertFormData } from "@/lib/dashboard/product-form-parse";
 import { resolveProductCategoryId } from "@/lib/dashboard/resolve-product-category-id";
 import { normalizeProductDetails, normalizeVariantBlock } from "@/lib/shop/product-json";
@@ -60,6 +61,8 @@ async function updateProduct(productId: string, formData: FormData) {
   if (error) {
     redirect(`/dashboard/products/${productId}/edit?error=${encodeURIComponent(formatPostgrestError(error))}`);
   }
+
+  await deleteReorderRulesNotInGarmentTemplates(service, productId, d.garmentType);
 
   redirect(`/dashboard/products/${productId}/edit?ok=1`);
 }
@@ -165,7 +168,7 @@ export default async function EditProductPage({
   const { data: product, error: productError } = await supabase
     .from("products")
     .select(
-      "id,name,slug,description,price_cents,temporary_discount_percent,active,category_id,product_details,variant_youth,variant_adult"
+      "id,name,slug,description,price_cents,temporary_discount_percent,active,category_id,garment_type,product_details,variant_youth,variant_adult"
     )
     .eq("id", id)
     .single();
@@ -199,6 +202,7 @@ export default async function EditProductPage({
     temporaryDiscountPercent: Number(product.temporary_discount_percent ?? 0),
     active: product.active,
     categoryId: product.category_id,
+    garmentType: (product.garment_type === "socks" ? "socks" : "clothing") as "clothing" | "socks",
     productDetails: normalizeProductDetails(product.product_details),
     variantYouth: normalizeVariantBlock(product.variant_youth),
     variantAdult: normalizeVariantBlock(product.variant_adult)
@@ -233,9 +237,9 @@ export default async function EditProductPage({
         </p>
         <div className="mt-4">
           <ProductReorderRulesEditor
+            key={defaults.garmentType}
             productId={id}
-            youth={defaults.variantYouth}
-            adult={defaults.variantAdult}
+            garmentType={defaults.garmentType}
             existing={((reorderRules ?? []) as any) ?? []}
             action={updateReorderRules.bind(null, id)}
           />

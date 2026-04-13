@@ -5,6 +5,9 @@ import { requirePermission } from "@/lib/auth/permissions-server";
 import { permissions } from "@/lib/auth/permissions";
 import { createSupabaseServiceClient } from "@/lib/supabase/service";
 import { formatPostgrestError } from "@/lib/supabase/format-postgrest-error";
+import { activeSizesInTemplateOrder, variantBlockToDbJson } from "@/lib/dashboard/product-db-row";
+import { normalizeVariantBlock } from "@/lib/shop/product-json";
+import { ADULT_SIZE_OPTIONS, SOCKS_SIZE_OPTIONS, YOUTH_SIZE_OPTIONS } from "@/lib/products/variant-constants";
 import { upsertReorderRulesSchema } from "@/lib/validation/reorder-rules";
 
 function parseJsonField(raw: FormDataEntryValue | null, fallback: unknown): unknown {
@@ -46,6 +49,43 @@ export async function updateReorderRules(productId: string, formData: FormData) 
   });
   if (error) {
     redirect(`/dashboard/products/${productId}/edit?error=${encodeURIComponent(formatPostgrestError(error))}`);
+  }
+
+  const { data: prod, error: prodErr } = await service
+    .from("products")
+    .select("variant_youth,variant_adult,garment_type")
+    .eq("id", productId)
+    .single();
+  if (prodErr || !prod) {
+    redirect(`/dashboard/products/${productId}/edit?error=${encodeURIComponent(formatPostgrestError(prodErr))}`);
+  }
+
+  const garmentType = prod.garment_type === "socks" ? "socks" : "clothing";
+  const templateYouth = garmentType === "socks" ? SOCKS_SIZE_OPTIONS : YOUTH_SIZE_OPTIONS;
+  const templateAdult = garmentType === "socks" ? SOCKS_SIZE_OPTIONS : ADULT_SIZE_OPTIONS;
+
+  const vy = normalizeVariantBlock(prod.variant_youth);
+  const va = normalizeVariantBlock(prod.variant_adult);
+
+  const activeYouthLabels = parsed.data.rules
+    .filter((r) => r.variantSegment === "youth" && r.isActive)
+    .map((r) => r.sizeLabel);
+  const activeAdultLabels = parsed.data.rules
+    .filter((r) => r.variantSegment === "adult" && r.isActive)
+    .map((r) => r.sizeLabel);
+
+  const youthSizes = activeSizesInTemplateOrder(activeYouthLabels, templateYouth);
+  const adultSizes = activeSizesInTemplateOrder(activeAdultLabels, templateAdult);
+
+  const { error: updErr } = await service
+    .from("products")
+    .update({
+      variant_youth: variantBlockToDbJson({ ...vy, sizes: youthSizes }),
+      variant_adult: variantBlockToDbJson({ ...va, sizes: adultSizes })
+    })
+    .eq("id", productId);
+  if (updErr) {
+    redirect(`/dashboard/products/${productId}/edit?error=${encodeURIComponent(formatPostgrestError(updErr))}`);
   }
 
   redirect(`/dashboard/products/${productId}/edit?ok=1`);

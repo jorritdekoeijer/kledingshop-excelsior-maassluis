@@ -71,6 +71,7 @@ export function parseProductUpsertFormData(formData: FormData): ProductFormParse
     temporaryDiscountPercent,
     active: formData.get("active"),
     categoryId: cid,
+    garmentType: formData.get("garmentType"),
     productDetails,
     variantYouth,
     variantAdult

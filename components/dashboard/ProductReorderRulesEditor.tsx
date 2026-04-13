@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
+import { ADULT_SIZE_OPTIONS, SOCKS_SIZE_OPTIONS, YOUTH_SIZE_OPTIONS } from "@/lib/products/variant-constants";
 
 type VariantSegment = "youth" | "adult";
 
@@ -12,24 +13,25 @@ export type ExistingRule = {
   target_qty: number;
 };
 
-type VariantBlockLite = { sizes: string[]; model_number: string };
-
 export function ProductReorderRulesEditor({
   productId,
-  youth,
-  adult,
+  garmentType,
   existing,
   action
 }: {
   productId: string;
-  youth: VariantBlockLite;
-  adult: VariantBlockLite;
+  garmentType: "clothing" | "socks";
   existing: ExistingRule[];
   action: (formData: FormData) => void | Promise<void>;
 }) {
   const [pending, startTransition] = useTransition();
 
   const allRows = useMemo(() => {
+    const youthSizes =
+      garmentType === "socks" ? [...SOCKS_SIZE_OPTIONS] : [...YOUTH_SIZE_OPTIONS];
+    const adultSizes =
+      garmentType === "socks" ? [...SOCKS_SIZE_OPTIONS] : [...ADULT_SIZE_OPTIONS];
+
     const key = (seg: VariantSegment, size: string) => `${seg}\0${size}`;
     const map = new Map<string, ExistingRule>();
     for (const r of existing) {
@@ -48,12 +50,15 @@ export function ProductReorderRulesEditor({
         };
       });
 
-    return [...build("youth", youth.sizes ?? []), ...build("adult", adult.sizes ?? [])];
-  }, [existing, youth.sizes, adult.sizes]);
+    return [...build("youth", youthSizes), ...build("adult", adultSizes)];
+  }, [existing, garmentType]);
 
   const [rows, setRows] = useState(() => allRows);
 
-  // Als sizes wijzigen (model edit), keep best effort sync.
+  useEffect(() => {
+    setRows(allRows);
+  }, [allRows]);
+
   const rowsJson = useMemo(() => JSON.stringify(rows), [rows]);
 
   function update(idx: number, patch: Partial<(typeof rows)[number]>) {
@@ -138,4 +143,3 @@ export function ProductReorderRulesEditor({
     </form>
   );
 }
-
