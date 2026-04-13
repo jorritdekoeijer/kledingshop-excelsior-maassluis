@@ -2,8 +2,6 @@ import Link from "next/link";
 import { requirePermission } from "@/lib/auth/permissions-server";
 import { permissions } from "@/lib/auth/permissions";
 import { redirect } from "next/navigation";
-import { ConsumeStockForm } from "@/components/dashboard/ConsumeStockForm";
-import { buildProductPickOptions } from "@/lib/stock/build-product-pick-options";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 function formatVariantSegment(v: string | null | undefined): string {
@@ -40,17 +38,8 @@ export default async function DashboardStockPage({
   const supabase = await createSupabaseServerClient();
   const { data: products } = await supabase
     .from("products")
-    .select("id,name,active,variant_youth,variant_adult,stock_batches(quantity_remaining,variant_segment,size_label)")
+    .select("id,name,active,stock_batches(quantity_remaining,variant_segment,size_label)")
     .order("name");
-
-  const pickOptions = buildProductPickOptions(
-    (products ?? []).map((p) => ({
-      id: p.id,
-      name: p.name,
-      variant_youth: p.variant_youth,
-      variant_adult: p.variant_adult
-    }))
-  );
 
   type BatchRow = {
     quantity_remaining: number | null;
@@ -126,14 +115,6 @@ export default async function DashboardStockPage({
         {error ? (
           <p className="mt-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
         ) : null}
-      </div>
-
-      <div className="rounded-lg border border-zinc-200 bg-white p-6">
-        <h2 className="text-sm font-semibold">Voorraad verbruiken (FIFO)</h2>
-        <p className="mt-1 text-xs text-zinc-500">
-          Kies jeugd of volwassen (eigen modelnummer en maten) of legacy-voorraad zonder labels.
-        </p>
-        <ConsumeStockForm products={pickOptions} />
       </div>
 
       <div className="rounded-lg border border-zinc-200 bg-white">
