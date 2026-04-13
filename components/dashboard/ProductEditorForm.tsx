@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ADULT_SIZE_OPTIONS, YOUTH_SIZE_OPTIONS } from "@/lib/products/variant-constants";
 import { exclCentsFromIncl21, inclCentsFromExcl21, parseDutchEuroToCents } from "@/lib/money/nl-euro";
 import type { ProductDetailRow, ProductVariantBlock } from "@/lib/validation/products";
 
@@ -123,13 +122,6 @@ export function ProductEditorForm({
     });
   }, [adult, adultSaleIncl]);
 
-  function toggleSize(list: string[], size: string, on: boolean): string[] {
-    const s = new Set(list);
-    if (on) s.add(size);
-    else s.delete(size);
-    return [...s];
-  }
-
   return (
     <form action={action} className="grid gap-4 md:grid-cols-2">
       <input type="hidden" name="productDetailsJson" value={productDetailsJson} readOnly />
@@ -250,11 +242,8 @@ export function ProductEditorForm({
 
       <VariantBlock
         title="Jeugd (YOUTH)"
-        sizes={YOUTH_SIZE_OPTIONS as unknown as string[]}
         model={youth.model_number ?? ""}
         onModelChange={(v) => setYouth({ ...youth, model_number: v })}
-        selected={youth.sizes ?? []}
-        onToggle={(size, on) => setYouth({ ...youth, sizes: toggleSize(youth.sizes ?? [], size, on) })}
         saleInclStr={youthSaleIncl}
         saleExclStr={youthSaleExcl}
         onSaleInclChange={setYouthSaleIncl}
@@ -271,11 +260,8 @@ export function ProductEditorForm({
 
       <VariantBlock
         title="Volwassenen (ADULT)"
-        sizes={ADULT_SIZE_OPTIONS as unknown as string[]}
         model={adult.model_number ?? ""}
         onModelChange={(v) => setAdult({ ...adult, model_number: v })}
-        selected={adult.sizes ?? []}
-        onToggle={(size, on) => setAdult({ ...adult, sizes: toggleSize(adult.sizes ?? [], size, on) })}
         saleInclStr={adultSaleIncl}
         saleExclStr={adultSaleExcl}
         onSaleInclChange={setAdultSaleIncl}
@@ -315,11 +301,8 @@ export function ProductEditorForm({
 
 function VariantBlock({
   title,
-  sizes,
   model,
   onModelChange,
-  selected,
-  onToggle,
   saleInclStr,
   saleExclStr,
   onSaleInclChange,
@@ -328,11 +311,8 @@ function VariantBlock({
   onSaleExclBlur
 }: {
   title: string;
-  sizes: string[];
   model: string;
   onModelChange: (v: string) => void;
-  selected: string[];
-  onToggle: (size: string, on: boolean) => void;
   saleInclStr: string;
   saleExclStr: string;
   onSaleInclChange: (v: string) => void;
@@ -379,20 +359,9 @@ function VariantBlock({
           className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
         />
       </label>
-
-      <p className="mt-4 text-xs font-medium text-zinc-700">Beschikbare maten</p>
-      <div className="mt-2 flex flex-wrap gap-2">
-        {sizes.map((sz) => (
-          <label key={sz} className="flex cursor-pointer items-center gap-1.5 rounded border border-zinc-200 px-2 py-1 text-sm">
-            <input
-              type="checkbox"
-              checked={selected.includes(sz)}
-              onChange={(e) => onToggle(sz, e.target.checked)}
-            />
-            {sz}
-          </label>
-        ))}
-      </div>
+      <p className="mt-4 text-xs text-zinc-600">
+        Beschikbare maten beheer je hieronder bij <strong>Voorraad instellingen per maat</strong>.
+      </p>
     </div>
   );
 }
