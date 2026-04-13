@@ -12,6 +12,8 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { formatPostgrestError } from "@/lib/supabase/format-postgrest-error";
 import { createSupabaseServiceClient } from "@/lib/supabase/service";
 import { getPublicProductImageUrl } from "@/lib/utils/supabase-storage";
+import { ProductReorderRulesEditor } from "@/components/dashboard/ProductReorderRulesEditor";
+import { updateReorderRules } from "@/app/dashboard/products/[id]/reorder-rules/actions";
 
 export const dynamic = "force-dynamic";
 
@@ -182,6 +184,11 @@ export default async function EditProductPage({
     .select("id,name")
     .order("name");
 
+  const { data: reorderRules } = await supabase
+    .from("stock_reorder_rules")
+    .select("variant_segment,size_label,is_active,threshold_qty,target_qty")
+    .eq("product_id", id);
+
   const primaryImg = (images ?? []).find((i) => i.is_primary) ?? null;
   const img = getPublicProductImageUrl(primaryImg?.path);
 
@@ -216,6 +223,23 @@ export default async function EditProductPage({
 
       <div className="mt-6">
         <ProductEditorForm action={updateProduct.bind(null, id)} categories={categories ?? []} defaults={defaults} />
+      </div>
+
+      <div className="mt-10">
+        <h2 className="text-lg font-semibold">Voorraad instellingen per maat</h2>
+        <p className="mt-2 text-sm text-zinc-600">
+          Activeer maten en stel een drempelwaarde en standaard voorraad in. Als de actuele voorraad van een maat op of onder
+          de drempel komt, verschijnt er automatisch een aanvulregel in <strong>Nieuwe leveranciersbestelling</strong>.
+        </p>
+        <div className="mt-4">
+          <ProductReorderRulesEditor
+            productId={id}
+            youth={defaults.variantYouth}
+            adult={defaults.variantAdult}
+            existing={((reorderRules ?? []) as any) ?? []}
+            action={updateReorderRules.bind(null, id)}
+          />
+        </div>
       </div>
 
       <div className="mt-10 border-t border-zinc-200 pt-8">

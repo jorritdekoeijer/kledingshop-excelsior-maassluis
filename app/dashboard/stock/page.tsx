@@ -113,6 +113,12 @@ export default async function DashboardStockPage({
           >
             Interne bestelling
           </Link>
+          <Link
+            href="/dashboard/stock/leveranciersbestelling/nieuw"
+            className="inline-flex min-h-[44px] items-center justify-center rounded-md border border-zinc-300 bg-white px-5 py-2.5 text-sm font-semibold text-zinc-800 hover:bg-zinc-50"
+          >
+            Nieuwe leveranciersbestelling
+          </Link>
         </div>
 
         {ok ? (
