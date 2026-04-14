@@ -30,7 +30,25 @@ export default async function RapportagePage({
   try {
     report = await fetchFinancialOverview(supabase, period);
   } catch (e) {
-    loadError = e instanceof Error ? e.message : "Onbekende fout";
+    if (e instanceof Error) {
+      loadError = e.message;
+    } else if (e && typeof e === "object" && "message" in e && typeof (e as any).message === "string") {
+      const anyE = e as any;
+      const extra = [
+        anyE.code ? `code=${String(anyE.code)}` : null,
+        anyE.details ? `details=${String(anyE.details)}` : null,
+        anyE.hint ? `hint=${String(anyE.hint)}` : null
+      ]
+        .filter(Boolean)
+        .join(" · ");
+      loadError = extra ? `${anyE.message} (${extra})` : anyE.message;
+    } else {
+      try {
+        loadError = JSON.stringify(e);
+      } catch {
+        loadError = String(e);
+      }
+    }
   }
 
   return (

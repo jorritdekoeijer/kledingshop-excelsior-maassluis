@@ -72,6 +72,21 @@ export async function fetchFinancialOverview(
 ): Promise<FinancialOverviewReport> {
   const { startIso, endIso, fromDate, toDate } = period;
 
+  const asErr = (label: string, e: unknown) => {
+    if (e && typeof e === "object" && "message" in e) {
+      const anyE = e as any;
+      const extra = [
+        anyE.code ? `code=${String(anyE.code)}` : null,
+        anyE.details ? `details=${String(anyE.details)}` : null,
+        anyE.hint ? `hint=${String(anyE.hint)}` : null
+      ]
+        .filter(Boolean)
+        .join(" · ");
+      return new Error(extra ? `${label}: ${anyE.message} (${extra})` : `${label}: ${anyE.message}`);
+    }
+    return new Error(`${label}: ${String(e)}`);
+  };
+
   const [cgRes, ioRes, ordRes, consRes, batchRes] = await Promise.all([
     supabase.from("cost_groups").select("id,name").order("name"),
     supabase
@@ -97,11 +112,11 @@ export async function fetchFinancialOverview(
       .gt("quantity_remaining", 0)
   ]);
 
-  if (cgRes.error) throw cgRes.error;
-  if (ioRes.error) throw ioRes.error;
-  if (ordRes.error) throw ordRes.error;
-  if (consRes.error) throw consRes.error;
-  if (batchRes.error) throw batchRes.error;
+  if (cgRes.error) throw asErr("cost_groups select", cgRes.error);
+  if (ioRes.error) throw asErr("internal_orders select", ioRes.error);
+  if (ordRes.error) throw asErr("orders select", ordRes.error);
+  if (consRes.error) throw asErr("stock_consumptions select", consRes.error);
+  if (batchRes.error) throw asErr("stock_batches select", batchRes.error);
 
   const groups = (cgRes.data ?? []) as { id: string; name: string }[];
   const spendByGroup = new Map<string, number>();
