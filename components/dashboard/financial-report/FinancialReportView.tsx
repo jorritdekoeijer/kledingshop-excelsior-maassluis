@@ -181,6 +181,10 @@ export function FinancialReportView({ report }: { report: FinancialOverviewRepor
           <p className="mt-1 text-sm text-zinc-600">
             Totalen zijn <strong>excl. btw</strong>, gebaseerd op interne bestellingen met orderdatum in de gekozen periode.
           </p>
+          <p className="mt-2 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs text-zinc-700">
+            Mist je database de tabel <span className="font-mono">internal_orders</span>? Draai dan eerst migratie{" "}
+            <span className="font-mono">0017_internal_orders.sql</span>. Zonder die migratie blijft dit blok op 0 staan.
+          </p>
           <p className="mt-3 text-sm font-medium text-zinc-800">
             Totaal intern: <span className="tabular-nums text-brand-red">{eurExcl(report.internalOrdersTotalExclCents)}</span>
           </p>

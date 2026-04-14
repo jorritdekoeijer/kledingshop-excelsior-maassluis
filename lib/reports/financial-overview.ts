@@ -113,17 +113,24 @@ export async function fetchFinancialOverview(
   ]);
 
   if (cgRes.error) throw asErr("cost_groups select", cgRes.error);
-  if (ioRes.error) throw asErr("internal_orders select", ioRes.error);
+  // `internal_orders` bestaat pas na migratie 0017. Als die nog niet gedraaid is, behandel als 0 (rapportage blijft bruikbaar).
+  const internalOrdersMissing =
+    Boolean((ioRes.error as any)?.code === "PGRST205") ||
+    (typeof (ioRes.error as any)?.message === "string" &&
+      String((ioRes.error as any)?.message).toLowerCase().includes("internal_orders"));
+  if (ioRes.error && !internalOrdersMissing) throw asErr("internal_orders select", ioRes.error);
   if (ordRes.error) throw asErr("orders select", ordRes.error);
   if (consRes.error) throw asErr("stock_consumptions select", consRes.error);
   if (batchRes.error) throw asErr("stock_batches select", batchRes.error);
 
   const groups = (cgRes.data ?? []) as { id: string; name: string }[];
   const spendByGroup = new Map<string, number>();
-  for (const row of ioRes.data ?? []) {
-    const id = (row as { cost_group_id: string }).cost_group_id;
-    const t = Number((row as { total_purchase_excl_cents: number }).total_purchase_excl_cents ?? 0);
-    spendByGroup.set(id, (spendByGroup.get(id) ?? 0) + t);
+  if (!internalOrdersMissing) {
+    for (const row of ioRes.data ?? []) {
+      const id = (row as { cost_group_id: string }).cost_group_id;
+      const t = Number((row as { total_purchase_excl_cents: number }).total_purchase_excl_cents ?? 0);
+      spendByGroup.set(id, (spendByGroup.get(id) ?? 0) + t);
+    }
   }
   const costGroups: CostGroupSpend[] = groups.map((g) => ({
     id: g.id,
