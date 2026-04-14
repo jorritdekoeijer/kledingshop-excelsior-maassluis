@@ -94,12 +94,23 @@ export async function fetchFinancialOverview(
       .select("cost_group_id,total_purchase_excl_cents,order_date")
       .gte("order_date", fromDate)
       .lte("order_date", toDate),
-    supabase
-      .from("orders")
-      .select("id,total_cents,status,created_at")
-      .in("status", ["paid", "fulfilled"])
-      .gte("created_at", startIso)
-      .lte("created_at", endIso),
+    // Sommige databases hebben nog geen 'fulfilled' in de enum order_status. We proberen eerst paid+fulfilled,
+    // en vallen terug op alleen paid bij enum-fout (22P02).
+    (async () => {
+      const base = supabase
+        .from("orders")
+        .select("id,total_cents,status,created_at")
+        .gte("created_at", startIso)
+        .lte("created_at", endIso);
+      const a = await base.in("status", ["paid", "fulfilled"]);
+      if (!a.error) return a;
+      const msg = String((a.error as any)?.message ?? "");
+      const code = String((a.error as any)?.code ?? "");
+      if (code === "22P02" && msg.includes("order_status") && msg.includes("fulfilled")) {
+        return await base.in("status", ["paid"]);
+      }
+      return a;
+    })(),
     supabase
       .from("stock_consumptions")
       .select("quantity,reason,created_at,stock_batches(unit_purchase_excl_cents)")
