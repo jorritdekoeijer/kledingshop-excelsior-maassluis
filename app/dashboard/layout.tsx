@@ -11,7 +11,11 @@ export default async function DashboardLayout({ children }: { children: ReactNod
   const hasDashboardAccess = hasPermission(perms, permissions.dashboard.access);
 
   const showSettings =
-    isAdmin || hasDashboardAccess || hasPermission(perms, permissions.settings.read);
+    isAdmin ||
+    hasDashboardAccess ||
+    hasPermission(perms, permissions.settings.read) ||
+    perms.includes(permissions.suppliers.read) ||
+    perms.includes(permissions.suppliers.write);
   const showProducts =
     isAdmin || hasDashboardAccess || hasPermission(perms, permissions.products.read);
   const showStock = isAdmin || hasDashboardAccess || hasPermission(perms, permissions.stock.read);

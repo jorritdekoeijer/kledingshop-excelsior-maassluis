@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { requireAdminOrPermission } from "@/lib/auth/permissions-server";
+import { requireOneOfPermissions } from "@/lib/auth/permissions-server";
 import { permissions } from "@/lib/auth/permissions";
 import { settingsSectionBase } from "@/lib/settings/settings-base";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -26,7 +26,7 @@ const supplierDeleteSchema = z.object({ id: z.string().uuid() });
 
 export async function createSupplier(formData: FormData) {
   const base = settingsSectionBase(formData);
-  const gate = await requireAdminOrPermission(permissions.settings.write);
+  const gate = await requireOneOfPermissions([permissions.suppliers.write, permissions.settings.write]);
   if (!gate.ok) redirect(`${base}/suppliers?error=${encodeURIComponent("Geen toegang")}`);
 
   const parsed = supplierCreateSchema.safeParse({
@@ -58,7 +58,7 @@ export async function createSupplier(formData: FormData) {
 
 export async function updateSupplier(formData: FormData) {
   const base = settingsSectionBase(formData);
-  const gate = await requireAdminOrPermission(permissions.settings.write);
+  const gate = await requireOneOfPermissions([permissions.suppliers.write, permissions.settings.write]);
   if (!gate.ok) redirect(`${base}/suppliers?error=${encodeURIComponent("Geen toegang")}`);
 
   const parsed = supplierUpdateSchema.safeParse({
@@ -94,7 +94,7 @@ export async function updateSupplier(formData: FormData) {
 
 export async function deleteSupplier(formData: FormData) {
   const base = settingsSectionBase(formData);
-  const gate = await requireAdminOrPermission(permissions.settings.write);
+  const gate = await requireOneOfPermissions([permissions.suppliers.write, permissions.settings.write]);
   if (!gate.ok) redirect(`${base}/suppliers?error=${encodeURIComponent("Geen toegang")}`);
 
   const parsed = supplierDeleteSchema.safeParse({ id: formData.get("id") });

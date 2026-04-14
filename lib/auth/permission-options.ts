@@ -57,6 +57,20 @@ export const PERMISSION_LEVEL_PAIRS: PermissionLevelPair[] = [
     description: "Orders inzien en afhandelen (status, bevestiging naar klant).",
     readKey: "orders:read",
     writeKey: "orders:write"
+  },
+  {
+    formField: "level_reporting",
+    title: "Rapportage",
+    description: "Financieel overzicht: omzet, marge, voorraad tegen inkoop, kosten per kostengroep.",
+    readKey: "reporting:read",
+    writeKey: "reporting:write"
+  },
+  {
+    formField: "level_suppliers",
+    title: "Leveranciers",
+    description: "Adres- en contactgegevens van leveranciers (instellingen + gebruik bij leveranciersbestelling).",
+    readKey: "suppliers:read",
+    writeKey: "suppliers:write"
   }
 ];
 

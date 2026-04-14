@@ -7,7 +7,7 @@ type NavCard = {
   href: string;
   title: string;
   description: string;
-  /** Permissie-string uit `permissions`, of `__reporting__` voor gecombineerde financiële rapportage. */
+  /** Vereiste permissie; rapportage gebruikt daarnaast {@link hasFinancialReportAccess}. */
   needs: string | null;
 };
 
@@ -52,7 +52,7 @@ const CARDS: NavCard[] = [
     href: "/dashboard/rapportage",
     title: "Rapportage",
     description: "Omzet, marge, kostengroepen en voorraadwaarde.",
-    needs: "__reporting__"
+    needs: permissions.reporting.read
   }
 ];
 
@@ -64,10 +64,8 @@ export default async function DashboardHome() {
 
   const visible = CARDS.filter((c) => {
     if (c.href === "/admin") return isAdmin;
+    if (c.href === "/dashboard/rapportage") return hasFinancialReportAccess(perms, { isAdmin });
     if (!c.needs) return false;
-    if (c.needs === "__reporting__") {
-      return hasFinancialReportAccess(perms, { isAdmin });
-    }
     return isAdmin || hasDashboardAccess || hasPermission(perms, c.needs);
   });
 

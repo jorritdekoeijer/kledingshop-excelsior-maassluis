@@ -6,11 +6,14 @@ import { createSupplier, deleteSupplier, updateSupplier } from "@/lib/settings/s
 export async function SuppliersSettingsSection({
   base,
   ok,
-  error
+  error,
+  canMutate = true
 }: {
   base: SettingsSectionBase;
   ok: boolean;
   error: string;
+  /** Zonder schrijfrecht: alleen overzicht (voor `suppliers:read`). */
+  canMutate?: boolean;
 }) {
   const supabase = await createSupabaseServerClient();
   const { data: suppliers } = await supabase
@@ -28,6 +31,12 @@ export async function SuppliersSettingsSection({
       ) : null}
       {error ? (
         <p className="mt-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
+      ) : null}
+
+      {!canMutate ? (
+        <p className="mt-4 rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-700">
+          Je hebt alleen leesrechten voor leveranciers; wijzigen is niet toegestaan.
+        </p>
       ) : null}
 
       <form action={createSupplier} className="mt-6 grid gap-3 md:grid-cols-2">
@@ -72,7 +81,11 @@ export async function SuppliersSettingsSection({
         </label>
 
         <div className="md:col-span-2">
-          <button className="rounded-md bg-brand-blue px-3 py-2 text-sm font-medium text-white" type="submit">
+          <button
+            className="rounded-md bg-brand-blue px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
+            type="submit"
+            disabled={!canMutate}
+          >
             Leverancier toevoegen
           </button>
         </div>
@@ -89,7 +102,11 @@ export async function SuppliersSettingsSection({
               <form action={deleteSupplier}>
                 <SettingsBaseHidden value={base} />
                 <input type="hidden" name="id" value={s.id} />
-                <button className="text-sm text-brand-red hover:underline" type="submit">
+                <button
+                  className="text-sm text-brand-red hover:underline disabled:opacity-40"
+                  type="submit"
+                  disabled={!canMutate}
+                >
                   Verwijderen
                 </button>
               </form>
@@ -166,7 +183,11 @@ export async function SuppliersSettingsSection({
               </label>
 
               <div className="md:col-span-2">
-                <button className="rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium" type="submit">
+                <button
+                  className="rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium disabled:opacity-50"
+                  type="submit"
+                  disabled={!canMutate}
+                >
                   Opslaan
                 </button>
               </div>

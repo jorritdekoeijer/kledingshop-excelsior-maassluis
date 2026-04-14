@@ -38,7 +38,11 @@ select
     'stock:read',
     'stock:write',
     'orders:read',
-    'orders:write'
+    'orders:write',
+    'reporting:read',
+    'reporting:write',
+    'suppliers:read',
+    'suppliers:write'
   ]::text[]
 from auth.users u
 where u.id = 'YOUR_USER_ID'::uuid

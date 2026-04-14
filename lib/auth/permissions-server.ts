@@ -47,3 +47,20 @@ export async function requireAdminOrPermission(required: Permission) {
   return requirePermission(required);
 }
 
+/** Minstens één van de opgegeven permissies (of admin / `dashboard:access`). */
+export async function requireOneOfPermissions(required: Permission[]) {
+  const user = await requireLogin();
+  const perms = await getUserPermissions(user.id);
+  const admin = await requireAdmin();
+  if (admin.ok && admin.user.id === user.id) {
+    return { ok: true as const, user, permissions: perms, isAdmin: true as const };
+  }
+  if (perms.includes(permissions.dashboard.access)) {
+    return { ok: true as const, user, permissions: perms, isAdmin: false as const };
+  }
+  if (required.some((r) => perms.includes(r))) {
+    return { ok: true as const, user, permissions: perms, isAdmin: false as const };
+  }
+  return { ok: false as const, user, permissions: perms, isAdmin: false as const };
+}
+

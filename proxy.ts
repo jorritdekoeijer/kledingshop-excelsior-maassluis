@@ -2,6 +2,7 @@ import type { NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import type { SetAllCookies } from "@supabase/ssr";
 import { NextResponse } from "next/server";
+import { hasFinancialReportAccess } from "@/lib/auth/reporting-access";
 import { permissions } from "@/lib/auth/permissions";
 
 function getEnv(name: string) {
@@ -61,6 +62,24 @@ export async function proxy(request: NextRequest) {
     return null;
   }
 
+  /** Minstens één permissie, of admin / dashboard:access. */
+  async function requireAnyPermOrDashboard(keys: string[]) {
+    if (!data.user) return NextResponse.redirect(new URL("/login", request.url));
+    const perms = await getPermissionsForUser(data.user.id);
+    if (perms.includes(permissions.dashboard.access)) return null;
+    if (await isAdminUser(data.user.id)) return null;
+    if (keys.some((k) => perms.includes(k))) return null;
+    return new NextResponse("Forbidden", { status: 403 });
+  }
+
+  async function requireReportingOrDashboard() {
+    if (!data.user) return NextResponse.redirect(new URL("/login", request.url));
+    const perms = await getPermissionsForUser(data.user.id);
+    const admin = await isAdminUser(data.user.id);
+    if (hasFinancialReportAccess(perms, { isAdmin: admin })) return null;
+    return new NextResponse("Forbidden", { status: 403 });
+  }
+
   if (pathname.startsWith("/dashboard")) {
     // Always require login for /dashboard/* (startpagina toont keuzes; subroutes per permissie)
     if (!data.user) return NextResponse.redirect(new URL("/login", request.url));
@@ -72,8 +91,27 @@ export async function proxy(request: NextRequest) {
     } else if (pathname.startsWith("/dashboard/settings/cost-groups")) {
       const res = await requirePermOrDashboard(permissions.costGroups.read);
       if (res) return res;
+    } else if (pathname.startsWith("/dashboard/settings/suppliers")) {
+      const res = await requireAnyPermOrDashboard([
+        permissions.suppliers.read,
+        permissions.suppliers.write,
+        permissions.settings.read
+      ]);
+      if (res) return res;
+    } else if (pathname === "/dashboard/settings" || pathname === "/dashboard/settings/") {
+      const res = await requireAnyPermOrDashboard([
+        permissions.settings.read,
+        permissions.suppliers.read,
+        permissions.suppliers.write
+      ]);
+      if (res) return res;
     } else if (pathname.startsWith("/dashboard/settings")) {
       const res = await requirePermOrDashboard(permissions.settings.read);
+      if (res) return res;
+    }
+
+    if (pathname.startsWith("/dashboard/rapportage")) {
+      const res = await requireReportingOrDashboard();
       if (res) return res;
     }
 

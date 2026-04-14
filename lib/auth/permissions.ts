@@ -26,6 +26,16 @@ export const permissions = {
     read: "orders:read",
     write: "orders:write"
   },
+  /** Financiële rapportage (omzet, marge, voorraadwaarde, kostengroepen). */
+  reporting: {
+    read: "reporting:read",
+    write: "reporting:write"
+  },
+  /** Leveranciersgegevens (NAW, e-mail) voor leveranciersbestellingen. */
+  suppliers: {
+    read: "suppliers:read",
+    write: "suppliers:write"
+  },
   admin: {
     view: "admin:view",
     manageOrders: "orders:manage",

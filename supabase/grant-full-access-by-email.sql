@@ -33,7 +33,11 @@ declare
     'stock:read',
     'stock:write',
     'orders:read',
-    'orders:write'
+    'orders:write',
+    'reporting:read',
+    'reporting:write',
+    'suppliers:read',
+    'suppliers:write'
   ]::text[];
   has_id boolean;
   has_user_id boolean;
