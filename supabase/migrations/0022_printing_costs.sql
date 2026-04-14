@@ -17,15 +17,6 @@ begin
   if to_regclass('public.stock_consumptions') is null then
     raise exception 'missing table public.stock_consumptions; run FIFO migration first (0003_product_images_and_fifo.sql).';
   end if;
-  if not exists (
-    select 1
-    from information_schema.columns
-    where table_schema = 'public'
-      and table_name = 'stock_consumptions'
-      and column_name = 'reason'
-  ) then
-    raise exception 'missing column stock_consumptions.reason; run 0003_product_images_and_fifo.sql (newer schema) first.';
-  end if;
   if to_regclass('public.internal_orders') is null or to_regclass('public.internal_order_lines') is null then
     raise exception 'missing internal orders tables; run 0017_internal_orders.sql first.';
   end if;
@@ -58,6 +49,11 @@ begin
   end if;
 end;
 $preflight$;
+
+-- Oudere databases hebben `stock_consumptions` zonder `reason`. Voeg toe (idempotent), zodat interne orders + rapportage
+-- altijd een duidelijke reden kunnen opslaan/filteren.
+alter table public.stock_consumptions
+  add column if not exists reason text not null default 'sale';
 
 -- 1) Product: standaard bedrukkingskosten (excl. btw) per stuk
 alter table public.products
