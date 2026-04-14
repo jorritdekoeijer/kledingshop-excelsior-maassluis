@@ -25,7 +25,13 @@ export default async function RapportagePage({
   const period = resolveReportPeriod(from, to);
 
   const supabase = await createSupabaseServerClient();
-  const report = await fetchFinancialOverview(supabase, period);
+  let report: Awaited<ReturnType<typeof fetchFinancialOverview>> | null = null;
+  let loadError = "";
+  try {
+    report = await fetchFinancialOverview(supabase, period);
+  } catch (e) {
+    loadError = e instanceof Error ? e.message : "Onbekende fout";
+  }
 
   return (
     <div className="space-y-6">
@@ -39,7 +45,19 @@ export default async function RapportagePage({
         </p>
       </div>
 
-      <FinancialReportView report={report} />
+      {loadError ? (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+          <p className="font-medium">Rapportage kon niet laden.</p>
+          <p className="mt-1 text-red-700">
+            Controleer of je database-migraties zijn uitgevoerd en of je gebruiker rechten heeft (bijv.{" "}
+            <span className="font-mono text-xs">reporting:read</span> /{" "}
+            <span className="font-mono text-xs">dashboard:access</span>).
+          </p>
+          <p className="mt-2 font-mono text-xs text-red-700/90">{loadError}</p>
+        </div>
+      ) : report ? (
+        <FinancialReportView report={report} />
+      ) : null}
     </div>
   );
 }

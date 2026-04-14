@@ -36,10 +36,9 @@ export async function requirePermission(required: Permission) {
 
 /** True if public.is_admin() RPC returns true (admin role in user_roles). */
 export async function getIsAdmin(): Promise<boolean> {
-  const supabase = await createSupabaseServerClient();
-  const { data, error } = await supabase.rpc("is_admin");
-  if (error || typeof data !== "boolean") return false;
-  return data;
+  // Gebruik dezelfde logica als `requireAdmin` (RPC + fallback via user_roles).
+  const admin = await requireAdmin();
+  return admin.ok;
 }
 
 /** Zelfde als {@link requirePermission}: admins hebben impliciet alle dashboard-permissies. */
