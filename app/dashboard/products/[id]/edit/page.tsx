@@ -13,7 +13,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { formatPostgrestError } from "@/lib/supabase/format-postgrest-error";
 import { createSupabaseServiceClient } from "@/lib/supabase/service";
 import { getPublicProductImageUrl } from "@/lib/utils/supabase-storage";
-import { ProductReorderRulesEditor } from "@/components/dashboard/ProductReorderRulesEditor";
+import { ProductEditPageClient } from "@/components/dashboard/ProductEditPageClient";
 import { updateReorderRules } from "@/app/dashboard/products/[id]/reorder-rules/actions";
 
 export const dynamic = "force-dynamic";
@@ -227,24 +227,14 @@ export default async function EditProductPage({
       ) : null}
 
       <div className="mt-6">
-        <ProductEditorForm action={updateProduct.bind(null, id)} categories={categories ?? []} defaults={defaults} />
-      </div>
-
-      <div className="mt-10">
-        <h2 className="text-lg font-semibold">Voorraad instellingen per maat</h2>
-        <p className="mt-2 text-sm text-zinc-600">
-          Activeer maten en stel een drempelwaarde en standaard voorraad in. Als de actuele voorraad van een maat op of onder
-          de drempel komt, verschijnt er automatisch een aanvulregel in <strong>Nieuwe leveranciersbestelling</strong>.
-        </p>
-        <div className="mt-4">
-          <ProductReorderRulesEditor
-            key={defaults.garmentType}
-            productId={id}
-            garmentType={defaults.garmentType}
-            existing={((reorderRules ?? []) as any) ?? []}
-            action={updateReorderRules.bind(null, id)}
-          />
-        </div>
+        <ProductEditPageClient
+          productId={id}
+          categories={(categories ?? []) as any}
+          defaults={defaults as any}
+          reorderRules={(((reorderRules ?? []) as any) ?? []) as any}
+          updateProductAction={updateProduct.bind(null, id)}
+          updateReorderRulesAction={updateReorderRules.bind(null, id)}
+        />
       </div>
 
       <div className="mt-10 border-t border-zinc-200 pt-8">

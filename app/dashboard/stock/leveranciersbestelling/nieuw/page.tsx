@@ -6,6 +6,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { normalizeVariantBlock } from "@/lib/shop/product-json";
 import { NewSupplierOrderForm, type SupplierOrderSuggestionLine } from "@/components/dashboard/NewSupplierOrderForm";
 import { buildProductPickOptions } from "@/lib/stock/build-product-pick-options";
+import { sendExistingSupplierOrderAction } from "@/app/dashboard/stock/leveranciersbestelling/nieuw/actions";
 
 export const dynamic = "force-dynamic";
 
@@ -28,6 +29,14 @@ export default async function NewSupplierOrderPage({
     .from("suppliers")
     .select("id,name,email")
     .order("name");
+
+  const { data: previousOrders } = await supabase
+    .from("supplier_orders")
+    .select(
+      "id,order_date,supplier,status,note,created_at,supplier_order_lines(quantity,variant_segment,size_label,products(name))"
+    )
+    .order("created_at", { ascending: false })
+    .limit(20);
 
   const { data: products } = await supabase
     .from("products")
@@ -134,6 +143,75 @@ export default async function NewSupplierOrderPage({
           stock={stockEntries}
           suggestions={suggestions}
         />
+      </div>
+
+      <div className="rounded-lg border border-zinc-200 bg-white p-6">
+        <h2 className="text-lg font-semibold">Eerdere leveranciersbestellingen</h2>
+        <p className="mt-2 text-sm text-zinc-600">
+          Overzicht van recente bestellingen. Concepten kun je hier alsnog versturen.
+        </p>
+
+        {(previousOrders ?? []).length === 0 ? (
+          <p className="mt-4 text-sm text-zinc-500">Nog geen bestellingen.</p>
+        ) : (
+          <div className="mt-4 space-y-3">
+            {(previousOrders ?? []).map((o: any) => {
+              const lines = (o.supplier_order_lines ?? []) as any[];
+              return (
+                <details key={o.id} className="rounded-lg border border-zinc-200 bg-zinc-50/60 p-4">
+                  <summary className="cursor-pointer list-none">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <div className="text-sm font-semibold text-zinc-900">
+                          {o.order_date} — {o.supplier ?? "—"}
+                        </div>
+                        <div className="mt-1 text-xs text-zinc-600">
+                          Status: <span className="font-medium">{String(o.status ?? "")}</span> · Regels:{" "}
+                          <span className="font-medium">{lines.length}</span>
+                        </div>
+                      </div>
+                      {String(o.status) === "draft" ? (
+                        <form action={sendExistingSupplierOrderAction.bind(null, String(o.id))}>
+                          <button
+                            type="submit"
+                            className="rounded-md bg-green-600 px-3 py-2 text-xs font-semibold text-white hover:brightness-110"
+                          >
+                            Verstuur
+                          </button>
+                        </form>
+                      ) : null}
+                    </div>
+                  </summary>
+
+                  {o.note ? <p className="mt-3 text-sm text-zinc-700">Opmerking: {o.note}</p> : null}
+
+                  <div className="mt-3 overflow-x-auto rounded-md border border-zinc-200 bg-white">
+                    <table className="w-full min-w-[36rem] text-sm">
+                      <thead>
+                        <tr className="border-b border-zinc-200 bg-zinc-50 text-left text-xs font-semibold uppercase tracking-wide text-zinc-600">
+                          <th className="px-3 py-2">Product</th>
+                          <th className="px-3 py-2">Variant</th>
+                          <th className="px-3 py-2">Maat</th>
+                          <th className="px-3 py-2 text-right">Aantal</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-zinc-200">
+                        {lines.map((l) => (
+                          <tr key={`${o.id}-${l.variant_segment}-${l.size_label}-${l.product_id}`}>
+                            <td className="px-3 py-2">{l.products?.name ?? "—"}</td>
+                            <td className="px-3 py-2">{l.variant_segment === "youth" ? "YOUTH" : "ADULT"}</td>
+                            <td className="px-3 py-2 font-mono">{l.size_label}</td>
+                            <td className="px-3 py-2 text-right tabular-nums">{l.quantity}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </details>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );

@@ -52,12 +52,17 @@ export function ProductEditorForm({
   action,
   categories,
   defaults,
-  showImageUpload = false
+  showImageUpload = false,
+  garmentTypeValue,
+  onGarmentTypeChange
 }: {
   action: (formData: FormData) => void | Promise<void>;
   categories: Cat[];
   defaults?: Partial<Defaults>;
   showImageUpload?: boolean;
+  /** Optioneel: controlled garment type (voor live-sync met voorraadregels). */
+  garmentTypeValue?: "clothing" | "socks";
+  onGarmentTypeChange?: (v: "clothing" | "socks") => void;
 }) {
   const d: Defaults = {
     name: defaults?.name ?? "",
@@ -82,6 +87,9 @@ export function ProductEditorForm({
   const [details, setDetails] = useState<ProductDetailRow[]>(d.productDetails);
   const [youth, setYouth] = useState<ProductVariantBlock>(d.variantYouth);
   const [adult, setAdult] = useState<ProductVariantBlock>(d.variantAdult);
+
+  const [garmentTypeInternal, setGarmentTypeInternal] = useState<"clothing" | "socks">(d.garmentType);
+  const garmentType = garmentTypeValue ?? garmentTypeInternal;
 
   const [printingExclEuro, setPrintingExclEuro] = useState(() => centsToNlInput(Math.max(0, d.printingExclCents ?? 0)));
 
@@ -153,7 +161,11 @@ export function ProductEditorForm({
               type="radio"
               name="garmentType"
               value="clothing"
-              defaultChecked={d.garmentType === "clothing"}
+              checked={garmentType === "clothing"}
+              onChange={() => {
+                setGarmentTypeInternal("clothing");
+                onGarmentTypeChange?.("clothing");
+              }}
               className="h-4 w-4 border-zinc-300 text-brand-blue focus:ring-brand-blue/40"
             />
             Kleding
@@ -163,7 +175,11 @@ export function ProductEditorForm({
               type="radio"
               name="garmentType"
               value="socks"
-              defaultChecked={d.garmentType === "socks"}
+              checked={garmentType === "socks"}
+              onChange={() => {
+                setGarmentTypeInternal("socks");
+                onGarmentTypeChange?.("socks");
+              }}
               className="h-4 w-4 border-zinc-300 text-brand-blue focus:ring-brand-blue/40"
             />
             Sokken

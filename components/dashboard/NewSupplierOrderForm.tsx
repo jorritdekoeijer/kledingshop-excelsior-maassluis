@@ -2,7 +2,10 @@
 
 import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
-import { createSupplierOrderAction } from "@/app/dashboard/stock/leveranciersbestelling/nieuw/actions";
+import {
+  createSupplierOrderAction,
+  createSupplierOrderDraftAction
+} from "@/app/dashboard/stock/leveranciersbestelling/nieuw/actions";
 
 type VariantSegment = "youth" | "adult";
 
@@ -144,16 +147,14 @@ export function NewSupplierOrderForm({
     });
   }
 
-  function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
-
+  function buildPayload(): { orderDate: string; supplierId: string; note: string | null; lines: any[] } | null {
     if (!orderDate.trim()) {
       alert("Datum is verplicht.");
-      return;
+      return null;
     }
     if (!supplierId.trim()) {
       alert("Leverancier is verplicht.");
-      return;
+      return null;
     }
 
     const outLines = lines
@@ -168,21 +169,36 @@ export function NewSupplierOrderForm({
 
     if (outLines.length === 0) {
       alert("Vink minstens één regel aan.");
-      return;
+      return null;
     }
 
+    return {
+      orderDate: orderDate.trim(),
+      supplierId: supplierId.trim(),
+      note: note.trim() || null,
+      lines: outLines
+    };
+  }
+
+  function onSubmitSend(e: React.FormEvent) {
+    e.preventDefault();
+    const payload = buildPayload();
+    if (!payload) return;
     startTransition(() => {
-      createSupplierOrderAction({
-        orderDate: orderDate.trim(),
-        supplierId: supplierId.trim(),
-        note: note.trim() || null,
-        lines: outLines
-      });
+      createSupplierOrderAction(payload);
+    });
+  }
+
+  function onSaveDraft() {
+    const payload = buildPayload();
+    if (!payload) return;
+    startTransition(() => {
+      createSupplierOrderDraftAction(payload);
     });
   }
 
   return (
-    <form onSubmit={onSubmit} className="space-y-8">
+    <form onSubmit={onSubmitSend} className="space-y-8">
       <div className="grid gap-4 sm:grid-cols-3">
         <label className="block">
           <span className="text-sm font-medium text-zinc-700">Datum</span>
@@ -425,6 +441,14 @@ export function NewSupplierOrderForm({
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          onClick={onSaveDraft}
+          disabled={pending}
+          className="rounded-md border border-zinc-300 bg-white px-5 py-2.5 text-sm font-semibold text-zinc-800 hover:bg-zinc-50 disabled:opacity-50"
+        >
+          {pending ? "Bezig…" : "Opslaan als concept"}
+        </button>
         <button
           type="submit"
           disabled={pending}
