@@ -35,6 +35,7 @@ export type FinancialOverviewReport = {
   internalOrdersTotalExclCents: number;
   webshop: WebshopFinancials;
   inventory: InventoryValuation;
+  warnings: string[];
 };
 
 function sum(nums: number[]): number {
@@ -72,6 +73,8 @@ export async function fetchFinancialOverview(
 ): Promise<FinancialOverviewReport> {
   const { startIso, endIso, fromDate, toDate } = period;
 
+  const warnings: string[] = [];
+
   const asErr = (label: string, e: unknown) => {
     if (e && typeof e === "object" && "message" in e) {
       const anyE = e as any;
@@ -87,7 +90,7 @@ export async function fetchFinancialOverview(
     return new Error(`${label}: ${String(e)}`);
   };
 
-  const [cgRes, ioRes, paidRes, fulfilledRes, consRes, batchRes] = await Promise.all([
+  const [cgRes, ioRes, paidRes, fulfilledRes, batchRes] = await Promise.all([
     supabase.from("cost_groups").select("id,name").order("name"),
     supabase
       .from("internal_orders")
@@ -105,12 +108,6 @@ export async function fetchFinancialOverview(
       .from("orders")
       .select("id,total_cents,status,created_at")
       .eq("status", "fulfilled")
-      .gte("created_at", startIso)
-      .lte("created_at", endIso),
-    supabase
-      .from("stock_consumptions")
-      .select("quantity,reason,created_at,stock_batches(unit_purchase_excl_cents)")
-      .eq("reason", "sale")
       .gte("created_at", startIso)
       .lte("created_at", endIso),
     supabase
@@ -132,8 +129,26 @@ export async function fetchFinancialOverview(
     (typeof (fulfilledRes.error as any)?.message === "string" &&
       String((fulfilledRes.error as any)?.message).toLowerCase().includes("order_status"));
   if (fulfilledRes.error && !fulfilledMissing) throw asErr("orders select (fulfilled)", fulfilledRes.error);
-  if (consRes.error) throw asErr("stock_consumptions select", consRes.error);
   if (batchRes.error) throw asErr("stock_batches select", batchRes.error);
+
+  // COGS (inkoop van verkochte voorraad) via stock_consumptions + batch.unit_purchase_excl_cents.
+  // Oudere schema's missen `stock_consumptions.reason`; dan kunnen we 'sale' niet filteren.
+  const consRes = await supabase
+    .from("stock_consumptions")
+    .select("quantity,reason,created_at,stock_batches(unit_purchase_excl_cents)")
+    .eq("reason", "sale")
+    .gte("created_at", startIso)
+    .lte("created_at", endIso);
+
+  const reasonMissing =
+    Boolean((consRes.error as any)?.code === "42703") &&
+    String((consRes.error as any)?.message ?? "").toLowerCase().includes("reason");
+  if (consRes.error && !reasonMissing) throw asErr("stock_consumptions select", consRes.error);
+  if (reasonMissing) {
+    warnings.push(
+      "Inkoop verkopen (FIFO) kon niet worden berekend: kolom stock_consumptions.reason ontbreekt in je database. Draai migratie 0003_product_images_and_fifo.sql (of voeg de kolom toe) om dit te activeren."
+    );
+  }
 
   const groups = (cgRes.data ?? []) as { id: string; name: string }[];
   const spendByGroup = new Map<string, number>();
@@ -160,17 +175,22 @@ export async function fetchFinancialOverview(
   const revenueExclCents = sum(orderRows.map((o) => exclCentsFromIncl21(Number(o.total_cents ?? 0))));
 
   let cogsExclCents = 0;
-  for (const row of consRes.data ?? []) {
-    const r = row as {
-      quantity: number;
-      stock_batches: { unit_purchase_excl_cents: number | null } | { unit_purchase_excl_cents: number | null }[] | null;
-    };
-    const qty = Number(r.quantity ?? 0);
-    const b = r.stock_batches;
-    const batch = Array.isArray(b) ? b[0] : b;
-    const unit = batch?.unit_purchase_excl_cents;
-    if (unit != null && Number.isFinite(unit) && unit >= 0) {
-      cogsExclCents += qty * unit;
+  if (!reasonMissing) {
+    for (const row of consRes.data ?? []) {
+      const r = row as {
+        quantity: number;
+        stock_batches:
+          | { unit_purchase_excl_cents: number | null }
+          | { unit_purchase_excl_cents: number | null }[]
+          | null;
+      };
+      const qty = Number(r.quantity ?? 0);
+      const b = r.stock_batches;
+      const batch = Array.isArray(b) ? b[0] : b;
+      const unit = batch?.unit_purchase_excl_cents;
+      if (unit != null && Number.isFinite(unit) && unit >= 0) {
+        cogsExclCents += qty * unit;
+      }
     }
   }
 
@@ -210,6 +230,7 @@ export async function fetchFinancialOverview(
       valueExclCents,
       linesWithStock,
       batchesMissingPurchasePrice
-    }
+    },
+    warnings
   };
 }

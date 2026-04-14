@@ -81,6 +81,17 @@ export function FinancialReportView({ report }: { report: FinancialOverviewRepor
         </p>
       </form>
 
+      {report.warnings.length > 0 ? (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+          <p className="font-medium">Let op</p>
+          <ul className="mt-2 list-disc space-y-1 pl-5 text-amber-900/90">
+            {report.warnings.map((w, i) => (
+              <li key={i}>{w}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
       {/* KPI-raster */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-brand-blue to-[#0a3d7a] p-5 text-white shadow-lg">
