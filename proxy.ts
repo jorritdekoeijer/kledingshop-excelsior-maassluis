@@ -2,7 +2,6 @@ import type { NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import type { SetAllCookies } from "@supabase/ssr";
 import { NextResponse } from "next/server";
-import { hasFinancialReportAccess } from "@/lib/auth/reporting-access";
 import { permissions } from "@/lib/auth/permissions";
 
 function getEnv(name: string) {
@@ -72,14 +71,6 @@ export async function proxy(request: NextRequest) {
     return new NextResponse("Forbidden", { status: 403 });
   }
 
-  async function requireReportingOrDashboard() {
-    if (!data.user) return NextResponse.redirect(new URL("/login", request.url));
-    const perms = await getPermissionsForUser(data.user.id);
-    const admin = await isAdminUser(data.user.id);
-    if (hasFinancialReportAccess(perms, { isAdmin: admin })) return null;
-    return new NextResponse("Forbidden", { status: 403 });
-  }
-
   if (pathname.startsWith("/dashboard")) {
     // Always require login for /dashboard/* (startpagina toont keuzes; subroutes per permissie)
     if (!data.user) return NextResponse.redirect(new URL("/login", request.url));
@@ -110,10 +101,7 @@ export async function proxy(request: NextRequest) {
       if (res) return res;
     }
 
-    if (pathname.startsWith("/dashboard/rapportage")) {
-      const res = await requireReportingOrDashboard();
-      if (res) return res;
-    }
+    // /dashboard/rapportage: pagina zelf doet permissie-check; middleware houdt alleen login af.
 
     // Schrijf-routes vóór de algemene /dashboard/products-leesregel
     if (

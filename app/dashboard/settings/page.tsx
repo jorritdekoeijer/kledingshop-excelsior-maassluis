@@ -3,22 +3,24 @@ import {
   getIsAdmin,
   getUserPermissions,
   requireLogin,
-  requireOneOfPermissions
 } from "@/lib/auth/permissions-server";
 import { hasSuppliersSettingsAccess } from "@/lib/auth/suppliers-access";
 import { permissions } from "@/lib/auth/permissions";
 
 export default async function DashboardSettingsPage() {
   const user = await requireLogin();
-  const gate = await requireOneOfPermissions([
-    permissions.settings.read,
-    permissions.suppliers.read,
-    permissions.suppliers.write
-  ]);
   const isAdmin = await getIsAdmin();
   const perms = await getUserPermissions(user.id);
 
-  if (!gate.ok) {
+  const canSeeSettingsHub =
+    isAdmin ||
+    perms.includes(permissions.dashboard.access) ||
+    perms.includes(permissions.settings.read) ||
+    perms.includes(permissions.settings.write) ||
+    perms.includes(permissions.suppliers.read) ||
+    perms.includes(permissions.suppliers.write);
+
+  if (!canSeeSettingsHub) {
     return (
       <div className="rounded-lg border border-zinc-200 bg-white p-6">
         <h1 className="text-xl font-semibold">Geen toegang</h1>
