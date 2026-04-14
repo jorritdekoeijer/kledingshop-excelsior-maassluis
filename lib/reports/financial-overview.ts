@@ -87,30 +87,26 @@ export async function fetchFinancialOverview(
     return new Error(`${label}: ${String(e)}`);
   };
 
-  const [cgRes, ioRes, ordRes, consRes, batchRes] = await Promise.all([
+  const [cgRes, ioRes, paidRes, fulfilledRes, consRes, batchRes] = await Promise.all([
     supabase.from("cost_groups").select("id,name").order("name"),
     supabase
       .from("internal_orders")
       .select("cost_group_id,total_purchase_excl_cents,order_date")
       .gte("order_date", fromDate)
       .lte("order_date", toDate),
-    // Sommige databases hebben nog geen 'fulfilled' in de enum order_status. We proberen eerst paid+fulfilled,
-    // en vallen terug op alleen paid bij enum-fout (22P02).
-    (async () => {
-      const base = supabase
-        .from("orders")
-        .select("id,total_cents,status,created_at")
-        .gte("created_at", startIso)
-        .lte("created_at", endIso);
-      const a = await base.in("status", ["paid", "fulfilled"]);
-      if (!a.error) return a;
-      const msg = String((a.error as any)?.message ?? "");
-      const code = String((a.error as any)?.code ?? "");
-      if (code === "22P02" && msg.includes("order_status") && msg.includes("fulfilled")) {
-        return await base.in("status", ["paid"]);
-      }
-      return a;
-    })(),
+    supabase
+      .from("orders")
+      .select("id,total_cents,status,created_at")
+      .eq("status", "paid")
+      .gte("created_at", startIso)
+      .lte("created_at", endIso),
+    // Sommige databases hebben geen 'fulfilled' enum value. Probeer apart; bij 22P02 negeren.
+    supabase
+      .from("orders")
+      .select("id,total_cents,status,created_at")
+      .eq("status", "fulfilled")
+      .gte("created_at", startIso)
+      .lte("created_at", endIso),
     supabase
       .from("stock_consumptions")
       .select("quantity,reason,created_at,stock_batches(unit_purchase_excl_cents)")
@@ -130,7 +126,12 @@ export async function fetchFinancialOverview(
     (typeof (ioRes.error as any)?.message === "string" &&
       String((ioRes.error as any)?.message).toLowerCase().includes("internal_orders"));
   if (ioRes.error && !internalOrdersMissing) throw asErr("internal_orders select", ioRes.error);
-  if (ordRes.error) throw asErr("orders select", ordRes.error);
+  if (paidRes.error) throw asErr("orders select (paid)", paidRes.error);
+  const fulfilledMissing =
+    Boolean((fulfilledRes.error as any)?.code === "22P02") ||
+    (typeof (fulfilledRes.error as any)?.message === "string" &&
+      String((fulfilledRes.error as any)?.message).toLowerCase().includes("order_status"));
+  if (fulfilledRes.error && !fulfilledMissing) throw asErr("orders select (fulfilled)", fulfilledRes.error);
   if (consRes.error) throw asErr("stock_consumptions select", consRes.error);
   if (batchRes.error) throw asErr("stock_batches select", batchRes.error);
 
@@ -150,7 +151,10 @@ export async function fetchFinancialOverview(
   }));
   const internalOrdersTotalExclCents = sum(costGroups.map((c) => c.totalPurchaseExclCents));
 
-  const orderRows = (ordRes.data ?? []) as { total_cents: number | null }[];
+  const orderRows = [
+    ...(paidRes.data ?? []),
+    ...((fulfilledRes.error || fulfilledMissing) ? [] : (fulfilledRes.data ?? []))
+  ] as { total_cents: number | null }[];
   const orderCount = orderRows.length;
   const revenueInclCents = sum(orderRows.map((o) => Number(o.total_cents ?? 0)));
   const revenueExclCents = sum(orderRows.map((o) => exclCentsFromIncl21(Number(o.total_cents ?? 0))));
