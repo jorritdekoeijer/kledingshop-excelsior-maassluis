@@ -222,7 +222,9 @@ export function FinancialReportView({ report }: { report: FinancialOverviewRepor
         <h2 className="text-lg font-semibold text-brand-blue">Voorraadwaarde</h2>
         <p className="mt-1 max-w-3xl text-sm text-zinc-600">
           Huidige voorraad gewaardeerd tegen <strong>inkoopprijs excl. btw</strong> per batch (
-          <code className="rounded bg-zinc-100 px-1 text-xs">quantity_remaining × unit_purchase_excl_cents</code>
+          <code className="rounded bg-zinc-100 px-1 text-xs">
+            quantity_remaining × (unit_purchase_excl_cents + unit_printing_excl_cents)
+          </code>
           ). Dit is geen verkoopwaarde.
         </p>
         <p className="mt-4 text-3xl font-bold tabular-nums text-brand-blue">{eurExcl(inventory.valueExclCents)}</p>

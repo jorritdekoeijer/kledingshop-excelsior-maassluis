@@ -60,16 +60,20 @@ export function NewDeliveryForm({ products }: { products: ProductPickOption[] })
 
   const totals = useMemo(() => {
     let excl = 0;
+    let printingExcl = 0;
     for (const line of lines) {
       if (!line.productId) continue;
       const unit = parseDutchEuroToCents(line.unitExclEuro);
       if (!Number.isFinite(unit)) continue;
       excl += unit * Math.max(0, line.quantity);
+      const p = productMap.get(line.productId);
+      const pr = p ? Math.max(0, Number(p.printingExclCents ?? 0) || 0) : 0;
+      printingExcl += pr * Math.max(0, line.quantity);
     }
     const incl = inclCentsFromExcl21(excl);
     const vat = incl - excl;
-    return { excl, vat, incl };
-  }, [lines]);
+    return { excl, vat, incl, printingExcl, totalExclInclPrinting: excl + printingExcl };
+  }, [lines, productMap]);
 
   const invoiceInclParsed = useMemo(() => {
     const v = parseDutchEuroToCents(invoiceTotalInclEuro);
@@ -142,6 +146,7 @@ export function NewDeliveryForm({ products }: { products: ProductPickOption[] })
       quantity: number;
       sizeLabel: string;
       unitPurchaseExclCents: number;
+      unitPrintingExclCents: number;
     }[] = [];
 
     for (const line of lines) {
@@ -171,7 +176,8 @@ export function NewDeliveryForm({ products }: { products: ProductPickOption[] })
         variantSegment: line.segment,
         quantity: line.quantity,
         sizeLabel: line.sizeLabel.trim(),
-        unitPurchaseExclCents: unit
+        unitPurchaseExclCents: unit,
+        unitPrintingExclCents: Math.max(0, Number(p.printingExclCents ?? 0) || 0)
       });
     }
 
@@ -229,7 +235,7 @@ export function NewDeliveryForm({ products }: { products: ProductPickOption[] })
         <h2 className="text-sm font-semibold text-zinc-900">Regels</h2>
         <p className="mt-1 text-xs text-zinc-500">
           Kies eerst <strong>Jeugd</strong> of <strong>Volwassenen</strong> — elk heeft een eigen modelnummer en maten. Inkoop is{" "}
-          <strong>excl. btw</strong> per stuk.
+          <strong>excl. btw</strong> per stuk (factuur). Bedrukking wordt automatisch toegevoegd aan kostprijs.
         </p>
 
         <div className="mt-4 space-y-4">
@@ -238,6 +244,9 @@ export function NewDeliveryForm({ products }: { products: ProductPickOption[] })
             const sizeOptions = p ? sizesForSegment(p, line.segment) : [];
             const model = p ? modelForSegment(p, line.segment) : "";
             const showToggle = p && p.youth.sizes.length > 0 && p.adult.sizes.length > 0;
+            const printing = p ? Math.max(0, Number(p.printingExclCents ?? 0) || 0) : 0;
+            const baseUnit = parseDutchEuroToCents(line.unitExclEuro);
+            const totalUnit = Number.isFinite(baseUnit) ? baseUnit + printing : null;
 
             return (
               <div
@@ -323,6 +332,17 @@ export function NewDeliveryForm({ products }: { products: ProductPickOption[] })
                     placeholder="12,50"
                     className="mt-1 w-full rounded-md border border-zinc-300 px-2 py-2 text-sm"
                   />
+                  {line.productId ? (
+                    <p className="mt-1 text-xs text-zinc-500">
+                      Bedrukking: <span className="font-medium text-zinc-800">{eur(printing)}</span>
+                      {totalUnit != null ? (
+                        <>
+                          {" "}
+                          · Totaal inkoop: <span className="font-semibold text-zinc-900">{eur(totalUnit)}</span>
+                        </>
+                      ) : null}
+                    </p>
+                  ) : null}
                 </label>
                 <div className="flex md:col-span-12 md:justify-end">
                   <button
@@ -349,15 +369,26 @@ export function NewDeliveryForm({ products }: { products: ProductPickOption[] })
       </div>
 
       <div className="rounded-lg border border-amber-200 bg-amber-50/80 p-4">
-        <h2 className="text-sm font-semibold text-amber-950">Controle (btw 21%)</h2>
+        <h2 className="text-sm font-semibold text-amber-950">Controle factuur (btw 21%)</h2>
+        <p className="mt-1 text-xs text-amber-900/90">
+          Deze controle is alleen voor de factuur (basis-inkoop). Bedrukkingskosten tellen hier niet mee.
+        </p>
         <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
           <div className="flex justify-between gap-4 sm:block">
             <dt className="text-zinc-600">Totaal excl. btw (som regels)</dt>
             <dd className="font-medium tabular-nums text-zinc-900">{eur(totals.excl)}</dd>
           </div>
           <div className="flex justify-between gap-4 sm:block">
+            <dt className="text-zinc-600">Bedrukking excl. btw (extern)</dt>
+            <dd className="font-medium tabular-nums text-zinc-900">{eur(totals.printingExcl)}</dd>
+          </div>
+          <div className="flex justify-between gap-4 sm:block">
             <dt className="text-zinc-600">Btw 21%</dt>
             <dd className="font-medium tabular-nums text-zinc-900">{eur(totals.vat)}</dd>
+          </div>
+          <div className="flex justify-between gap-4 sm:block">
+            <dt className="text-zinc-600">Totaal inkoop excl. (incl. bedrukking)</dt>
+            <dd className="font-semibold tabular-nums text-zinc-900">{eur(totals.totalExclInclPrinting)}</dd>
           </div>
           <div className="flex justify-between gap-4 border-t border-amber-200 pt-2 sm:col-span-2 sm:flex sm:justify-between">
             <dt className="font-semibold text-amber-950">Totaal incl. btw (berekend)</dt>

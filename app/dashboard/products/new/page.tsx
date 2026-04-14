@@ -83,7 +83,12 @@ export default async function NewProductPage({
       ) : null}
 
       <div className="mt-6">
-        <ProductEditorForm action={createProduct} categories={categories ?? []} showImageUpload />
+        <ProductEditorForm
+          action={createProduct}
+          categories={categories ?? []}
+          defaults={{ printingExclCents: 0 }}
+          showImageUpload
+        />
       </div>
     </div>
   );

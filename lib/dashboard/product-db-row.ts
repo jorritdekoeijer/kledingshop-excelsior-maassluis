@@ -49,6 +49,7 @@ export function productParsedToDbRow(d: ProductUpsertParsed) {
     slug: d.slug,
     description: d.description,
     price_cents: d.priceCents,
+    printing_excl_cents: d.printingExclCents,
     temporary_discount_percent: d.temporaryDiscountPercent,
     active: d.active,
     garment_type: d.garmentType,

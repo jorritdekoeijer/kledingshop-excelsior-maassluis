@@ -17,6 +17,7 @@ type ProductRow = {
     variant_segment: string | null;
     size_label: string | null;
     unit_purchase_excl_cents: number | null;
+    unit_printing_excl_cents?: number | null;
     received_at: string | null;
     created_at: string | null;
   }[];
@@ -85,6 +86,7 @@ export function InternalOrderForm({
     size: string;
     qty: number;
     unit: number | null;
+    unitPrinting: number | null;
     receivedAt: string;
     createdAt: string;
   };
@@ -107,7 +109,14 @@ export function InternalOrderForm({
           variant: variant as VariantSegment,
           size,
           qty,
-          unit: typeof b.unit_purchase_excl_cents === "number" && Number.isFinite(b.unit_purchase_excl_cents) ? b.unit_purchase_excl_cents : null,
+          unit:
+            typeof b.unit_purchase_excl_cents === "number" && Number.isFinite(b.unit_purchase_excl_cents)
+              ? b.unit_purchase_excl_cents
+              : null,
+          unitPrinting:
+            typeof b.unit_printing_excl_cents === "number" && Number.isFinite(b.unit_printing_excl_cents)
+              ? b.unit_printing_excl_cents
+              : null,
           receivedAt: String(b.received_at ?? ""),
           createdAt: String(b.created_at ?? "")
         });
@@ -144,7 +153,10 @@ export function InternalOrderForm({
         if (have <= 0) continue;
         const take = Math.min(need, have);
         remainingByBatch.set(b, have - take);
-        if (b.unit != null) total += take * b.unit;
+        if (b.unit != null) {
+          const print = b.unitPrinting != null ? b.unitPrinting : 0;
+          total += take * (b.unit + print);
+        }
         need -= take;
       }
     }

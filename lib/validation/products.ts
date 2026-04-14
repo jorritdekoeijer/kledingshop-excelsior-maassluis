@@ -33,6 +33,7 @@ export const productUpsertSchema = z.object({
   slug: z.string().min(1).max(120),
   description: z.string().max(20000).optional().nullable(),
   priceCents: z.coerce.number().int().min(0),
+  printingExclCents: z.coerce.number().int().min(0).default(0),
   temporaryDiscountPercent: z.coerce.number().min(0).max(100).default(0),
   active: z.preprocess(
     (v) => v === "on" || v === true || v === "true",

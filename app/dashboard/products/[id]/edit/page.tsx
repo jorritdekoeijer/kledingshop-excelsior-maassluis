@@ -168,7 +168,7 @@ export default async function EditProductPage({
   const { data: product, error: productError } = await supabase
     .from("products")
     .select(
-      "id,name,slug,description,price_cents,temporary_discount_percent,active,category_id,garment_type,product_details,variant_youth,variant_adult"
+      "id,name,slug,description,price_cents,printing_excl_cents,temporary_discount_percent,active,category_id,garment_type,product_details,variant_youth,variant_adult"
     )
     .eq("id", id)
     .single();
@@ -200,6 +200,7 @@ export default async function EditProductPage({
     slug: product.slug,
     description: product.description,
     temporaryDiscountPercent: Number(product.temporary_discount_percent ?? 0),
+    printingExclCents: Number(product.printing_excl_cents ?? 0),
     active: product.active,
     categoryId: product.category_id,
     garmentType: (product.garment_type === "socks" ? "socks" : "clothing") as "clothing" | "socks",

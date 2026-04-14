@@ -49,6 +49,7 @@ export async function createStockDeliveryAction(input: unknown) {
     variant_segment: line.variantSegment,
     size_label: line.sizeLabel.trim(),
     unit_purchase_excl_cents: line.unitPurchaseExclCents,
+    unit_printing_excl_cents: line.unitPrintingExclCents,
     note
   }));
 

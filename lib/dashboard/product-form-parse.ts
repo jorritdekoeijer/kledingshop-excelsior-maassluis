@@ -68,6 +68,7 @@ export function parseProductUpsertFormData(formData: FormData): ProductFormParse
     slug,
     description: String(formData.get("description") ?? "").trim() || null,
     priceCents,
+    printingExclCents: formData.get("printingExclCents"),
     temporaryDiscountPercent,
     active: formData.get("active"),
     categoryId: cid,

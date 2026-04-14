@@ -112,7 +112,7 @@ export async function fetchFinancialOverview(
       .lte("created_at", endIso),
     supabase
       .from("stock_batches")
-      .select("id,quantity_remaining,unit_purchase_excl_cents")
+      .select("id,quantity_remaining,unit_purchase_excl_cents,unit_printing_excl_cents")
       .gt("quantity_remaining", 0)
   ]);
 
@@ -135,7 +135,7 @@ export async function fetchFinancialOverview(
   // Oudere schema's missen `stock_consumptions.reason`; dan kunnen we 'sale' niet filteren.
   const consRes = await supabase
     .from("stock_consumptions")
-    .select("quantity,reason,created_at,stock_batches(unit_purchase_excl_cents)")
+    .select("quantity,reason,created_at,stock_batches(unit_purchase_excl_cents,unit_printing_excl_cents)")
     .eq("reason", "sale")
     .gte("created_at", startIso)
     .lte("created_at", endIso);
@@ -180,16 +180,18 @@ export async function fetchFinancialOverview(
       const r = row as {
         quantity: number;
         stock_batches:
-          | { unit_purchase_excl_cents: number | null }
-          | { unit_purchase_excl_cents: number | null }[]
+          | { unit_purchase_excl_cents: number | null; unit_printing_excl_cents?: number | null }
+          | { unit_purchase_excl_cents: number | null; unit_printing_excl_cents?: number | null }[]
           | null;
       };
       const qty = Number(r.quantity ?? 0);
       const b = r.stock_batches;
       const batch = Array.isArray(b) ? b[0] : b;
-      const unit = batch?.unit_purchase_excl_cents;
-      if (unit != null && Number.isFinite(unit) && unit >= 0) {
-        cogsExclCents += qty * unit;
+      const baseUnit = batch?.unit_purchase_excl_cents;
+      const printUnit = batch?.unit_printing_excl_cents ?? 0;
+      if (baseUnit != null && Number.isFinite(baseUnit) && baseUnit >= 0) {
+        const unitTotal = baseUnit + (Number.isFinite(printUnit) && printUnit >= 0 ? printUnit : 0);
+        cogsExclCents += qty * unitTotal;
       }
     }
   }
@@ -202,13 +204,15 @@ export async function fetchFinancialOverview(
   let batchesMissingPurchasePrice = 0;
   let linesWithStock = 0;
   for (const b of batchRes.data ?? []) {
-    const row = b as { quantity_remaining: number; unit_purchase_excl_cents: number | null };
+    const row = b as { quantity_remaining: number; unit_purchase_excl_cents: number | null; unit_printing_excl_cents?: number | null };
     const q = Number(row.quantity_remaining ?? 0);
     if (q <= 0) continue;
     linesWithStock += 1;
-    const unit = row.unit_purchase_excl_cents;
-    if (unit != null && Number.isFinite(unit) && unit >= 0) {
-      valueExclCents += q * unit;
+    const baseUnit = row.unit_purchase_excl_cents;
+    const printUnit = row.unit_printing_excl_cents ?? 0;
+    if (baseUnit != null && Number.isFinite(baseUnit) && baseUnit >= 0) {
+      const unitTotal = baseUnit + (Number.isFinite(printUnit) && printUnit >= 0 ? printUnit : 0);
+      valueExclCents += q * unitTotal;
     } else {
       batchesMissingPurchasePrice += 1;
     }

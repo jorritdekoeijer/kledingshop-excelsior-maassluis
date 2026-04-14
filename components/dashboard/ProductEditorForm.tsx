@@ -24,6 +24,7 @@ type Defaults = {
   slug: string;
   description: string | null;
   temporaryDiscountPercent: number;
+  printingExclCents: number;
   active: boolean;
   categoryId: string | null;
   /** Kleding: jeugd/volwassen maatlijsten; sokken: vaste sokkenmaten onder voorraad per maat. */
@@ -63,6 +64,7 @@ export function ProductEditorForm({
     slug: defaults?.slug ?? "",
     description: defaults?.description ?? "",
     temporaryDiscountPercent: defaults?.temporaryDiscountPercent ?? 0,
+    printingExclCents: defaults?.printingExclCents ?? 0,
     active: defaults?.active ?? true,
     categoryId: defaults?.categoryId ?? null,
     garmentType: defaults?.garmentType ?? "clothing",
@@ -80,6 +82,8 @@ export function ProductEditorForm({
   const [details, setDetails] = useState<ProductDetailRow[]>(d.productDetails);
   const [youth, setYouth] = useState<ProductVariantBlock>(d.variantYouth);
   const [adult, setAdult] = useState<ProductVariantBlock>(d.variantAdult);
+
+  const [printingExclEuro, setPrintingExclEuro] = useState(() => centsToNlInput(Math.max(0, d.printingExclCents ?? 0)));
 
   const [youthSaleIncl, setYouthSaleIncl] = useState(() => centsToOptionalNl(d.variantYouth.sale_cents));
   const [youthSaleExcl, setYouthSaleExcl] = useState(() => saleExclFromInclCents(d.variantYouth.sale_cents ?? null));
@@ -125,11 +129,17 @@ export function ProductEditorForm({
     });
   }, [adult, adultSaleIncl]);
 
+  const printingExclCents = useMemo(() => {
+    const c = nlInputToCents(printingExclEuro);
+    return Number.isFinite(c) && c >= 0 ? c : 0;
+  }, [printingExclEuro]);
+
   return (
     <form action={action} className="grid gap-4 md:grid-cols-2">
       <input type="hidden" name="productDetailsJson" value={productDetailsJson} readOnly />
       <input type="hidden" name="variantYouthJson" value={variantYouthJson} readOnly />
       <input type="hidden" name="variantAdultJson" value={variantAdultJson} readOnly />
+      <input type="hidden" name="printingExclCents" value={String(printingExclCents)} readOnly />
 
       <fieldset className="md:col-span-2 rounded-lg border border-zinc-200 p-4">
         <legend className="px-1 text-sm font-medium text-zinc-800">Kledingsoort</legend>
@@ -160,6 +170,24 @@ export function ProductEditorForm({
           </label>
         </div>
       </fieldset>
+
+      <label className="block md:col-span-2">
+        <span className="text-sm text-zinc-700">Standaard bedrukkingskosten per stuk (excl. btw)</span>
+        <div className="mt-1 flex max-w-xs items-center gap-2">
+          <span className="text-sm text-zinc-500">€</span>
+          <input
+            name="printingExclEuro"
+            value={printingExclEuro}
+            onChange={(e) => setPrintingExclEuro(e.target.value)}
+            className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
+            placeholder="0,00"
+          />
+        </div>
+        <span className="mt-1 block text-xs text-zinc-500">
+          Wordt bij <strong>Nieuwe levering</strong> automatisch als bedrukking toegevoegd aan de kostprijs (niet op de
+          inkoopfactuur).
+        </span>
+      </label>
 
       <label className="block md:col-span-2">
         <span className="text-sm text-zinc-700">Naam</span>

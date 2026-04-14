@@ -2,14 +2,19 @@ import type { ProductPickOption } from "@/lib/stock/product-pick-types";
 import { normalizeVariantBlock } from "@/lib/shop/product-json";
 
 export function buildProductPickOptions(
-  rows: { id: string; name: string; variant_youth: unknown; variant_adult: unknown }[]
+  rows: { id: string; name: string; printing_excl_cents?: unknown; variant_youth: unknown; variant_adult: unknown }[]
 ): ProductPickOption[] {
   return rows.map((p) => {
     const y = normalizeVariantBlock(p.variant_youth);
     const a = normalizeVariantBlock(p.variant_adult);
+    const printing =
+      typeof p.printing_excl_cents === "number" && Number.isFinite(p.printing_excl_cents) && p.printing_excl_cents >= 0
+        ? p.printing_excl_cents
+        : 0;
     return {
       id: p.id,
       name: p.name,
+      printingExclCents: printing,
       youth: {
         modelNumber: String(y.model_number ?? "").trim(),
         sizes: [...new Set(y.sizes ?? [])]

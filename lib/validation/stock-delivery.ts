@@ -5,7 +5,10 @@ export const stockDeliveryLineSchema = z.object({
   variantSegment: z.enum(["youth", "adult"]),
   quantity: z.coerce.number().int().min(1).max(999999),
   sizeLabel: z.string().min(1).max(32),
-  unitPurchaseExclCents: z.coerce.number().int().min(0)
+  /** Basis-inkoopprijs per stuk (excl. btw) zoals op de factuur. */
+  unitPurchaseExclCents: z.coerce.number().int().min(0),
+  /** Bedrukkingsdeel per stuk (excl. btw). Wordt NIET meegeteld in factuurcontrole, wel in kostprijs. */
+  unitPrintingExclCents: z.coerce.number().int().min(0).default(0)
 });
 
 export const createStockDeliverySchema = z.object({
