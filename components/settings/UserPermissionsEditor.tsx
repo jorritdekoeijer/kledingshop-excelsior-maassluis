@@ -18,11 +18,13 @@ type Props = {
 function LevelRadios({
   name,
   userId,
-  level
+  level,
+  disabled = false
 }: {
   name: string;
   userId: string;
   level: AccessLevel;
+  disabled?: boolean;
 }) {
   const opts: { value: AccessLevel; label: string; hint?: string }[] = [
     { value: "none", label: "Geen toegang", hint: "Dit onderdeel niet tonen in het menu." },
@@ -38,11 +40,11 @@ function LevelRadios({
           <label
             key={o.value}
             htmlFor={id}
-            className={`flex cursor-pointer rounded-lg border px-3 py-2.5 text-sm transition ${
+            className={`flex rounded-lg border px-3 py-2.5 text-sm transition ${
               level === o.value
                 ? "border-brand-blue bg-brand-blue/5 ring-1 ring-brand-blue/30"
-                : "border-zinc-200 bg-white hover:border-zinc-300"
-            }`}
+                : "border-zinc-200 bg-white"
+            } ${disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer hover:border-zinc-300"}`}
           >
             <input
               id={id}
@@ -50,6 +52,7 @@ function LevelRadios({
               name={name}
               value={o.value}
               defaultChecked={level === o.value}
+              disabled={disabled}
               className="mt-0.5 h-4 w-4 shrink-0 border-zinc-300 text-brand-blue focus:ring-brand-blue"
             />
             <span className="ml-2 min-w-0">
@@ -96,13 +99,19 @@ export function UserPermissionsEditor({ userId, email, currentPermissions, base 
 
       <div className="space-y-6">
         <p className="text-sm font-medium text-zinc-800">Per onderdeel</p>
+        {hasFullDashboard ? (
+          <p className="rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs text-zinc-700">
+            Omdat <strong>Volledige toegang</strong> aan staat, zijn de keuzes per onderdeel hieronder ter informatie en
+            niet aanpasbaar.
+          </p>
+        ) : null}
         {PERMISSION_LEVEL_PAIRS.map((pair) => {
-          const level = accessLevelForPair(selected, pair.readKey, pair.writeKey);
+          const level = hasFullDashboard ? "write" : accessLevelForPair(selected, pair.readKey, pair.writeKey);
           return (
             <fieldset key={pair.formField} className="rounded-lg border border-zinc-200 bg-zinc-50/80 p-4">
               <legend className="px-1 text-sm font-semibold text-zinc-900">{pair.title}</legend>
               {pair.description ? <p className="mt-1 text-xs text-zinc-600">{pair.description}</p> : null}
-              <LevelRadios name={pair.formField} userId={userId} level={level} />
+              <LevelRadios name={pair.formField} userId={userId} level={level} disabled={hasFullDashboard} />
             </fieldset>
           );
         })}
