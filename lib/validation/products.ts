@@ -46,7 +46,8 @@ export const productUpsertSchema = z.object({
   ),
   productDetails: z.array(productDetailRowSchema).max(40).default([]),
   variantYouth: productVariantBlockSchema,
-  variantAdult: productVariantBlockSchema
+  variantAdult: productVariantBlockSchema,
+  variantSocks: productVariantBlockSchema
 });
 
 export function validateYouthSizes(sizes: string[]): boolean {

@@ -32,6 +32,7 @@ type Defaults = {
   productDetails: ProductDetailRow[];
   variantYouth: ProductVariantBlock;
   variantAdult: ProductVariantBlock;
+  variantSocks: ProductVariantBlock;
 };
 
 const emptyVariant = (): ProductVariantBlock => ({
@@ -75,7 +76,8 @@ export function ProductEditorForm({
     garmentType: defaults?.garmentType ?? "clothing",
     productDetails: defaults?.productDetails ?? [],
     variantYouth: defaults?.variantYouth ?? emptyVariant(),
-    variantAdult: defaults?.variantAdult ?? emptyVariant()
+    variantAdult: defaults?.variantAdult ?? emptyVariant(),
+    variantSocks: (defaults as any)?.variantSocks ?? emptyVariant()
   };
 
   // Verplichte categorie: alleen een id uit de huidige lijst als default; anders eerste optie (nooit leeg als er categorieën zijn).
@@ -87,11 +89,11 @@ export function ProductEditorForm({
   const [details, setDetails] = useState<ProductDetailRow[]>(d.productDetails);
   const [youth, setYouth] = useState<ProductVariantBlock>(d.variantYouth);
   const [adult, setAdult] = useState<ProductVariantBlock>(d.variantAdult);
+  const [printingExclEuro, setPrintingExclEuro] = useState(() => centsToNlInput(Math.max(0, d.printingExclCents ?? 0)));
+  const [socks, setSocks] = useState<ProductVariantBlock>(d.variantSocks);
 
   const [garmentTypeInternal, setGarmentTypeInternal] = useState<"clothing" | "socks">(d.garmentType);
   const garmentType = garmentTypeValue ?? garmentTypeInternal;
-
-  const [printingExclEuro, setPrintingExclEuro] = useState(() => centsToNlInput(Math.max(0, d.printingExclCents ?? 0)));
 
   const [youthSaleIncl, setYouthSaleIncl] = useState(() => centsToOptionalNl(d.variantYouth.sale_cents));
   const [youthSaleExcl, setYouthSaleExcl] = useState(() => saleExclFromInclCents(d.variantYouth.sale_cents ?? null));
@@ -137,6 +139,23 @@ export function ProductEditorForm({
     });
   }, [adult, adultSaleIncl]);
 
+  const [socksSaleIncl, setSocksSaleIncl] = useState(() => centsToOptionalNl(d.variantSocks.sale_cents));
+  const [socksSaleExcl, setSocksSaleExcl] = useState(() => saleExclFromInclCents(d.variantSocks.sale_cents ?? null));
+
+  const variantSocksJson = useMemo(() => {
+    const sale_cents =
+      socksSaleIncl.trim().length > 0
+        ? (() => {
+            const c = nlInputToCents(socksSaleIncl);
+            return Number.isFinite(c) && c >= 0 ? c : null;
+          })()
+        : null;
+    return JSON.stringify({
+      ...socks,
+      sale_cents
+    });
+  }, [socks, socksSaleIncl]);
+
   const printingExclCents = useMemo(() => {
     const c = nlInputToCents(printingExclEuro);
     return Number.isFinite(c) && c >= 0 ? c : 0;
@@ -147,6 +166,7 @@ export function ProductEditorForm({
       <input type="hidden" name="productDetailsJson" value={productDetailsJson} readOnly />
       <input type="hidden" name="variantYouthJson" value={variantYouthJson} readOnly />
       <input type="hidden" name="variantAdultJson" value={variantAdultJson} readOnly />
+      <input type="hidden" name="variantSocksJson" value={variantSocksJson} readOnly />
       <input type="hidden" name="printingExclCents" value={String(printingExclCents)} readOnly />
 
       <fieldset className="md:col-span-2 rounded-lg border border-zinc-200 p-4">
@@ -317,41 +337,63 @@ export function ProductEditorForm({
         <strong className="font-semibold">Verkoopprijs per variant:</strong> vul bij Jeugd en/of Volwassenen de verkoopprijs in (incl./excl. 21% btw). Minstens één van beide varianten moet een verkoopprijs hebben. De tijdelijke korting hierboven geldt voor beide prijzen.
       </p>
 
-      <VariantBlock
-        title="Jeugd (YOUTH)"
-        model={youth.model_number ?? ""}
-        onModelChange={(v) => setYouth({ ...youth, model_number: v })}
-        saleInclStr={youthSaleIncl}
-        saleExclStr={youthSaleExcl}
-        onSaleInclChange={setYouthSaleIncl}
-        onSaleExclChange={setYouthSaleExcl}
-        onSaleInclBlur={() => {
-          const c = nlInputToCents(youthSaleIncl);
-          if (Number.isFinite(c) && c >= 0) setYouthSaleExcl(centsToNlInput(exclCentsFromIncl21(c)));
-        }}
-        onSaleExclBlur={() => {
-          const c = nlInputToCents(youthSaleExcl);
-          if (Number.isFinite(c) && c >= 0) setYouthSaleIncl(centsToNlInput(inclCentsFromExcl21(c)));
-        }}
-      />
+      {garmentType === "clothing" ? (
+        <>
+          <VariantBlock
+            title="Jeugd (YOUTH)"
+            model={youth.model_number ?? ""}
+            onModelChange={(v) => setYouth({ ...youth, model_number: v })}
+            saleInclStr={youthSaleIncl}
+            saleExclStr={youthSaleExcl}
+            onSaleInclChange={setYouthSaleIncl}
+            onSaleExclChange={setYouthSaleExcl}
+            onSaleInclBlur={() => {
+              const c = nlInputToCents(youthSaleIncl);
+              if (Number.isFinite(c) && c >= 0) setYouthSaleExcl(centsToNlInput(exclCentsFromIncl21(c)));
+            }}
+            onSaleExclBlur={() => {
+              const c = nlInputToCents(youthSaleExcl);
+              if (Number.isFinite(c) && c >= 0) setYouthSaleIncl(centsToNlInput(inclCentsFromExcl21(c)));
+            }}
+          />
 
-      <VariantBlock
-        title="Volwassenen (ADULT)"
-        model={adult.model_number ?? ""}
-        onModelChange={(v) => setAdult({ ...adult, model_number: v })}
-        saleInclStr={adultSaleIncl}
-        saleExclStr={adultSaleExcl}
-        onSaleInclChange={setAdultSaleIncl}
-        onSaleExclChange={setAdultSaleExcl}
-        onSaleInclBlur={() => {
-          const c = nlInputToCents(adultSaleIncl);
-          if (Number.isFinite(c) && c >= 0) setAdultSaleExcl(centsToNlInput(exclCentsFromIncl21(c)));
-        }}
-        onSaleExclBlur={() => {
-          const c = nlInputToCents(adultSaleExcl);
-          if (Number.isFinite(c) && c >= 0) setAdultSaleIncl(centsToNlInput(inclCentsFromExcl21(c)));
-        }}
-      />
+          <VariantBlock
+            title="Volwassenen (ADULT)"
+            model={adult.model_number ?? ""}
+            onModelChange={(v) => setAdult({ ...adult, model_number: v })}
+            saleInclStr={adultSaleIncl}
+            saleExclStr={adultSaleExcl}
+            onSaleInclChange={setAdultSaleIncl}
+            onSaleExclChange={setAdultSaleExcl}
+            onSaleInclBlur={() => {
+              const c = nlInputToCents(adultSaleIncl);
+              if (Number.isFinite(c) && c >= 0) setAdultSaleExcl(centsToNlInput(exclCentsFromIncl21(c)));
+            }}
+            onSaleExclBlur={() => {
+              const c = nlInputToCents(adultSaleExcl);
+              if (Number.isFinite(c) && c >= 0) setAdultSaleIncl(centsToNlInput(inclCentsFromExcl21(c)));
+            }}
+          />
+        </>
+      ) : (
+        <VariantBlock
+          title="Sokken (SOCKS)"
+          model={socks.model_number ?? ""}
+          onModelChange={(v) => setSocks({ ...socks, model_number: v })}
+          saleInclStr={socksSaleIncl}
+          saleExclStr={socksSaleExcl}
+          onSaleInclChange={setSocksSaleIncl}
+          onSaleExclChange={setSocksSaleExcl}
+          onSaleInclBlur={() => {
+            const c = nlInputToCents(socksSaleIncl);
+            if (Number.isFinite(c) && c >= 0) setSocksSaleExcl(centsToNlInput(exclCentsFromIncl21(c)));
+          }}
+          onSaleExclBlur={() => {
+            const c = nlInputToCents(socksSaleExcl);
+            if (Number.isFinite(c) && c >= 0) setSocksSaleIncl(centsToNlInput(inclCentsFromExcl21(c)));
+          }}
+        />
+      )}
 
       {showImageUpload ? (
         <label className="block md:col-span-2">

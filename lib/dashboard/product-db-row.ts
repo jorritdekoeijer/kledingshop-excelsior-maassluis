@@ -44,6 +44,7 @@ export function activeSizesInTemplateOrder(active: string[], template: readonly 
 export function productParsedToDbRow(d: ProductUpsertParsed) {
   const variantYouth = filterVariantBlockSizesForGarment(d.garmentType, "youth", d.variantYouth);
   const variantAdult = filterVariantBlockSizesForGarment(d.garmentType, "adult", d.variantAdult);
+  const variantSocks = filterVariantBlockSizesForGarment(d.garmentType, "adult", d.variantSocks);
   return {
     name: d.name,
     slug: d.slug,
@@ -55,7 +56,8 @@ export function productParsedToDbRow(d: ProductUpsertParsed) {
     garment_type: d.garmentType,
     product_details: d.productDetails,
     variant_youth: variantBlockToDbJson(variantYouth),
-    variant_adult: variantBlockToDbJson(variantAdult)
+    variant_adult: variantBlockToDbJson(variantAdult),
+    variant_socks: variantBlockToDbJson(variantSocks)
   };
 }
 

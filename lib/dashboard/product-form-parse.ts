@@ -33,6 +33,7 @@ export function parseProductUpsertFormData(formData: FormData): ProductFormParse
 
   const variantYouthRaw = parseJsonField<unknown>(formData.get("variantYouthJson"), {});
   const variantAdultRaw = parseJsonField<unknown>(formData.get("variantAdultJson"), {});
+  const variantSocksRaw = parseJsonField<unknown>(formData.get("variantSocksJson"), {});
 
   const youthZ = productVariantBlockSchema.safeParse(variantYouthRaw);
   if (!youthZ.success) {
@@ -42,15 +43,27 @@ export function parseProductUpsertFormData(formData: FormData): ProductFormParse
   if (!adultZ.success) {
     return { ok: false, message: adultZ.error.issues[0]?.message ?? "Ongeldige volwassen-variant." };
   }
+  const socksZ = productVariantBlockSchema.safeParse(variantSocksRaw);
+  if (!socksZ.success) {
+    return { ok: false, message: socksZ.error.issues[0]?.message ?? "Ongeldige sokken-variant." };
+  }
 
   const variantYouth = youthZ.data;
   const variantAdult = adultZ.data;
+  const variantSocks = socksZ.data;
 
-  const priceCents = canonicalPriceCentsFromVariants(variantYouth, variantAdult);
+  const garmentType = formData.get("garmentType");
+  const priceCents =
+    garmentType === "socks"
+      ? (variantSocks.sale_cents != null ? variantSocks.sale_cents : null)
+      : canonicalPriceCentsFromVariants(variantYouth, variantAdult);
   if (priceCents === null) {
     return {
       ok: false,
-      message: "Vul minstens één verkoopprijs in bij Jeugd (YOUTH) of Volwassenen (ADULT), incl. btw."
+      message:
+        garmentType === "socks"
+          ? "Vul een verkoopprijs in bij Sokken (SOCKS), incl. btw."
+          : "Vul minstens één verkoopprijs in bij Jeugd (YOUTH) of Volwassenen (ADULT), incl. btw."
     };
   }
 
@@ -75,7 +88,8 @@ export function parseProductUpsertFormData(formData: FormData): ProductFormParse
     garmentType: formData.get("garmentType"),
     productDetails,
     variantYouth,
-    variantAdult
+    variantAdult,
+    variantSocks
   });
 
   if (!zr.success) {

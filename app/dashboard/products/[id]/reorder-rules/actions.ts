@@ -53,7 +53,7 @@ export async function updateReorderRules(productId: string, formData: FormData) 
 
   const { data: prod, error: prodErr } = await service
     .from("products")
-    .select("variant_youth,variant_adult,garment_type")
+    .select("variant_youth,variant_adult,variant_socks,garment_type")
     .eq("id", productId)
     .single();
   if (prodErr || !prod) {
@@ -61,27 +61,28 @@ export async function updateReorderRules(productId: string, formData: FormData) 
   }
 
   const garmentType = prod.garment_type === "socks" ? "socks" : "clothing";
-  const templateYouth = garmentType === "socks" ? SOCKS_SIZE_OPTIONS : YOUTH_SIZE_OPTIONS;
-  const templateAdult = garmentType === "socks" ? SOCKS_SIZE_OPTIONS : ADULT_SIZE_OPTIONS;
+  const templateYouth = YOUTH_SIZE_OPTIONS;
+  const templateAdult = ADULT_SIZE_OPTIONS;
+  const templateSocks = SOCKS_SIZE_OPTIONS;
 
   const vy = normalizeVariantBlock(prod.variant_youth);
   const va = normalizeVariantBlock(prod.variant_adult);
+  const vs = normalizeVariantBlock((prod as any).variant_socks);
 
-  const activeYouthLabels = parsed.data.rules
-    .filter((r) => r.variantSegment === "youth" && r.isActive)
-    .map((r) => r.sizeLabel);
-  const activeAdultLabels = parsed.data.rules
-    .filter((r) => r.variantSegment === "adult" && r.isActive)
-    .map((r) => r.sizeLabel);
+  const activeYouthLabels = parsed.data.rules.filter((r) => r.variantSegment === "youth" && r.isActive).map((r) => r.sizeLabel);
+  const activeAdultLabels = parsed.data.rules.filter((r) => r.variantSegment === "adult" && r.isActive).map((r) => r.sizeLabel);
+  const activeSocksLabels = parsed.data.rules.filter((r) => r.variantSegment === "socks" && r.isActive).map((r) => r.sizeLabel);
 
   const youthSizes = activeSizesInTemplateOrder(activeYouthLabels, templateYouth);
   const adultSizes = activeSizesInTemplateOrder(activeAdultLabels, templateAdult);
+  const socksSizes = activeSizesInTemplateOrder(activeSocksLabels, templateSocks);
 
   const { error: updErr } = await service
     .from("products")
     .update({
-      variant_youth: variantBlockToDbJson({ ...vy, sizes: youthSizes }),
-      variant_adult: variantBlockToDbJson({ ...va, sizes: adultSizes })
+      variant_youth: variantBlockToDbJson({ ...vy, sizes: garmentType === "socks" ? [] : youthSizes }),
+      variant_adult: variantBlockToDbJson({ ...va, sizes: garmentType === "socks" ? [] : adultSizes }),
+      variant_socks: variantBlockToDbJson({ ...vs, sizes: garmentType === "socks" ? socksSizes : [] })
     })
     .eq("id", productId);
   if (updErr) {

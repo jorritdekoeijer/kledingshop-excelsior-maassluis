@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { ADULT_SIZE_OPTIONS, SOCKS_SIZE_OPTIONS, YOUTH_SIZE_OPTIONS } from "@/lib/products/variant-constants";
 
-type VariantSegment = "youth" | "adult";
+type VariantSegment = "youth" | "adult" | "socks";
 
 export type ExistingRule = {
   variant_segment: VariantSegment;
@@ -27,10 +27,9 @@ export function ProductReorderRulesEditor({
   const [pending, startTransition] = useTransition();
 
   const allRows = useMemo(() => {
-    const youthSizes =
-      garmentType === "socks" ? [...SOCKS_SIZE_OPTIONS] : [...YOUTH_SIZE_OPTIONS];
-    const adultSizes =
-      garmentType === "socks" ? [...SOCKS_SIZE_OPTIONS] : [...ADULT_SIZE_OPTIONS];
+    const youthSizes = garmentType === "socks" ? [] : [...YOUTH_SIZE_OPTIONS];
+    const adultSizes = garmentType === "socks" ? [] : [...ADULT_SIZE_OPTIONS];
+    const socksSizes = garmentType === "socks" ? [...SOCKS_SIZE_OPTIONS] : [];
 
     const key = (seg: VariantSegment, size: string) => `${seg}\0${size}`;
     const map = new Map<string, ExistingRule>();
@@ -50,7 +49,9 @@ export function ProductReorderRulesEditor({
         };
       });
 
-    return [...build("youth", youthSizes), ...build("adult", adultSizes)];
+    return garmentType === "socks"
+      ? build("socks", socksSizes)
+      : [...build("youth", youthSizes), ...build("adult", adultSizes)];
   }, [existing, garmentType]);
 
   const [rows, setRows] = useState(() => allRows);
@@ -101,7 +102,9 @@ export function ProductReorderRulesEditor({
                     className="h-4 w-4"
                   />
                 </td>
-                <td className="px-4 py-3 text-zinc-700">{r.variantSegment === "youth" ? "YOUTH" : "ADULT"}</td>
+                <td className="px-4 py-3 text-zinc-700">
+                  {r.variantSegment === "youth" ? "YOUTH" : r.variantSegment === "adult" ? "ADULT" : "SOCKS"}
+                </td>
                 <td className="px-4 py-3 font-mono text-zinc-800">{r.sizeLabel}</td>
                 <td className="px-4 py-3">
                   <input
