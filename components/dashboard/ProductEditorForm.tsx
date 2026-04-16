@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { useMemo, useState } from "react";
 import { exclCentsFromIncl21, inclCentsFromExcl21, parseDutchEuroToCents } from "@/lib/money/nl-euro";
 import type { ProductDetailRow, ProductVariantBlock } from "@/lib/validation/products";
@@ -56,7 +57,8 @@ export function ProductEditorForm({
   defaults,
   showImageUpload = false,
   garmentTypeValue,
-  onGarmentTypeChange
+  onGarmentTypeChange,
+  childrenBeforeSubmit
 }: {
   action: (formData: FormData) => void | Promise<void>;
   categories: Cat[];
@@ -65,6 +67,8 @@ export function ProductEditorForm({
   /** Optioneel: controlled garment type (voor live-sync met voorraadregels). */
   garmentTypeValue?: "clothing" | "socks" | "shoes";
   onGarmentTypeChange?: (v: "clothing" | "socks" | "shoes") => void;
+  /** Optioneel: extra content binnen het <form> (voor bijv. voorraadregels bij nieuw product). */
+  childrenBeforeSubmit?: ReactNode;
 }) {
   const d: Defaults = {
     name: defaults?.name ?? "",
@@ -457,6 +461,8 @@ export function ProductEditorForm({
           </span>
         </label>
       ) : null}
+
+      {childrenBeforeSubmit ? <div className="md:col-span-2">{childrenBeforeSubmit}</div> : null}
 
       <div className="md:col-span-2">
         <button

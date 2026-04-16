@@ -1,85 +1,67 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ADULT_SIZE_OPTIONS, SHOES_SIZE_OPTIONS, SOCKS_SIZE_OPTIONS, YOUTH_SIZE_OPTIONS } from "@/lib/products/variant-constants";
 
 type VariantSegment = "youth" | "adult" | "socks" | "shoes";
 
-export type ExistingRule = {
-  variant_segment: VariantSegment;
-  size_label: string;
-  is_active: boolean;
-  threshold_qty: number;
-  target_qty: number;
+type Row = {
+  variantSegment: VariantSegment;
+  sizeLabel: string;
+  isActive: boolean;
+  thresholdQty: number;
+  targetQty: number;
 };
 
-export function ProductReorderRulesEditor({
-  productId,
+function uniqNonEmpty(values: string[]): string[] {
+  return [...new Set(values.map((s) => String(s).trim()).filter(Boolean))];
+}
+
+export function ProductReorderRulesDraftEditor({
   garmentType,
-  existing,
-  action
+  name = "reorderRulesJson"
 }: {
-  productId: string;
   garmentType: "clothing" | "socks" | "shoes";
-  existing: ExistingRule[];
-  action: (formData: FormData) => void | Promise<void>;
+  /** Naam van hidden input dat bij submit meegaat. */
+  name?: string;
 }) {
-  const [pending, startTransition] = useTransition();
-
-  const allRows = useMemo(() => {
-    const youthSizes = garmentType === "socks" ? [] : [...YOUTH_SIZE_OPTIONS];
-    const adultSizes = garmentType === "socks" ? [] : [...ADULT_SIZE_OPTIONS];
-    const socksSizes = garmentType === "socks" ? [...SOCKS_SIZE_OPTIONS] : [];
-    const shoesSizes = garmentType === "shoes" ? [...SHOES_SIZE_OPTIONS] : [];
-
-    const key = (seg: VariantSegment, size: string) => `${seg}\0${size}`;
-    const map = new Map<string, ExistingRule>();
-    for (const r of existing) {
-      map.set(key(r.variant_segment, r.size_label), r);
-    }
-
+  const templateRows = useMemo((): Row[] => {
     const build = (seg: VariantSegment, sizes: string[]) =>
-      [...new Set(sizes.map((s) => String(s).trim()).filter(Boolean))].map((size) => {
-        const ex = map.get(key(seg, size));
-        return {
-          variantSegment: seg,
-          sizeLabel: size,
-          isActive: ex?.is_active ?? false,
-          thresholdQty: ex?.threshold_qty ?? 0,
-          targetQty: ex?.target_qty ?? 0
-        };
-      });
+      uniqNonEmpty(sizes).map((size) => ({
+        variantSegment: seg,
+        sizeLabel: size,
+        isActive: false,
+        thresholdQty: 0,
+        targetQty: 0
+      }));
 
-    if (garmentType === "socks") return build("socks", socksSizes);
-    if (garmentType === "shoes") return build("shoes", shoesSizes);
-    return [...build("youth", youthSizes), ...build("adult", adultSizes)];
-  }, [existing, garmentType]);
+    if (garmentType === "socks") return build("socks", [...SOCKS_SIZE_OPTIONS]);
+    if (garmentType === "shoes") return build("shoes", [...SHOES_SIZE_OPTIONS]);
+    return [...build("youth", [...YOUTH_SIZE_OPTIONS]), ...build("adult", [...ADULT_SIZE_OPTIONS])];
+  }, [garmentType]);
 
-  const [rows, setRows] = useState(() => allRows);
+  const [rows, setRows] = useState<Row[]>(() => templateRows);
 
+  // Als garment type wisselt: reset naar de nieuwe template.
   useEffect(() => {
-    setRows(allRows);
-  }, [allRows]);
+    setRows(templateRows);
+  }, [templateRows]);
 
   const rowsJson = useMemo(() => JSON.stringify(rows), [rows]);
 
-  function update(idx: number, patch: Partial<(typeof rows)[number]>) {
+  function update(idx: number, patch: Partial<Row>) {
     setRows((prev) => prev.map((r, i) => (i === idx ? { ...r, ...patch } : r)));
   }
 
-  function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    const fd = new FormData();
-    fd.set("rulesJson", rowsJson);
-    startTransition(() => {
-      action(fd);
-    });
-  }
-
   return (
-    <form onSubmit={onSubmit} className="space-y-3">
-      <input type="hidden" name="productId" value={productId} readOnly />
-      <input type="hidden" name="rulesJson" value={rowsJson} readOnly />
+    <div className="space-y-3">
+      <input type="hidden" name={name} value={rowsJson} readOnly />
+
+      <h2 className="text-lg font-semibold">Voorraad instellingen per maat</h2>
+      <p className="mt-1 text-sm text-zinc-600">
+        Zet maten <strong>actief</strong> en vul een drempelwaarde en standaard voorraad in. Na opslaan worden deze regels direct
+        aangemaakt voor dit product.
+      </p>
 
       <div className="overflow-x-auto rounded-lg border border-zinc-200">
         <table className="w-full min-w-[42rem] text-sm">
@@ -136,20 +118,7 @@ export function ProductReorderRulesEditor({
           </tbody>
         </table>
       </div>
-
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-xs text-zinc-500">
-          Als voorraad ≤ drempelwaarde, wordt in <strong>Nieuwe leveranciersbestelling</strong> een suggestie gemaakt om tot de
-          standaard voorraad aan te vullen.
-        </p>
-        <button
-          type="submit"
-          disabled={pending}
-          className="rounded-md bg-brand-blue px-4 py-2 text-sm font-semibold text-white hover:brightness-110 disabled:opacity-50"
-        >
-          {pending ? "Opslaan…" : "Opslaan"}
-        </button>
-      </div>
-    </form>
+    </div>
   );
 }
+

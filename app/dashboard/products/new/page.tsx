@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { ProductEditorForm } from "@/components/dashboard/ProductEditorForm";
+import { NewProductPageClient } from "@/components/dashboard/NewProductPageClient";
 import { requirePermission } from "@/lib/auth/permissions-server";
 import { permissions } from "@/lib/auth/permissions";
 import { productParsedToInsertRow } from "@/lib/dashboard/product-db-row";
@@ -9,6 +9,8 @@ import { PUBLIC_PRODUCT_CATEGORIES_TABLE } from "@/lib/db/public-tables";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { formatPostgrestError } from "@/lib/supabase/format-postgrest-error";
 import { createSupabaseServiceClient } from "@/lib/supabase/service";
+import { z } from "zod";
+import { reorderRuleRowSchema } from "@/lib/validation/reorder-rules";
 
 export const dynamic = "force-dynamic";
 
@@ -55,6 +57,41 @@ async function createProduct(formData: FormData) {
   if (upload.error) redirect(`/dashboard/products/${created.id}/edit?error=${encodeURIComponent(upload.error.message)}`);
   await service.from("product_images").insert({ product_id: created.id, path, sort_order: 0, is_primary: true });
 
+  // Voorraadregels (per maat) direct aanmaken op basis van de gekozen kledingsoort.
+  const rawRules = formData.get("reorderRulesJson");
+  if (typeof rawRules === "string" && rawRules.trim()) {
+    let parsedRules: unknown = [];
+    try {
+      parsedRules = JSON.parse(rawRules);
+    } catch {
+      redirect(`/dashboard/products/new?error=${encodeURIComponent("Ongeldige voorraadregels (JSON).")}`);
+    }
+    const rulesArr = z.array(reorderRuleRowSchema).safeParse(parsedRules);
+    if (!rulesArr.success) {
+      redirect(
+        `/dashboard/products/new?error=${encodeURIComponent(rulesArr.error.issues[0]?.message ?? "Ongeldige voorraadregels.")}`
+      );
+    }
+    const rows = rulesArr.data
+      .filter((r) => r.isActive)
+      .map((r) => ({
+        product_id: created.id,
+        variant_segment: r.variantSegment,
+        size_label: r.sizeLabel,
+        is_active: r.isActive,
+        threshold_qty: r.thresholdQty,
+        target_qty: r.targetQty
+      }));
+    if (rows.length > 0) {
+      const { error: rrErr } = await service.from("stock_reorder_rules").upsert(rows, {
+        onConflict: "product_id,variant_segment,size_label"
+      });
+      if (rrErr) {
+        redirect(`/dashboard/products/new?error=${encodeURIComponent(formatPostgrestError(rrErr))}`);
+      }
+    }
+  }
+
   redirect(`/dashboard/products/${created.id}/edit?ok=1`);
 }
 
@@ -83,12 +120,7 @@ export default async function NewProductPage({
       ) : null}
 
       <div className="mt-6">
-        <ProductEditorForm
-          action={createProduct}
-          categories={categories ?? []}
-          defaults={{ printingExclCents: 0 }}
-          showImageUpload
-        />
+        <NewProductPageClient action={createProduct} categories={categories ?? []} />
       </div>
     </div>
   );

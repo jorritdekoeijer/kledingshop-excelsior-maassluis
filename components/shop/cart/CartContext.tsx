@@ -21,7 +21,7 @@ export type CartLine = {
   name: string;
   priceCents: number;
   slug: string;
-  variant?: "youth" | "adult";
+  variant?: "youth" | "adult" | "socks" | "shoes";
   sizeLabel?: string;
 };
 
@@ -99,7 +99,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
               name: typeof o.name === "string" ? o.name : "",
               priceCents: typeof o.priceCents === "number" ? o.priceCents : 0,
               slug: typeof o.slug === "string" ? o.slug : "",
-              variant: o.variant === "youth" || o.variant === "adult" ? o.variant : undefined,
+              variant:
+                o.variant === "youth" || o.variant === "adult" || o.variant === "socks" || o.variant === "shoes"
+                  ? o.variant
+                  : undefined,
               sizeLabel: typeof o.sizeLabel === "string" ? o.sizeLabel : undefined
             });
           }
