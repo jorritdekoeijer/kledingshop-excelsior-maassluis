@@ -90,7 +90,7 @@ export async function fetchFinancialOverview(
     return new Error(`${label}: ${String(e)}`);
   };
 
-  const [cgRes, ioRes, paidRes, fulfilledRes, batchRes] = await Promise.all([
+  const [cgRes, ioRes, paidRes, fulfilledRes, newRes, readyRes, backorderRes, completedRes, batchRes] = await Promise.all([
     supabase.from("cost_groups").select("id,name").order("name"),
     supabase
       .from("internal_orders")
@@ -108,6 +108,31 @@ export async function fetchFinancialOverview(
       .from("orders")
       .select("id,total_cents,status,created_at")
       .eq("status", "fulfilled")
+      .gte("created_at", startIso)
+      .lte("created_at", endIso),
+    // Nieuwere workflow-statussen (na betaling). Op oudere schema's kunnen deze enum values ontbreken.
+    supabase
+      .from("orders")
+      .select("id,total_cents,status,created_at")
+      .eq("status", "new_order")
+      .gte("created_at", startIso)
+      .lte("created_at", endIso),
+    supabase
+      .from("orders")
+      .select("id,total_cents,status,created_at")
+      .eq("status", "ready_for_pickup")
+      .gte("created_at", startIso)
+      .lte("created_at", endIso),
+    supabase
+      .from("orders")
+      .select("id,total_cents,status,created_at")
+      .eq("status", "backorder")
+      .gte("created_at", startIso)
+      .lte("created_at", endIso),
+    supabase
+      .from("orders")
+      .select("id,total_cents,status,created_at")
+      .eq("status", "completed")
       .gte("created_at", startIso)
       .lte("created_at", endIso),
     supabase
@@ -129,6 +154,22 @@ export async function fetchFinancialOverview(
     (typeof (fulfilledRes.error as any)?.message === "string" &&
       String((fulfilledRes.error as any)?.message).toLowerCase().includes("order_status"));
   if (fulfilledRes.error && !fulfilledMissing) throw asErr("orders select (fulfilled)", fulfilledRes.error);
+  const newMissing =
+    Boolean((newRes.error as any)?.code === "22P02") ||
+    (typeof (newRes.error as any)?.message === "string" && String((newRes.error as any)?.message).toLowerCase().includes("order_status"));
+  if (newRes.error && !newMissing) throw asErr("orders select (new_order)", newRes.error);
+  const readyMissing =
+    Boolean((readyRes.error as any)?.code === "22P02") ||
+    (typeof (readyRes.error as any)?.message === "string" && String((readyRes.error as any)?.message).toLowerCase().includes("order_status"));
+  if (readyRes.error && !readyMissing) throw asErr("orders select (ready_for_pickup)", readyRes.error);
+  const backorderMissing =
+    Boolean((backorderRes.error as any)?.code === "22P02") ||
+    (typeof (backorderRes.error as any)?.message === "string" && String((backorderRes.error as any)?.message).toLowerCase().includes("order_status"));
+  if (backorderRes.error && !backorderMissing) throw asErr("orders select (backorder)", backorderRes.error);
+  const completedMissing =
+    Boolean((completedRes.error as any)?.code === "22P02") ||
+    (typeof (completedRes.error as any)?.message === "string" && String((completedRes.error as any)?.message).toLowerCase().includes("order_status"));
+  if (completedRes.error && !completedMissing) throw asErr("orders select (completed)", completedRes.error);
   if (batchRes.error) throw asErr("stock_batches select", batchRes.error);
 
   // COGS (inkoop van verkochte voorraad) via stock_consumptions + batch.unit_purchase_excl_cents.
@@ -168,7 +209,11 @@ export async function fetchFinancialOverview(
 
   const orderRows = [
     ...(paidRes.data ?? []),
-    ...((fulfilledRes.error || fulfilledMissing) ? [] : (fulfilledRes.data ?? []))
+    ...((fulfilledRes.error || fulfilledMissing) ? [] : (fulfilledRes.data ?? [])),
+    ...((newRes.error || newMissing) ? [] : (newRes.data ?? [])),
+    ...((readyRes.error || readyMissing) ? [] : (readyRes.data ?? [])),
+    ...((backorderRes.error || backorderMissing) ? [] : (backorderRes.data ?? [])),
+    ...((completedRes.error || completedMissing) ? [] : (completedRes.data ?? []))
   ] as { total_cents: number | null }[];
   const orderCount = orderRows.length;
   const revenueInclCents = sum(orderRows.map((o) => Number(o.total_cents ?? 0)));

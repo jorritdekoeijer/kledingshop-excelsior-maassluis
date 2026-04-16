@@ -12,7 +12,7 @@ import { permissions } from "@/lib/auth/permissions";
 import { getSetting, upsertSetting } from "@/lib/settings";
 import { settingsSectionBase } from "@/lib/settings/settings-base";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { mollieSettingsSchema, monthlyEmailSettingsSchema, smtpSettingsSchema } from "@/lib/validation/settings";
+import { mollieSettingsSchema, monthlyEmailSettingsSchema, orderEmailTemplatesSchema, smtpSettingsSchema } from "@/lib/validation/settings";
 
 const createCostGroupSchema = z.object({ name: z.string().min(1).max(80) });
 const renameCostGroupSchema = z.object({ id: z.string().uuid(), name: z.string().min(1).max(80) });
@@ -86,6 +86,28 @@ export async function saveMonthlyEmailSettings(formData: FormData) {
     recipientEmail: parsed.data.recipientEmail || ""
   });
   redirect(`${base}/monthly-email?ok=1`);
+}
+
+export async function saveOrderEmailTemplates(formData: FormData) {
+  const base = settingsSectionBase(formData);
+  const gate = await requireAdminOrPermission(permissions.settings.write);
+  if (!gate.ok) redirect(`${base}/order-emails?error=${encodeURIComponent("Geen toegang")}`);
+
+  const parsed = orderEmailTemplatesSchema.safeParse({
+    confirmationSubject: formData.get("confirmationSubject"),
+    confirmationHtml: formData.get("confirmationHtml"),
+    pickupCompleteSubject: formData.get("pickupCompleteSubject"),
+    pickupCompleteHtml: formData.get("pickupCompleteHtml"),
+    pickupIncompleteSubject: formData.get("pickupIncompleteSubject"),
+    pickupIncompleteHtml: formData.get("pickupIncompleteHtml")
+  });
+
+  if (!parsed.success) {
+    redirect(`${base}/order-emails?error=${encodeURIComponent(parsed.error.issues[0]?.message ?? "Ongeldig")}`);
+  }
+
+  await upsertSetting("order_emails", parsed.data);
+  redirect(`${base}/order-emails?ok=1`);
 }
 
 export async function createCostGroup(formData: FormData) {

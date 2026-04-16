@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { hasPermission, permissions } from "@/lib/auth/permissions";
 import { requirePermission } from "@/lib/auth/permissions-server";
-import { markOrderFulfilled, resendOrderConfirmationEmail } from "@/app/dashboard/orders/actions";
+import { markOrderPickedUp, markOrderReadyForPickup, pickOrderItem, resendOrderConfirmationEmail } from "@/app/dashboard/orders/actions";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { z } from "zod";
 
@@ -14,7 +14,11 @@ const statusNl: Record<string, string> = {
   pending_payment: "Wacht op betaling",
   paid: "Betaald",
   cancelled: "Geannuleerd",
-  fulfilled: "Afgehandeld"
+  fulfilled: "Afgehandeld",
+  new_order: "Nieuwe bestelling",
+  ready_for_pickup: "Klaar om af te halen",
+  backorder: "Backorder",
+  completed: "Afgerond"
 };
 
 type Props = {
@@ -50,7 +54,7 @@ export default async function DashboardOrderDetailPage({ params, searchParams }:
   const { data: order, error } = await supabase
     .from("orders")
     .select(
-      "id,status,total_cents,guest_email,guest_name,guest_phone,shipping_address,fulfillment_error,confirmation_sent_at,public_token,created_at,updated_at,order_items(quantity,unit_price_cents,line_total_cents,products(name,slug)),mollie_payments(mollie_payment_id,status,created_at,updated_at)"
+      "id,status,total_cents,guest_email,guest_name,guest_phone,shipping_address,fulfillment_error,confirmation_sent_at,public_token,created_at,updated_at,order_number,pickup_email_sent_at,pickup_email_kind,order_items(id,quantity,unit_price_cents,line_total_cents,picked,delivered,products(name,slug)),mollie_payments(mollie_payment_id,status,created_at,updated_at)"
     )
     .eq("id", id)
     .maybeSingle();
@@ -58,9 +62,12 @@ export default async function DashboardOrderDetailPage({ params, searchParams }:
   if (error || !order) notFound();
 
   const items = (order.order_items ?? []) as unknown as Array<{
+    id: string;
     quantity: number;
     unit_price_cents: number;
     line_total_cents: number;
+    picked?: boolean;
+    delivered?: boolean;
     products?: unknown;
   }>;
 
@@ -79,9 +86,11 @@ export default async function DashboardOrderDetailPage({ params, searchParams }:
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <Link href="/dashboard/orders" className="text-sm text-brand-blue hover:underline">
-            ← Alle bestellingen
+            ← Te maken bestellingen
           </Link>
-          <h1 className="mt-2 text-xl font-semibold text-brand-blue">Order {order.id.slice(0, 8)}…</h1>
+          <h1 className="mt-2 text-xl font-semibold text-brand-blue">
+            Bestelling {String((order as any).order_number ?? "").trim() || `${order.id.slice(0, 8)}…`}
+          </h1>
           <p className="mt-1 text-sm text-zinc-600">
             Aangemaakt{" "}
             {order.created_at
@@ -135,6 +144,15 @@ export default async function DashboardOrderDetailPage({ params, searchParams }:
                 })
               : "nog niet verstuurd"}
           </p>
+          <p className="mt-2 text-sm text-zinc-600">
+            Afhaalmail:{" "}
+            {(order as any).pickup_email_sent_at
+              ? `${new Date((order as any).pickup_email_sent_at).toLocaleString("nl-NL", {
+                  dateStyle: "medium",
+                  timeStyle: "short"
+                })} (${String((order as any).pickup_email_kind ?? "")})`
+              : "nog niet verstuurd"}
+          </p>
         </section>
 
         <section className="rounded-lg border border-zinc-200 bg-white p-5">
@@ -183,12 +201,31 @@ export default async function DashboardOrderDetailPage({ params, searchParams }:
         <ul className="mt-3 divide-y divide-zinc-100">
           {items.map((li, i) => (
             <li key={i} className="flex flex-wrap justify-between gap-2 py-2 text-sm">
-              <span>
-                {lineProductName(li)}{" "}
-                <span className="text-zinc-500">
-                  × {li.quantity} à {eur(li.unit_price_cents)}
-                </span>
-              </span>
+              <div className="min-w-0">
+                <div className="truncate">
+                  {lineProductName(li)}{" "}
+                  <span className="text-zinc-500">
+                    × {li.quantity} à {eur(li.unit_price_cents)}
+                  </span>
+                </div>
+                <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
+                  <span className={`rounded px-2 py-0.5 ${li.delivered ? "bg-green-100 text-green-800" : "bg-zinc-100 text-zinc-700"}`}>
+                    {li.delivered ? "AFGELEVERD" : li.picked ? "INGEPAKT" : "OPEN"}
+                  </span>
+                  {!li.delivered && !li.picked && canWrite && (order.status === "new_order" || order.status === "backorder") ? (
+                    <form action={pickOrderItem}>
+                      <input type="hidden" name="orderItemId" value={li.id} />
+                      <input type="hidden" name="next" value={detailPath} />
+                      <button
+                        type="submit"
+                        className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs font-medium hover:bg-zinc-50"
+                      >
+                        In voorraad (aanklikken)
+                      </button>
+                    </form>
+                  ) : null}
+                </div>
+              </div>
               <span className="font-medium">{eur(li.line_total_cents)}</span>
             </li>
           ))}
@@ -219,20 +256,33 @@ export default async function DashboardOrderDetailPage({ params, searchParams }:
         <section className="rounded-lg border border-zinc-200 bg-white p-5">
           <h2 className="font-semibold text-zinc-900">Acties</h2>
           <div className="mt-4 flex flex-wrap gap-3">
-            {order.status === "paid" ? (
-              <form action={markOrderFulfilled}>
+            {(order.status === "new_order" || order.status === "backorder") ? (
+              <form action={markOrderReadyForPickup}>
+                <input type="hidden" name="orderId" value={order.id} />
+                <input type="hidden" name="next" value={detailPath} />
+                <button
+                  type="submit"
+                  className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:brightness-110"
+                >
+                  Bestelling klaar voor afhalen
+                </button>
+              </form>
+            ) : null}
+
+            {order.status === "ready_for_pickup" ? (
+              <form action={markOrderPickedUp}>
                 <input type="hidden" name="orderId" value={order.id} />
                 <input type="hidden" name="next" value={detailPath} />
                 <button
                   type="submit"
                   className="rounded-md border border-zinc-300 bg-white px-4 py-2 text-sm font-medium hover:bg-zinc-50"
                 >
-                  Markeer als afgehandeld
+                  AFGEHAALD
                 </button>
               </form>
             ) : null}
 
-            {order.status === "paid" || order.status === "fulfilled" ? (
+            {order.status === "new_order" || order.status === "ready_for_pickup" || order.status === "backorder" ? (
               <form action={resendOrderConfirmationEmail}>
                 <input type="hidden" name="orderId" value={order.id} />
                 <input type="hidden" name="next" value={detailPath} />

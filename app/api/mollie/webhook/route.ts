@@ -67,7 +67,7 @@ export async function POST(request: Request) {
       await svc
         .from("orders")
         .update({
-          status: "paid",
+          status: "new_order",
           fulfillment_error: msg,
           updated_at: new Date().toISOString()
         })

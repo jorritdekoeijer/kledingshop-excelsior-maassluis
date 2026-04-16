@@ -68,6 +68,13 @@ export default async function DashboardSettingsPage() {
               <div className="mt-1 text-sm text-zinc-600">Nodemailer SMTP configuratie via settings tabel.</div>
             </Link>
             <Link
+              href="/dashboard/settings/order-emails"
+              className="rounded-lg border border-zinc-200 bg-white p-6 hover:bg-zinc-50"
+            >
+              <div className="font-medium">Order e-mails</div>
+              <div className="mt-1 text-sm text-zinc-600">Templates + voorvertoning voor ordermails.</div>
+            </Link>
+            <Link
               href="/dashboard/settings/monthly-email"
               className="rounded-lg border border-zinc-200 bg-white p-6 hover:bg-zinc-50"
             >

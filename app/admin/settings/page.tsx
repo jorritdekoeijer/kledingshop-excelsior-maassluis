@@ -29,6 +29,10 @@ export default async function AdminSettingsHubPage() {
           <div className="font-medium">E-mail (SMTP)</div>
           <div className="mt-1 text-sm text-zinc-600">Nodemailer SMTP-configuratie.</div>
         </Link>
+        <Link href="/admin/settings/order-emails" className="rounded-lg border border-zinc-200 bg-white p-6 hover:bg-zinc-50">
+          <div className="font-medium">Order e-mails</div>
+          <div className="mt-1 text-sm text-zinc-600">Templates + voorvertoning voor ordermails.</div>
+        </Link>
         <Link href="/admin/settings/monthly-email" className="rounded-lg border border-zinc-200 bg-white p-6 hover:bg-zinc-50">
           <div className="font-medium">Maandelijkse e-mail</div>
           <div className="mt-1 text-sm text-zinc-600">Cron-samenvatting omzet en aantal orders.</div>

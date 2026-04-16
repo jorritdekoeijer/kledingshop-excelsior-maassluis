@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
-export const SettingsKeySchema = z.enum(["smtp", "mollie", "monthly_email", "homepage"]);
+export const SettingsKeySchema = z.enum(["smtp", "mollie", "monthly_email", "homepage", "order_emails"]);
 export type SettingsKey = z.infer<typeof SettingsKeySchema>;
 
 export async function getSetting(key: SettingsKey) {

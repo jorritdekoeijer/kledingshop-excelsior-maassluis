@@ -23,3 +23,12 @@ export const monthlyEmailSettingsSchema = z.object({
   lastCompletedReportPeriod: z.string().regex(/^\d{4}-\d{2}$/).optional()
 });
 
+export const orderEmailTemplatesSchema = z.object({
+  confirmationSubject: z.string().min(1).max(200),
+  confirmationHtml: z.string().min(1).max(20000),
+  pickupCompleteSubject: z.string().min(1).max(200),
+  pickupCompleteHtml: z.string().min(1).max(20000),
+  pickupIncompleteSubject: z.string().min(1).max(200),
+  pickupIncompleteHtml: z.string().min(1).max(20000)
+});
+
