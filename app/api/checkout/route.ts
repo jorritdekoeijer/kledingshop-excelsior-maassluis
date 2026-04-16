@@ -14,7 +14,7 @@ export const runtime = "nodejs";
 type CheckoutLine = {
   productId: string;
   quantity: number;
-  variant?: "youth" | "adult";
+  variant?: "youth" | "adult" | "socks" | "shoes";
   size?: string;
 };
 
@@ -54,7 +54,7 @@ export async function POST(request: Request) {
   const productIds = [...new Set(lines.map((l) => l.productId))];
   const { data: products, error: pe } = await svc
     .from("products")
-    .select("id,price_cents,temporary_discount_percent,active,variant_youth,variant_adult")
+    .select("id,price_cents,temporary_discount_percent,active,variant_youth,variant_adult,variant_socks,variant_shoes")
     .in("id", productIds);
   if (pe) return NextResponse.json({ error: pe.message }, { status: 500 });
 
@@ -89,7 +89,14 @@ export async function POST(request: Request) {
   for (const line of lines) {
     const p = byId.get(line.productId)!;
     if (
-      !lineSizeAllowed(line.variant, line.size, p.variant_youth as unknown, p.variant_adult as unknown)
+      !lineSizeAllowed(
+        line.variant,
+        line.size,
+        p.variant_youth as unknown,
+        p.variant_adult as unknown,
+        (p as any).variant_socks as unknown,
+        (p as any).variant_shoes as unknown
+      )
     ) {
       return NextResponse.json(
         { error: "Ongeldige maat voor een of meer productregels. Pas je winkelmand aan." },
@@ -101,6 +108,8 @@ export async function POST(request: Request) {
       temporary_discount_percent: p.temporary_discount_percent,
       variant_youth: p.variant_youth,
       variant_adult: p.variant_adult,
+      variant_socks: (p as any).variant_socks,
+      variant_shoes: (p as any).variant_shoes,
       variant: line.variant
     });
     const lineTotal = unit * line.quantity;
@@ -148,7 +157,9 @@ export async function POST(request: Request) {
       product_id: l.product_id,
       quantity: l.quantity,
       unit_price_cents: l.unit_price_cents,
-      line_total_cents: l.line_total_cents
+      line_total_cents: l.line_total_cents,
+      variant_segment: l.variant_segment,
+      size_label: l.size_label
     }))
   );
 

@@ -2,7 +2,7 @@ import { z } from "zod";
 
 export const supplierOrderLineSchema = z.object({
   productId: z.string().uuid(),
-  variantSegment: z.enum(["youth", "adult"]),
+  variantSegment: z.enum(["youth", "adult", "socks", "shoes"]),
   sizeLabel: z.string().min(1).max(32),
   quantity: z.coerce.number().int().min(1).max(999999)
 });

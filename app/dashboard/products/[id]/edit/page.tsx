@@ -168,7 +168,7 @@ export default async function EditProductPage({
   const { data: product, error: productError } = await supabase
     .from("products")
     .select(
-      "id,name,slug,description,price_cents,printing_excl_cents,temporary_discount_percent,active,category_id,garment_type,product_details,variant_youth,variant_adult,variant_socks"
+      "id,name,slug,description,price_cents,printing_excl_cents,temporary_discount_percent,active,category_id,garment_type,product_details,variant_youth,variant_adult,variant_socks,variant_shoes"
     )
     .eq("id", id)
     .single();
@@ -203,11 +203,15 @@ export default async function EditProductPage({
     printingExclCents: Number(product.printing_excl_cents ?? 0),
     active: product.active,
     categoryId: product.category_id,
-    garmentType: (product.garment_type === "socks" ? "socks" : "clothing") as "clothing" | "socks",
+    garmentType: (product.garment_type === "socks" ? "socks" : product.garment_type === "shoes" ? "shoes" : "clothing") as
+      | "clothing"
+      | "socks"
+      | "shoes",
     productDetails: normalizeProductDetails(product.product_details),
     variantYouth: normalizeVariantBlock(product.variant_youth),
     variantAdult: normalizeVariantBlock(product.variant_adult),
-    variantSocks: normalizeVariantBlock((product as any).variant_socks)
+    variantSocks: normalizeVariantBlock((product as any).variant_socks),
+    variantShoes: normalizeVariantBlock((product as any).variant_shoes)
   };
 
   return (

@@ -7,13 +7,23 @@ export function orderUnitPriceCentsFromProductRow(row: {
   temporary_discount_percent: number | null;
   variant_youth: unknown;
   variant_adult: unknown;
-  variant?: "youth" | "adult";
+  variant_socks?: unknown;
+  variant_shoes?: unknown;
+  variant?: "youth" | "adult" | "socks" | "shoes";
 }): number {
   const pct = Number(row.temporary_discount_percent ?? 0);
   if (!row.variant) {
     return effectivePriceCents(row.price_cents, pct);
   }
-  const block = normalizeVariantBlock(row.variant === "youth" ? row.variant_youth : row.variant_adult);
+  const block = normalizeVariantBlock(
+    row.variant === "youth"
+      ? row.variant_youth
+      : row.variant === "adult"
+        ? row.variant_adult
+        : row.variant === "socks"
+          ? row.variant_socks
+          : row.variant_shoes
+  );
   const sale = block.sale_cents;
   if (sale != null && Number.isFinite(sale) && sale >= 0) {
     return effectivePriceCents(sale, pct);

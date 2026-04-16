@@ -1,13 +1,22 @@
 import { normalizeVariantBlock } from "@/lib/shop/product-json";
 
 export function lineSizeAllowed(
-  variant: "youth" | "adult" | undefined,
+  variant: "youth" | "adult" | "socks" | "shoes" | undefined,
   size: string | undefined,
   variantYouth: unknown,
-  variantAdult: unknown
+  variantAdult: unknown,
+  variantSocks: unknown,
+  variantShoes: unknown
 ): boolean {
   if (!variant) return true;
-  const block = variant === "youth" ? normalizeVariantBlock(variantYouth) : normalizeVariantBlock(variantAdult);
+  const block =
+    variant === "youth"
+      ? normalizeVariantBlock(variantYouth)
+      : variant === "adult"
+        ? normalizeVariantBlock(variantAdult)
+        : variant === "socks"
+          ? normalizeVariantBlock(variantSocks)
+          : normalizeVariantBlock(variantShoes);
   const sizes = block.sizes ?? [];
   if (sizes.length === 0) return true;
   if (!size || !sizes.includes(size)) return false;

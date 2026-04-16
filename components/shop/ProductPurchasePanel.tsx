@@ -14,8 +14,11 @@ type Props = {
   name: string;
   slug: string;
   discountPercent: number;
+  garmentType: "clothing" | "socks" | "shoes";
   youth: ProductVariantBlock;
   adult: ProductVariantBlock;
+  socks: ProductVariantBlock;
+  shoes: ProductVariantBlock;
   fallbackEffectiveCents: number;
 };
 
@@ -24,8 +27,11 @@ export function ProductPurchasePanel({
   name,
   slug,
   discountPercent,
+  garmentType,
   youth,
   adult,
+  socks,
+  shoes,
   fallbackEffectiveCents
 }: Props) {
   const { addLine } = useCart();
@@ -35,17 +41,21 @@ export function ProductPurchasePanel({
 
   const youthSale = youth.sale_cents != null && youth.sale_cents >= 0 ? youth.sale_cents : null;
   const adultSale = adult.sale_cents != null && adult.sale_cents >= 0 ? adult.sale_cents : null;
+  const socksSale = socks.sale_cents != null && socks.sale_cents >= 0 ? socks.sale_cents : null;
+  const shoesSale = shoes.sale_cents != null && shoes.sale_cents >= 0 ? shoes.sale_cents : null;
   const hasY = youthSale != null;
   const hasA = adultSale != null;
 
-  const initialSegment = useMemo((): "youth" | "adult" | null => {
+  const initialSegment = useMemo((): "youth" | "adult" | "socks" | "shoes" | null => {
+    if (garmentType === "socks") return "socks";
+    if (garmentType === "shoes") return "shoes";
     if (hasY && hasA) return "adult";
     if (hasY && !hasA) return "youth";
     if (!hasY && hasA) return "adult";
     return null;
-  }, [hasY, hasA]);
+  }, [garmentType, hasY, hasA]);
 
-  const [segment, setSegment] = useState<"youth" | "adult" | null>(initialSegment);
+  const [segment, setSegment] = useState<"youth" | "adult" | "socks" | "shoes" | null>(initialSegment);
 
   useEffect(() => {
     setSegment(initialSegment);
@@ -54,9 +64,11 @@ export function ProductPurchasePanel({
   const sizes = useMemo(() => {
     if (segment === "youth") return youth.sizes ?? [];
     if (segment === "adult") return adult.sizes ?? [];
+    if (segment === "socks") return socks.sizes ?? [];
+    if (segment === "shoes") return shoes.sizes ?? [];
     const merged = [...new Set([...(youth.sizes ?? []), ...(adult.sizes ?? [])])];
     return merged;
-  }, [segment, youth.sizes, adult.sizes]);
+  }, [segment, youth.sizes, adult.sizes, socks.sizes, shoes.sizes]);
 
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
 
@@ -67,8 +79,10 @@ export function ProductPurchasePanel({
   const displayCents = useMemo(() => {
     if (segment === "youth" && youthSale != null) return effectivePriceCents(youthSale, pct);
     if (segment === "adult" && adultSale != null) return effectivePriceCents(adultSale, pct);
+    if (segment === "socks" && socksSale != null) return effectivePriceCents(socksSale, pct);
+    if (segment === "shoes" && shoesSale != null) return effectivePriceCents(shoesSale, pct);
     return fallbackEffectiveCents;
-  }, [segment, youthSale, adultSale, pct, fallbackEffectiveCents]);
+  }, [segment, youthSale, adultSale, socksSale, shoesSale, pct, fallbackEffectiveCents]);
 
   const needSize = sizes.length > 0;
   const canAdd = !needSize || (selectedSize != null && selectedSize.length > 0);
@@ -91,6 +105,20 @@ export function ProductPurchasePanel({
         sizeLabel: sz || undefined
       };
     }
+    if (segment === "socks" || segment === "shoes") {
+      const sz = selectedSize ?? "";
+      const lineId = `${productId}:${segment}:${sz}`;
+      const label = `${name} · ${segment.toUpperCase()}${sz ? ` · ${sz}` : ""}`;
+      return {
+        lineId,
+        productId,
+        name: label,
+        slug,
+        priceCents: displayCents,
+        variant: segment,
+        sizeLabel: sz || undefined
+      };
+    }
     const sz = selectedSize ?? "";
     const lineId = `${productId}:st:${sz}`;
     const label = `${name}${sz ? ` · ${sz}` : ""}`;
@@ -106,7 +134,7 @@ export function ProductPurchasePanel({
 
   return (
     <div className="mt-4 space-y-6">
-      {hasY && hasA ? (
+      {garmentType === "clothing" && hasY && hasA ? (
         <div>
           <div
             className="inline-flex rounded-full border border-zinc-300 bg-zinc-50 p-1"

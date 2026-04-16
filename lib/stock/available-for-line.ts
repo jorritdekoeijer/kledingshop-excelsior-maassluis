@@ -6,7 +6,7 @@ type Svc = ReturnType<typeof createSupabaseServiceClient>;
 export async function sumAvailableStockForLine(
   svc: Svc,
   productId: string,
-  variant: "youth" | "adult" | null | undefined,
+  variant: "youth" | "adult" | "socks" | "shoes" | null | undefined,
   size: string | null | undefined
 ): Promise<number> {
   let q = svc.from("stock_batches").select("quantity_remaining").eq("product_id", productId);

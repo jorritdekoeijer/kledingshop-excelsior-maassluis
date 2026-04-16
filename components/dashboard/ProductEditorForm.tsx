@@ -28,11 +28,12 @@ type Defaults = {
   active: boolean;
   categoryId: string | null;
   /** Kleding: jeugd/volwassen maatlijsten; sokken: vaste sokkenmaten onder voorraad per maat. */
-  garmentType: "clothing" | "socks";
+  garmentType: "clothing" | "socks" | "shoes";
   productDetails: ProductDetailRow[];
   variantYouth: ProductVariantBlock;
   variantAdult: ProductVariantBlock;
   variantSocks: ProductVariantBlock;
+  variantShoes: ProductVariantBlock;
 };
 
 const emptyVariant = (): ProductVariantBlock => ({
@@ -62,8 +63,8 @@ export function ProductEditorForm({
   defaults?: Partial<Defaults>;
   showImageUpload?: boolean;
   /** Optioneel: controlled garment type (voor live-sync met voorraadregels). */
-  garmentTypeValue?: "clothing" | "socks";
-  onGarmentTypeChange?: (v: "clothing" | "socks") => void;
+  garmentTypeValue?: "clothing" | "socks" | "shoes";
+  onGarmentTypeChange?: (v: "clothing" | "socks" | "shoes") => void;
 }) {
   const d: Defaults = {
     name: defaults?.name ?? "",
@@ -77,7 +78,8 @@ export function ProductEditorForm({
     productDetails: defaults?.productDetails ?? [],
     variantYouth: defaults?.variantYouth ?? emptyVariant(),
     variantAdult: defaults?.variantAdult ?? emptyVariant(),
-    variantSocks: (defaults as any)?.variantSocks ?? emptyVariant()
+    variantSocks: (defaults as any)?.variantSocks ?? emptyVariant(),
+    variantShoes: (defaults as any)?.variantShoes ?? emptyVariant()
   };
 
   // Verplichte categorie: alleen een id uit de huidige lijst als default; anders eerste optie (nooit leeg als er categorieën zijn).
@@ -91,8 +93,9 @@ export function ProductEditorForm({
   const [adult, setAdult] = useState<ProductVariantBlock>(d.variantAdult);
   const [printingExclEuro, setPrintingExclEuro] = useState(() => centsToNlInput(Math.max(0, d.printingExclCents ?? 0)));
   const [socks, setSocks] = useState<ProductVariantBlock>(d.variantSocks);
+  const [shoes, setShoes] = useState<ProductVariantBlock>(d.variantShoes);
 
-  const [garmentTypeInternal, setGarmentTypeInternal] = useState<"clothing" | "socks">(d.garmentType);
+  const [garmentTypeInternal, setGarmentTypeInternal] = useState<"clothing" | "socks" | "shoes">(d.garmentType as any);
   const garmentType = garmentTypeValue ?? garmentTypeInternal;
 
   const [youthSaleIncl, setYouthSaleIncl] = useState(() => centsToOptionalNl(d.variantYouth.sale_cents));
@@ -156,6 +159,23 @@ export function ProductEditorForm({
     });
   }, [socks, socksSaleIncl]);
 
+  const [shoesSaleIncl, setShoesSaleIncl] = useState(() => centsToOptionalNl(d.variantShoes.sale_cents));
+  const [shoesSaleExcl, setShoesSaleExcl] = useState(() => saleExclFromInclCents(d.variantShoes.sale_cents ?? null));
+
+  const variantShoesJson = useMemo(() => {
+    const sale_cents =
+      shoesSaleIncl.trim().length > 0
+        ? (() => {
+            const c = nlInputToCents(shoesSaleIncl);
+            return Number.isFinite(c) && c >= 0 ? c : null;
+          })()
+        : null;
+    return JSON.stringify({
+      ...shoes,
+      sale_cents
+    });
+  }, [shoes, shoesSaleIncl]);
+
   const printingExclCents = useMemo(() => {
     const c = nlInputToCents(printingExclEuro);
     return Number.isFinite(c) && c >= 0 ? c : 0;
@@ -167,6 +187,7 @@ export function ProductEditorForm({
       <input type="hidden" name="variantYouthJson" value={variantYouthJson} readOnly />
       <input type="hidden" name="variantAdultJson" value={variantAdultJson} readOnly />
       <input type="hidden" name="variantSocksJson" value={variantSocksJson} readOnly />
+      <input type="hidden" name="variantShoesJson" value={variantShoesJson} readOnly />
       <input type="hidden" name="printingExclCents" value={String(printingExclCents)} readOnly />
 
       <fieldset className="md:col-span-2 rounded-lg border border-zinc-200 p-4">
@@ -203,6 +224,20 @@ export function ProductEditorForm({
               className="h-4 w-4 border-zinc-300 text-brand-blue focus:ring-brand-blue/40"
             />
             Sokken
+          </label>
+          <label className="flex cursor-pointer items-center gap-2 text-sm text-zinc-800">
+            <input
+              type="radio"
+              name="garmentType"
+              value="shoes"
+              checked={garmentType === "shoes"}
+              onChange={() => {
+                setGarmentTypeInternal("shoes");
+                onGarmentTypeChange?.("shoes");
+              }}
+              className="h-4 w-4 border-zinc-300 text-brand-blue focus:ring-brand-blue/40"
+            />
+            Schoenen
           </label>
         </div>
       </fieldset>
@@ -375,7 +410,7 @@ export function ProductEditorForm({
             }}
           />
         </>
-      ) : (
+      ) : garmentType === "socks" ? (
         <VariantBlock
           title="Sokken (SOCKS)"
           model={socks.model_number ?? ""}
@@ -391,6 +426,24 @@ export function ProductEditorForm({
           onSaleExclBlur={() => {
             const c = nlInputToCents(socksSaleExcl);
             if (Number.isFinite(c) && c >= 0) setSocksSaleIncl(centsToNlInput(inclCentsFromExcl21(c)));
+          }}
+        />
+      ) : (
+        <VariantBlock
+          title="Schoenen (SHOES)"
+          model={shoes.model_number ?? ""}
+          onModelChange={(v) => setShoes({ ...shoes, model_number: v })}
+          saleInclStr={shoesSaleIncl}
+          saleExclStr={shoesSaleExcl}
+          onSaleInclChange={setShoesSaleIncl}
+          onSaleExclChange={setShoesSaleExcl}
+          onSaleInclBlur={() => {
+            const c = nlInputToCents(shoesSaleIncl);
+            if (Number.isFinite(c) && c >= 0) setShoesSaleExcl(centsToNlInput(exclCentsFromIncl21(c)));
+          }}
+          onSaleExclBlur={() => {
+            const c = nlInputToCents(shoesSaleExcl);
+            if (Number.isFinite(c) && c >= 0) setShoesSaleIncl(centsToNlInput(inclCentsFromExcl21(c)));
           }}
         />
       )}

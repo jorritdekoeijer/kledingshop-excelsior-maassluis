@@ -33,6 +33,10 @@ function emptyLine(): LineState {
 
 function defaultSegmentForProduct(p: ProductPickOption | undefined): VariantSegment {
   if (!p) return "adult";
+  const h = p.shoes?.sizes.length ?? 0;
+  if (h > 0) return "shoes";
+  const s = p.socks?.sizes.length ?? 0;
+  if (s > 0) return "socks";
   const y = p.youth.sizes.length;
   const a = p.adult.sizes.length;
   if (y > 0 && a === 0) return "youth";
@@ -41,11 +45,17 @@ function defaultSegmentForProduct(p: ProductPickOption | undefined): VariantSegm
 }
 
 function sizesForSegment(p: ProductPickOption, seg: VariantSegment): string[] {
-  return seg === "youth" ? p.youth.sizes : p.adult.sizes;
+  if (seg === "youth") return p.youth.sizes;
+  if (seg === "adult") return p.adult.sizes;
+  if (seg === "socks") return p.socks?.sizes ?? [];
+  return p.shoes?.sizes ?? [];
 }
 
 function modelForSegment(p: ProductPickOption, seg: VariantSegment): string {
-  return seg === "youth" ? p.youth.modelNumber : p.adult.modelNumber;
+  if (seg === "youth") return p.youth.modelNumber;
+  if (seg === "adult") return p.adult.modelNumber;
+  if (seg === "socks") return p.socks?.modelNumber ?? "";
+  return p.shoes?.modelNumber ?? "";
 }
 
 export function NewDeliveryForm({ products }: { products: ProductPickOption[] }) {
@@ -110,6 +120,24 @@ export function NewDeliveryForm({ products }: { products: ProductPickOption[] })
   }
 
   function segmentButtons(key: string, productId: string, current: VariantSegment) {
+    const p = productMap.get(productId);
+    if (!p) return null;
+    const hasShoes = (p.shoes?.sizes.length ?? 0) > 0;
+    const hasSocks = (p.socks?.sizes.length ?? 0) > 0;
+    if (hasShoes) {
+      return (
+        <div className="mt-2 inline-flex rounded-full border border-zinc-300 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-700">
+          SHOES
+        </div>
+      );
+    }
+    if (hasSocks) {
+      return (
+        <div className="mt-2 inline-flex rounded-full border border-zinc-300 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-700">
+          SOCKS
+        </div>
+      );
+    }
     return (
       <div
         className="mt-2 inline-flex rounded-full border border-zinc-300 bg-white p-1"
@@ -168,7 +196,11 @@ export function NewDeliveryForm({ products }: { products: ProductPickOption[] })
       if (!p) continue;
       const allowed = sizesForSegment(p, line.segment);
       if (allowed.length > 0 && !allowed.includes(line.sizeLabel.trim())) {
-        alert(`Maat "${line.sizeLabel}" hoort niet bij ${line.segment === "youth" ? "Jeugd" : "Volwassenen"} voor dit product.`);
+        alert(
+          `Maat "${line.sizeLabel}" hoort niet bij ${
+            line.segment === "youth" ? "Jeugd" : line.segment === "adult" ? "Volwassenen" : line.segment.toUpperCase()
+          } voor dit product.`
+        );
         return;
       }
       outLines.push({

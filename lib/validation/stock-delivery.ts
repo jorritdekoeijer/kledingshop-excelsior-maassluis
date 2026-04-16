@@ -2,7 +2,7 @@ import { z } from "zod";
 
 export const stockDeliveryLineSchema = z.object({
   productId: z.string().uuid(),
-  variantSegment: z.enum(["youth", "adult"]),
+  variantSegment: z.enum(["youth", "adult", "socks", "shoes"]),
   quantity: z.coerce.number().int().min(1).max(999999),
   sizeLabel: z.string().min(1).max(32),
   /** Basis-inkoopprijs per stuk (excl. btw) zoals op de factuur. */

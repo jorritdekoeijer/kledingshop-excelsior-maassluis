@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 export const reorderRuleRowSchema = z.object({
-  variantSegment: z.enum(["youth", "adult", "socks"]),
+  variantSegment: z.enum(["youth", "adult", "socks", "shoes"]),
   sizeLabel: z.string().min(1).max(32),
   isActive: z.boolean(),
   thresholdQty: z.coerce.number().int().min(0).max(999999),

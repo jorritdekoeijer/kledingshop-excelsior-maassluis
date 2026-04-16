@@ -24,16 +24,18 @@ export function ProductEditPageClient({
     printingExclCents: number;
     active: boolean;
     categoryId: string | null;
-    garmentType: "clothing" | "socks";
+    garmentType: "clothing" | "socks" | "shoes";
     productDetails: any[];
     variantYouth: any;
     variantAdult: any;
+    variantSocks?: any;
+    variantShoes?: any;
   };
   reorderRules: ExistingRule[];
   updateProductAction: (formData: FormData) => void | Promise<void>;
   updateReorderRulesAction: (formData: FormData) => void | Promise<void>;
 }) {
-  const [garmentType, setGarmentType] = useState<"clothing" | "socks">(defaults.garmentType);
+  const [garmentType, setGarmentType] = useState<"clothing" | "socks" | "shoes">(defaults.garmentType);
 
   return (
     <div className="space-y-10">

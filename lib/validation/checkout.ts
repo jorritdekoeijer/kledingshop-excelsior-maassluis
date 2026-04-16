@@ -3,7 +3,7 @@ import { z } from "zod";
 const checkoutItemSchema = z.object({
   productId: z.string().uuid(),
   quantity: z.number().int().min(1).max(99),
-  variant: z.enum(["youth", "adult"]).optional(),
+  variant: z.enum(["youth", "adult", "socks", "shoes"]).optional(),
   size: z.string().max(32).optional()
 });
 
