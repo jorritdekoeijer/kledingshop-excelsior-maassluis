@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { hasPermission, permissions } from "@/lib/auth/permissions";
-import { requirePermission } from "@/lib/auth/permissions-server";
+import { requireOneOfPermissions } from "@/lib/auth/permissions-server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 const eur = (cents: number) =>
@@ -16,7 +16,7 @@ export default async function OrdersPickupDashboardPage({ searchParams }: Props)
   const sp = (await searchParams) ?? {};
   const flashError = typeof sp.error === "string" ? sp.error : "";
 
-  const gate = await requirePermission(permissions.orders.read);
+  const gate = await requireOneOfPermissions([permissions.orders.read, permissions.orderPickup.read]);
   if (!gate.ok) {
     return (
       <div className="rounded-lg border border-zinc-200 bg-white p-6">
@@ -29,6 +29,7 @@ export default async function OrdersPickupDashboardPage({ searchParams }: Props)
   const canWrite =
     gate.isAdmin ||
     hasPermission(gate.permissions, permissions.orders.write) ||
+    hasPermission(gate.permissions, permissions.orderPickup.write) ||
     hasPermission(gate.permissions, permissions.dashboard.access);
 
   const supabase = await createSupabaseServerClient();

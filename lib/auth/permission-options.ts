@@ -59,6 +59,20 @@ export const PERMISSION_LEVEL_PAIRS: PermissionLevelPair[] = [
     writeKey: "orders:write"
   },
   {
+    formField: "level_order_pick",
+    title: "Order picken (Te maken)",
+    description: "Toegang tot het pick/pack scherm: producten aanklikken en klaarzetten voor afhalen.",
+    readKey: "order_pick:read",
+    writeKey: "order_pick:write"
+  },
+  {
+    formField: "level_order_pickup",
+    title: "Afhalen (Af te halen)",
+    description: "Toegang tot afhaal-scherm: order als AFGEHAALD markeren.",
+    readKey: "order_pickup:read",
+    writeKey: "order_pickup:write"
+  },
+  {
     formField: "level_reporting",
     title: "Rapportage",
     description: "Financieel overzicht: omzet, marge, voorraad tegen inkoop, kosten per kostengroep.",

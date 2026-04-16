@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { hasPermission, permissions } from "@/lib/auth/permissions";
-import { requirePermission } from "@/lib/auth/permissions-server";
+import { requireOneOfPermissions } from "@/lib/auth/permissions-server";
 import { markOrderPickedUp, markOrderReadyForPickup, pickOrderItem, resendOrderConfirmationEmail } from "@/app/dashboard/orders/actions";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { z } from "zod";
@@ -35,7 +35,11 @@ export default async function DashboardOrderDetailPage({ params, searchParams }:
   const flashMail = sp.mail === "sent";
   const flashError = typeof sp.error === "string" ? sp.error : "";
 
-  const gate = await requirePermission(permissions.orders.read);
+  const gate = await requireOneOfPermissions([
+    permissions.orders.read,
+    permissions.orderPick.read,
+    permissions.orderPickup.read
+  ]);
   if (!gate.ok) {
     return (
       <div className="rounded-lg border border-zinc-200 bg-white p-6">
@@ -45,10 +49,17 @@ export default async function DashboardOrderDetailPage({ params, searchParams }:
     );
   }
 
-  const canWrite =
+  const canPickWrite =
     gate.isAdmin ||
+    hasPermission(gate.permissions, permissions.dashboard.access) ||
     hasPermission(gate.permissions, permissions.orders.write) ||
-    hasPermission(gate.permissions, permissions.dashboard.access);
+    hasPermission(gate.permissions, permissions.orderPick.write);
+
+  const canPickupWrite =
+    gate.isAdmin ||
+    hasPermission(gate.permissions, permissions.dashboard.access) ||
+    hasPermission(gate.permissions, permissions.orders.write) ||
+    hasPermission(gate.permissions, permissions.orderPickup.write);
 
   const supabase = await createSupabaseServerClient();
   const { data: order, error } = await supabase
@@ -212,7 +223,7 @@ export default async function DashboardOrderDetailPage({ params, searchParams }:
                   <span className={`rounded px-2 py-0.5 ${li.delivered ? "bg-green-100 text-green-800" : "bg-zinc-100 text-zinc-700"}`}>
                     {li.delivered ? "AFGELEVERD" : li.picked ? "INGEPAKT" : "OPEN"}
                   </span>
-                  {!li.delivered && !li.picked && canWrite && (order.status === "new_order" || order.status === "backorder") ? (
+                  {!li.delivered && !li.picked && canPickWrite && (order.status === "new_order" || order.status === "backorder") ? (
                     <form action={pickOrderItem}>
                       <input type="hidden" name="orderItemId" value={li.id} />
                       <input type="hidden" name="next" value={detailPath} />
@@ -252,11 +263,11 @@ export default async function DashboardOrderDetailPage({ params, searchParams }:
         </section>
       ) : null}
 
-      {canWrite ? (
+      {canPickWrite || canPickupWrite ? (
         <section className="rounded-lg border border-zinc-200 bg-white p-5">
           <h2 className="font-semibold text-zinc-900">Acties</h2>
           <div className="mt-4 flex flex-wrap gap-3">
-            {(order.status === "new_order" || order.status === "backorder") ? (
+            {canPickWrite && (order.status === "new_order" || order.status === "backorder") ? (
               <form action={markOrderReadyForPickup}>
                 <input type="hidden" name="orderId" value={order.id} />
                 <input type="hidden" name="next" value={detailPath} />
@@ -269,7 +280,7 @@ export default async function DashboardOrderDetailPage({ params, searchParams }:
               </form>
             ) : null}
 
-            {order.status === "ready_for_pickup" ? (
+            {canPickupWrite && order.status === "ready_for_pickup" ? (
               <form action={markOrderPickedUp}>
                 <input type="hidden" name="orderId" value={order.id} />
                 <input type="hidden" name="next" value={detailPath} />
@@ -282,7 +293,8 @@ export default async function DashboardOrderDetailPage({ params, searchParams }:
               </form>
             ) : null}
 
-            {order.status === "new_order" || order.status === "ready_for_pickup" || order.status === "backorder" ? (
+            {(canPickWrite || canPickupWrite) &&
+            (order.status === "new_order" || order.status === "ready_for_pickup" || order.status === "backorder") ? (
               <form action={resendOrderConfirmationEmail}>
                 <input type="hidden" name="orderId" value={order.id} />
                 <input type="hidden" name="next" value={detailPath} />

@@ -26,6 +26,16 @@ export const permissions = {
     read: "orders:read",
     write: "orders:write"
   },
+  /** Order picken/packen (te maken bestellingen). */
+  orderPick: {
+    read: "order_pick:read",
+    write: "order_pick:write"
+  },
+  /** Afhalen afhandeling (af te halen bestellingen). */
+  orderPickup: {
+    read: "order_pickup:read",
+    write: "order_pickup:write"
+  },
   /** Financiële rapportage (omzet, marge, voorraadwaarde, kostengroepen). */
   reporting: {
     read: "reporting:read",

@@ -44,9 +44,15 @@ const CARDS: NavCard[] = [
   },
   {
     href: "/dashboard/orders",
-    title: "Bestellingen",
-    description: "Orders bekijken en afhandelen.",
-    needs: permissions.orders.read
+    title: "Order pick",
+    description: "Te maken bestellingen: producten picken en klaarzetten.",
+    needs: permissions.orderPick.read
+  },
+  {
+    href: "/dashboard/orders/afhalen",
+    title: "Afhalen",
+    description: "Af te halen bestellingen: afgifte registreren.",
+    needs: permissions.orderPickup.read
   },
   {
     href: "/dashboard/rapportage",

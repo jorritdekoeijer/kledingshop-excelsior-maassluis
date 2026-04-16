@@ -7,7 +7,7 @@ import { sendOrderConfirmationEmail } from "@/lib/email/send-order-confirmation"
 import { sendPickupNoticeEmail } from "@/lib/email/send-pickup-notice";
 import { itemsToHtmlList } from "@/lib/email/order-email-templates";
 import { permissions } from "@/lib/auth/permissions";
-import { requirePermission } from "@/lib/auth/permissions-server";
+import { requireOneOfPermissions } from "@/lib/auth/permissions-server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 const uuid = z.string().uuid();
@@ -22,7 +22,7 @@ function redirectAfterOrderAction(formData: FormData, fallback: string): string 
 }
 
 export async function markOrderFulfilled(formData: FormData) {
-  const gate = await requirePermission(permissions.orders.write);
+  const gate = await requireOneOfPermissions([permissions.orders.write]);
   const baseList = "/dashboard/orders";
   if (!gate.ok) redirect(`${baseList}?error=${encodeURIComponent("Geen toegang")}`);
 
@@ -57,7 +57,7 @@ export async function markOrderFulfilled(formData: FormData) {
 }
 
 export async function pickOrderItem(formData: FormData) {
-  const gate = await requirePermission(permissions.orders.write);
+  const gate = await requireOneOfPermissions([permissions.orders.write, permissions.orderPick.write]);
   const baseList = "/dashboard/orders";
   if (!gate.ok) redirect(`${baseList}?error=${encodeURIComponent("Geen toegang")}`);
 
@@ -78,7 +78,7 @@ export async function pickOrderItem(formData: FormData) {
 }
 
 export async function markOrderReadyForPickup(formData: FormData) {
-  const gate = await requirePermission(permissions.orders.write);
+  const gate = await requireOneOfPermissions([permissions.orders.write, permissions.orderPick.write]);
   const baseList = "/dashboard/orders";
   if (!gate.ok) redirect(`${baseList}?error=${encodeURIComponent("Geen toegang")}`);
 
@@ -150,7 +150,7 @@ export async function markOrderReadyForPickup(formData: FormData) {
 }
 
 export async function markOrderPickedUp(formData: FormData) {
-  const gate = await requirePermission(permissions.orders.write);
+  const gate = await requireOneOfPermissions([permissions.orders.write, permissions.orderPickup.write]);
   const baseList = "/dashboard/orders";
   if (!gate.ok) redirect(`${baseList}?error=${encodeURIComponent("Geen toegang")}`);
 
@@ -199,7 +199,11 @@ export async function markOrderPickedUp(formData: FormData) {
 }
 
 export async function resendOrderConfirmationEmail(formData: FormData) {
-  const gate = await requirePermission(permissions.orders.write);
+  const gate = await requireOneOfPermissions([
+    permissions.orders.write,
+    permissions.orderPick.write,
+    permissions.orderPickup.write
+  ]);
   const baseList = "/dashboard/orders";
   if (!gate.ok) redirect(`${baseList}?error=${encodeURIComponent("Geen toegang")}`);
 

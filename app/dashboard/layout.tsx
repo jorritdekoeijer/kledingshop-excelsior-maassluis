@@ -19,8 +19,11 @@ export default async function DashboardLayout({ children }: { children: ReactNod
   const showProducts =
     isAdmin || hasDashboardAccess || hasPermission(perms, permissions.products.read);
   const showStock = isAdmin || hasDashboardAccess || hasPermission(perms, permissions.stock.read);
-  const showOrders =
-    isAdmin || hasDashboardAccess || hasPermission(perms, permissions.orders.read);
+  const showOrderPick =
+    isAdmin || hasDashboardAccess || hasPermission(perms, permissions.orders.read) || hasPermission(perms, permissions.orderPick.read);
+  const showOrderPickup =
+    isAdmin || hasDashboardAccess || hasPermission(perms, permissions.orders.read) || hasPermission(perms, permissions.orderPickup.read);
+  const showOrders = showOrderPick || showOrderPickup;
   const showReporting = hasFinancialReportAccess(perms, { isAdmin });
 
   return (
@@ -52,9 +55,18 @@ export default async function DashboardLayout({ children }: { children: ReactNod
               </Link>
             ) : null}
             {showOrders ? (
-              <Link href="/dashboard/orders" className="text-zinc-700 hover:text-brand-blue">
-                Bestellingen
-              </Link>
+              <>
+                {showOrderPick ? (
+                  <Link href="/dashboard/orders" className="text-zinc-700 hover:text-brand-blue">
+                    Order pick
+                  </Link>
+                ) : null}
+                {showOrderPickup ? (
+                  <Link href="/dashboard/orders/afhalen" className="text-zinc-700 hover:text-brand-blue">
+                    Afhalen
+                  </Link>
+                ) : null}
+              </>
             ) : null}
             {showReporting ? (
               <Link href="/dashboard/rapportage" className="text-zinc-700 hover:text-brand-blue">
