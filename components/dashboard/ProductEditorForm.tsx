@@ -197,8 +197,7 @@ export function ProductEditorForm({
       <fieldset className="md:col-span-2 rounded-lg border border-zinc-200 p-4">
         <legend className="px-1 text-sm font-medium text-zinc-800">Kledingsoort</legend>
         <p className="mb-3 text-xs text-zinc-600">
-          Bepaalt welke maatlijst onder <strong>Voorraad instellingen per maat</strong> wordt gebruikt (kledingmaten of
-          sokkenmaten).
+          Kies de kledingsoort voor dit product.
         </p>
         <div className="flex flex-wrap gap-6">
           <label className="flex cursor-pointer items-center gap-2 text-sm text-zinc-800">
@@ -247,7 +246,7 @@ export function ProductEditorForm({
       </fieldset>
 
       <label className="block md:col-span-2">
-        <span className="text-sm text-zinc-700">Standaard bedrukkingskosten per stuk (excl. btw)</span>
+        <span className="text-sm text-zinc-700">Kosten bedrukking (excl. btw)</span>
         <div className="mt-1 flex max-w-xs items-center gap-2">
           <span className="text-sm text-zinc-500">€</span>
           <input
@@ -258,23 +257,19 @@ export function ProductEditorForm({
             placeholder="0,00"
           />
         </div>
-        <span className="mt-1 block text-xs text-zinc-500">
-          Wordt bij <strong>Nieuwe levering</strong> automatisch als bedrukking toegevoegd aan de kostprijs (niet op de
-          inkoopfactuur).
-        </span>
       </label>
 
       <label className="block md:col-span-2">
-        <span className="text-sm text-zinc-700">Naam</span>
+        <span className="text-sm text-zinc-700">Naam product</span>
         <input name="name" required defaultValue={d.name} className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm" />
       </label>
       <label className="block md:col-span-2">
-        <span className="text-sm text-zinc-700">Slug (optioneel)</span>
+        <span className="text-sm text-zinc-700">Slug (.nl/naam_product)</span>
         <input name="slug" defaultValue={d.slug} className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm" />
       </label>
 
       <label className="block md:col-span-2">
-        <span className="text-sm text-zinc-700">Tijdelijke korting (% op verkoopprijs incl. btw)</span>
+        <span className="text-sm text-zinc-700">Tijdelijke korting (in %).</span>
         <input
           name="discountPercent"
           type="number"
