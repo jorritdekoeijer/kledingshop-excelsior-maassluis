@@ -279,9 +279,6 @@ export function ProductEditorForm({
           defaultValue={d.temporaryDiscountPercent}
           className="mt-1 w-full max-w-xs rounded-md border border-zinc-300 px-3 py-2 text-sm"
         />
-        <span className="mt-1 block text-xs text-zinc-500">
-          Geldt voor zowel Jeugd als Volwassenen. Op overzicht en productpagina: lintje &quot;EXTRA KORTING&quot;.
-        </span>
       </label>
 
       <div className="flex items-center gap-3 md:col-span-2">
@@ -366,10 +363,6 @@ export function ProductEditorForm({
           + Detail toevoegen
         </button>
       </div>
-
-      <p className="md:col-span-2 rounded-lg border border-amber-200 bg-amber-50/80 px-3 py-2 text-sm text-amber-950">
-        <strong className="font-semibold">Verkoopprijs per variant:</strong> vul bij Jeugd en/of Volwassenen de verkoopprijs in (incl./excl. 21% btw). Minstens één van beide varianten moet een verkoopprijs hebben. De tijdelijke korting hierboven geldt voor beide prijzen.
-      </p>
 
       {garmentType === "clothing" ? (
         <>
@@ -498,8 +491,9 @@ function VariantBlock({
       <h3 className="text-sm font-semibold text-zinc-900">{title}</h3>
 
       <div className="mt-3 rounded-lg border border-zinc-100 bg-zinc-50/80 p-3">
-        <p className="text-xs font-medium text-zinc-800">Verkoopprijs (incl. en excl. 21% btw)</p>
-        <p className="mt-0.5 text-xs text-zinc-600">Vul één van de twee velden in; het andere wordt berekend.</p>
+        <p className="text-xs text-zinc-800">
+          <strong className="font-semibold">Verkoopprijs</strong>
+        </p>
         <div className="mt-2 grid gap-3 sm:grid-cols-2">
           <label className="block">
             <span className="text-xs text-zinc-600">Verkoopprijs incl. btw (€)</span>
@@ -525,7 +519,7 @@ function VariantBlock({
       </div>
 
       <label className="mt-3 block">
-        <span className="text-xs text-zinc-600">Modelnummer (alleen intern — niet zichtbaar in de shop)</span>
+        <span className="text-xs text-zinc-600">Artikelnummer</span>
         <input
           value={model}
           onChange={(e) => onModelChange(e.target.value)}
