@@ -3,8 +3,13 @@ import { permissions } from "@/lib/auth/permissions";
 import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getPublicProductImageUrl } from "@/lib/utils/supabase-storage";
+import { syncAllVariantSizesFromReorderRulesAction } from "@/app/dashboard/products/sync-sizes/actions";
 
-export default async function DashboardProductsPage() {
+export default async function DashboardProductsPage({
+  searchParams
+}: {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const gate = await requirePermission(permissions.products.read);
   if (!gate.ok) {
     return (
@@ -15,12 +20,18 @@ export default async function DashboardProductsPage() {
     );
   }
 
+  const sp = (await searchParams) ?? {};
+  const ok = typeof sp.ok === "string" ? sp.ok : "";
+  const updated = typeof sp.updated === "string" ? sp.updated : "";
+
   const supabase = await createSupabaseServerClient();
   const { data: products } = await supabase
     .from("products")
     .select("id,name,slug,price_cents,active,created_at,product_images(path,is_primary,sort_order,created_at)")
     .order("created_at", { ascending: false })
     .limit(100);
+
+  const canSyncSizes = gate.isAdmin || gate.permissions.includes(permissions.dashboard.access) || gate.permissions.includes(permissions.stock.write);
 
   return (
     <div className="space-y-4">
@@ -31,6 +42,13 @@ export default async function DashboardProductsPage() {
             <p className="mt-2 text-sm text-zinc-600">Beheer producten en afbeeldingen.</p>
           </div>
           <div className="flex gap-2">
+            {canSyncSizes ? (
+              <form action={syncAllVariantSizesFromReorderRulesAction}>
+                <button className="rounded-md border border-zinc-300 px-3 py-2 text-sm hover:bg-zinc-50" type="submit">
+                  Sync alle maten
+                </button>
+              </form>
+            ) : null}
             <Link className="rounded-md border border-zinc-300 px-3 py-2 text-sm" href="/dashboard/products/categories">
               Categorieën
             </Link>
@@ -40,6 +58,12 @@ export default async function DashboardProductsPage() {
           </div>
         </div>
       </div>
+
+      {ok === "sync_sizes" ? (
+        <p className="rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-900">
+          Maten gesynchroniseerd voor {updated || "alle"} producten.
+        </p>
+      ) : null}
 
       <div className="rounded-lg border border-zinc-200 bg-white">
         <div className="divide-y divide-zinc-200">
