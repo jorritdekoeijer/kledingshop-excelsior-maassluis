@@ -14,7 +14,7 @@ import { formatPostgrestError } from "@/lib/supabase/format-postgrest-error";
 import { createSupabaseServiceClient } from "@/lib/supabase/service";
 import { getPublicProductImageUrl } from "@/lib/utils/supabase-storage";
 import { ProductEditPageClient } from "@/components/dashboard/ProductEditPageClient";
-import { updateReorderRules } from "@/app/dashboard/products/[id]/reorder-rules/actions";
+import { syncVariantSizesFromReorderRules, updateReorderRules } from "@/app/dashboard/products/[id]/reorder-rules/actions";
 
 export const dynamic = "force-dynamic";
 
@@ -239,6 +239,7 @@ export default async function EditProductPage({
           reorderRules={(((reorderRules ?? []) as any) ?? []) as any}
           updateProductAction={updateProduct.bind(null, id)}
           updateReorderRulesAction={updateReorderRules.bind(null, id)}
+          syncVariantSizesAction={syncVariantSizesFromReorderRules.bind(null, id)}
         />
       </div>
 

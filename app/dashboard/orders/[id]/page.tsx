@@ -92,12 +92,20 @@ export default async function DashboardOrderDetailPage({ params, searchParams }:
   const addr = order.shipping_address as Record<string, string> | null;
   const detailPath = `/dashboard/orders/${order.id}`;
 
+  const allUndelivered = items.filter((i) => !i.delivered);
+  const packedUndelivered = allUndelivered.filter((i) => i.picked);
+  const openUndelivered = allUndelivered.filter((i) => !i.picked);
+  const isBackorderView = openUndelivered.length > 0;
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <Link href="/dashboard/orders" className="text-sm text-brand-blue hover:underline">
-            ← Te maken bestellingen
+          <Link
+            href={order.status === "ready_for_pickup" ? "/dashboard/orders/afhalen" : "/dashboard/orders"}
+            className="text-sm text-brand-blue hover:underline"
+          >
+            ← {order.status === "ready_for_pickup" ? "Af te halen bestellingen" : "Te maken bestellingen"}
           </Link>
           <h1 className="mt-2 text-xl font-semibold text-brand-blue">
             Bestelling {String((order as any).order_number ?? "").trim() || `${order.id.slice(0, 8)}…`}
@@ -209,6 +217,18 @@ export default async function DashboardOrderDetailPage({ params, searchParams }:
 
       <section className="rounded-lg border border-zinc-200 bg-white p-5">
         <h2 className="font-semibold text-zinc-900">Regels</h2>
+        <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
+          <span className="rounded bg-zinc-100 px-2 py-1 text-zinc-700">
+            Ingepakt: <span className="font-semibold">{packedUndelivered.length}</span> / {allUndelivered.length}
+          </span>
+          {isBackorderView ? (
+            <span className="rounded bg-amber-100 px-2 py-1 text-amber-900">
+              Backorder: <span className="font-semibold">{openUndelivered.length}</span>
+            </span>
+          ) : (
+            <span className="rounded bg-emerald-100 px-2 py-1 text-emerald-900">Alles ingepakt</span>
+          )}
+        </div>
         <ul className="mt-3 divide-y divide-zinc-100">
           {items.map((li, i) => (
             <li key={i} className="flex flex-wrap justify-between gap-2 py-2 text-sm">
@@ -220,8 +240,16 @@ export default async function DashboardOrderDetailPage({ params, searchParams }:
                   </span>
                 </div>
                 <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
-                  <span className={`rounded px-2 py-0.5 ${li.delivered ? "bg-green-100 text-green-800" : "bg-zinc-100 text-zinc-700"}`}>
-                    {li.delivered ? "AFGELEVERD" : li.picked ? "INGEPAKT" : "OPEN"}
+                  <span
+                    className={`rounded px-2 py-0.5 ${
+                      li.delivered
+                        ? "bg-green-100 text-green-800"
+                        : li.picked
+                          ? "bg-emerald-100 text-emerald-900"
+                          : "bg-amber-100 text-amber-900"
+                    }`}
+                  >
+                    {li.delivered ? "AFGELEVERD" : li.picked ? "INGEPAKT" : "BACKORDER"}
                   </span>
                   {!li.delivered && !li.picked && canPickWrite && (order.status === "new_order" || order.status === "backorder") ? (
                     <form action={pickOrderItem}>
@@ -264,52 +292,74 @@ export default async function DashboardOrderDetailPage({ params, searchParams }:
       ) : null}
 
       {canPickWrite || canPickupWrite ? (
-        <section className="rounded-lg border border-zinc-200 bg-white p-5">
-          <h2 className="font-semibold text-zinc-900">Acties</h2>
-          <div className="mt-4 flex flex-wrap gap-3">
-            {canPickWrite && (order.status === "new_order" || order.status === "backorder") ? (
-              <form action={markOrderReadyForPickup}>
-                <input type="hidden" name="orderId" value={order.id} />
-                <input type="hidden" name="next" value={detailPath} />
-                <button
-                  type="submit"
-                  className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:brightness-110"
-                >
-                  Bestelling klaar voor afhalen
-                </button>
-              </form>
-            ) : null}
+        <section className="grid gap-4 lg:grid-cols-2">
+          {canPickWrite ? (
+            <div className="rounded-lg border border-zinc-200 bg-white p-5">
+              <h2 className="font-semibold text-zinc-900">Order pick</h2>
+              <p className="mt-2 text-sm text-zinc-600">
+                Klik per product op <span className="font-medium">In voorraad</span> zodra je het item hebt gepickt. Daarna kun je
+                de order klaarzetten voor afhalen.
+              </p>
+              <div className="mt-4 flex flex-wrap gap-3">
+                {(order.status === "new_order" || order.status === "backorder") ? (
+                  <form action={markOrderReadyForPickup}>
+                    <input type="hidden" name="orderId" value={order.id} />
+                    <input type="hidden" name="next" value={detailPath} />
+                    <button
+                      type="submit"
+                      className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:brightness-110 disabled:opacity-50"
+                      disabled={packedUndelivered.length === 0}
+                      title={packedUndelivered.length === 0 ? "Pak eerst minimaal één item in." : ""}
+                    >
+                      Bestelling klaar voor afhalen
+                    </button>
+                  </form>
+                ) : (
+                  <span className="text-sm text-zinc-500">Order staat niet in Te maken/Backorder.</span>
+                )}
 
-            {canPickupWrite && order.status === "ready_for_pickup" ? (
-              <form action={markOrderPickedUp}>
-                <input type="hidden" name="orderId" value={order.id} />
-                <input type="hidden" name="next" value={detailPath} />
-                <button
-                  type="submit"
-                  className="rounded-md border border-zinc-300 bg-white px-4 py-2 text-sm font-medium hover:bg-zinc-50"
-                >
-                  AFGEHAALD
-                </button>
-              </form>
-            ) : null}
+                {(order.status === "new_order" || order.status === "ready_for_pickup" || order.status === "backorder") ? (
+                  <form action={resendOrderConfirmationEmail}>
+                    <input type="hidden" name="orderId" value={order.id} />
+                    <input type="hidden" name="next" value={detailPath} />
+                    <button
+                      type="submit"
+                      className="rounded-md border border-brand-blue/40 bg-brand-blue/5 px-4 py-2 text-sm font-medium text-brand-blue hover:bg-brand-blue/10"
+                    >
+                      Stuur bevestigingsmail opnieuw
+                    </button>
+                  </form>
+                ) : null}
+              </div>
+              <p className="mt-3 text-xs text-zinc-500">Mail versturen vereist SMTP onder Instellingen → E-mail.</p>
+            </div>
+          ) : null}
 
-            {(canPickWrite || canPickupWrite) &&
-            (order.status === "new_order" || order.status === "ready_for_pickup" || order.status === "backorder") ? (
-              <form action={resendOrderConfirmationEmail}>
-                <input type="hidden" name="orderId" value={order.id} />
-                <input type="hidden" name="next" value={detailPath} />
-                <button
-                  type="submit"
-                  className="rounded-md border border-brand-blue/40 bg-brand-blue/5 px-4 py-2 text-sm font-medium text-brand-blue hover:bg-brand-blue/10"
-                >
-                  Stuur bevestigingsmail opnieuw
-                </button>
-              </form>
-            ) : null}
-          </div>
-          <p className="mt-3 text-xs text-zinc-500">
-            Opnieuw versturen werkt alleen als SMTP onder Instellingen → E-mail staat ingevuld.
-          </p>
+          {canPickupWrite ? (
+            <div className="rounded-lg border border-zinc-200 bg-white p-5">
+              <h2 className="font-semibold text-zinc-900">Afhalen</h2>
+              <p className="mt-2 text-sm text-zinc-600">
+                Klik <span className="font-medium">AFGEHAALD</span> zodra de klant de (ingepakte) producten heeft ontvangen.
+                Ontbrekende items blijven in backorder en de order komt terug bij Te maken.
+              </p>
+              <div className="mt-4 flex flex-wrap gap-3">
+                {order.status === "ready_for_pickup" ? (
+                  <form action={markOrderPickedUp}>
+                    <input type="hidden" name="orderId" value={order.id} />
+                    <input type="hidden" name="next" value={detailPath} />
+                    <button
+                      type="submit"
+                      className="rounded-md border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold hover:bg-zinc-50"
+                    >
+                      AFGEHAALD
+                    </button>
+                  </form>
+                ) : (
+                  <span className="text-sm text-zinc-500">Order staat nog niet op “Klaar om af te halen”.</span>
+                )}
+              </div>
+            </div>
+          ) : null}
         </section>
       ) : null}
     </div>

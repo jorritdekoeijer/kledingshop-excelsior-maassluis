@@ -97,3 +97,72 @@ export async function updateReorderRules(productId: string, formData: FormData) 
   redirect(`/dashboard/products/${productId}/edit?ok=1`);
 }
 
+/** One-off repair: sync `variant_*.sizes` from active reorder rules (shop reads variant sizes). */
+export async function syncVariantSizesFromReorderRules(productId: string) {
+  const gate = await requirePermission(permissions.stock.write);
+  if (!gate.ok) redirect(`/dashboard/products/${productId}/edit?error=Geen%20toegang`);
+
+  const service = createSupabaseServiceClient();
+
+  const { data: prod, error: prodErr } = await service
+    .from("products")
+    .select("variant_youth,variant_adult,variant_socks,variant_shoes,garment_type")
+    .eq("id", productId)
+    .single();
+  if (prodErr || !prod) {
+    redirect(`/dashboard/products/${productId}/edit?error=${encodeURIComponent(formatPostgrestError(prodErr))}`);
+  }
+
+  const { data: rules, error: rrErr } = await service
+    .from("stock_reorder_rules")
+    .select("variant_segment,size_label,is_active")
+    .eq("product_id", productId);
+  if (rrErr) {
+    redirect(`/dashboard/products/${productId}/edit?error=${encodeURIComponent(formatPostgrestError(rrErr))}`);
+  }
+
+  const garmentType = prod.garment_type === "socks" ? "socks" : prod.garment_type === "shoes" ? "shoes" : "clothing";
+  const templateYouth = YOUTH_SIZE_OPTIONS;
+  const templateAdult = ADULT_SIZE_OPTIONS;
+  const templateSocks = SOCKS_SIZE_OPTIONS;
+  const templateShoes = SHOES_SIZE_OPTIONS;
+
+  const vy = normalizeVariantBlock(prod.variant_youth);
+  const va = normalizeVariantBlock(prod.variant_adult);
+  const vs = normalizeVariantBlock((prod as any).variant_socks);
+  const vh = normalizeVariantBlock((prod as any).variant_shoes);
+
+  const activeYouthLabels = (rules ?? [])
+    .filter((r: any) => r.variant_segment === "youth" && r.is_active)
+    .map((r: any) => String(r.size_label));
+  const activeAdultLabels = (rules ?? [])
+    .filter((r: any) => r.variant_segment === "adult" && r.is_active)
+    .map((r: any) => String(r.size_label));
+  const activeSocksLabels = (rules ?? [])
+    .filter((r: any) => r.variant_segment === "socks" && r.is_active)
+    .map((r: any) => String(r.size_label));
+  const activeShoesLabels = (rules ?? [])
+    .filter((r: any) => r.variant_segment === "shoes" && r.is_active)
+    .map((r: any) => String(r.size_label));
+
+  const youthSizes = activeSizesInTemplateOrder(activeYouthLabels, templateYouth);
+  const adultSizes = activeSizesInTemplateOrder(activeAdultLabels, templateAdult);
+  const socksSizes = activeSizesInTemplateOrder(activeSocksLabels, templateSocks);
+  const shoesSizes = activeSizesInTemplateOrder(activeShoesLabels, templateShoes);
+
+  const { error: updErr } = await service
+    .from("products")
+    .update({
+      variant_youth: variantBlockToDbJson({ ...vy, sizes: garmentType === "clothing" ? youthSizes : [] }),
+      variant_adult: variantBlockToDbJson({ ...va, sizes: garmentType === "clothing" ? adultSizes : [] }),
+      variant_socks: variantBlockToDbJson({ ...vs, sizes: garmentType === "socks" ? socksSizes : [] }),
+      variant_shoes: variantBlockToDbJson({ ...vh, sizes: garmentType === "shoes" ? shoesSizes : [] })
+    })
+    .eq("id", productId);
+  if (updErr) {
+    redirect(`/dashboard/products/${productId}/edit?error=${encodeURIComponent(formatPostgrestError(updErr))}`);
+  }
+
+  redirect(`/dashboard/products/${productId}/edit?ok=1`);
+}
+

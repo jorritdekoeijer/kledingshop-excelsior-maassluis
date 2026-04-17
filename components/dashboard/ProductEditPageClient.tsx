@@ -12,7 +12,8 @@ export function ProductEditPageClient({
   defaults,
   reorderRules,
   updateProductAction,
-  updateReorderRulesAction
+  updateReorderRulesAction,
+  syncVariantSizesAction
 }: {
   productId: string;
   categories: Cat[];
@@ -34,6 +35,7 @@ export function ProductEditPageClient({
   reorderRules: ExistingRule[];
   updateProductAction: (formData: FormData) => void | Promise<void>;
   updateReorderRulesAction: (formData: FormData) => void | Promise<void>;
+  syncVariantSizesAction: () => void | Promise<void>;
 }) {
   const [garmentType, setGarmentType] = useState<"clothing" | "socks" | "shoes">(defaults.garmentType);
 
@@ -62,6 +64,20 @@ export function ProductEditPageClient({
             existing={reorderRules}
             action={updateReorderRulesAction}
           />
+        </div>
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-zinc-200 bg-white p-4">
+          <div className="text-sm text-zinc-700">
+            Zie je in de shop geen maatknoppen? Dan is waarschijnlijk de matenlijst op het product leeg. Dit zet de actieve
+            maten uit de voorraadregels terug naar het product.
+          </div>
+          <form action={syncVariantSizesAction}>
+            <button
+              type="submit"
+              className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-medium hover:bg-zinc-50"
+            >
+              Sync maten vanuit voorraadregels
+            </button>
+          </form>
         </div>
       </div>
     </div>
