@@ -23,7 +23,8 @@ export async function createStockDeliveryAction(input: unknown) {
     .insert({
       invoice_date: d.invoiceDate?.trim() ? d.invoiceDate.trim() : null,
       supplier: d.supplier?.trim() || null,
-      invoice_number: d.invoiceNumber?.trim() || null
+      invoice_number: d.invoiceNumber?.trim() || null,
+      invoice_total_incl_cents: d.invoiceTotalInclCents ?? null
     })
     .select("id")
     .single();
