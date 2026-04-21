@@ -45,6 +45,7 @@ export async function createStockDeliveryAction(input: unknown) {
     product_id: line.productId,
     stock_delivery_id: delivery.id,
     received_at: receivedAtIso,
+    quantity_initial: line.quantity,
     quantity_received: line.quantity,
     quantity_remaining: line.quantity,
     variant_segment: line.variantSegment,
