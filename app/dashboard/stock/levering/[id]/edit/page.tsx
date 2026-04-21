@@ -47,23 +47,12 @@ export default async function EditStockDeliveryPage({
     .eq("stock_delivery_id", id);
   if (bErr) redirect(`/dashboard/stock/levering/nieuw?error=${encodeURIComponent(bErr.message)}`);
 
-  // Productlijst: actieve producten + producten die al in de levering zitten (ook als ze intussen inactief zijn).
-  const batchProductIds = [...new Set((batches ?? []).map((r: any) => r.product_id).filter(Boolean))] as string[];
-  const { data: activeProducts } = await supabase
+  // Intern: toon alle producten (ook inactief), zodat je leveringen altijd kunt verwerken.
+  const { data: allProducts } = await supabase
     .from("products")
     .select("id,name,printing_excl_cents,variant_youth,variant_adult,variant_socks,variant_shoes,variant_onesize")
-    .eq("active", true)
     .order("name");
-  const { data: batchProducts } = await supabase
-    .from("products")
-    .select("id,name,printing_excl_cents,variant_youth,variant_adult,variant_socks,variant_shoes,variant_onesize")
-    .in("id", batchProductIds.length > 0 ? batchProductIds : ["00000000-0000-0000-0000-000000000000"]);
-
-  const mergedProducts = [
-    ...(activeProducts ?? []),
-    ...((batchProducts ?? []).filter((p: any) => !(activeProducts ?? []).some((a: any) => a.id === p.id)) as any)
-  ];
-  const options = buildProductPickOptions(mergedProducts ?? []);
+  const options = buildProductPickOptions(allProducts ?? []);
 
   const defaults = {
     invoiceDate: delivery.invoice_date ? String(delivery.invoice_date) : "",

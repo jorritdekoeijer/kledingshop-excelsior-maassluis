@@ -22,7 +22,6 @@ export default async function InterneBestellingPage({
     .select(
       "id,name,variant_youth,variant_adult,stock_batches(quantity_remaining,variant_segment,size_label,unit_purchase_excl_cents,unit_printing_excl_cents,received_at,created_at)"
     )
-    .eq("active", true)
     .order("name");
 
   const { data: costGroups } = await supabase.from("cost_groups").select("id,name").order("created_at");

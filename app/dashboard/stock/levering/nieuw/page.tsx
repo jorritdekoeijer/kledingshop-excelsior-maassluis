@@ -24,7 +24,6 @@ export default async function NewStockDeliveryPage({
   const { data: products } = await supabase
     .from("products")
     .select("id,name,printing_excl_cents,variant_youth,variant_adult,variant_socks,variant_shoes,variant_onesize")
-    .eq("active", true)
     .order("name");
 
   const { data: deliveries } = await supabase

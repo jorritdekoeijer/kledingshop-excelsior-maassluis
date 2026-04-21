@@ -41,7 +41,6 @@ export default async function NewSupplierOrderPage({
   const { data: products } = await supabase
     .from("products")
     .select("id,name,variant_youth,variant_adult,stock_batches(quantity_remaining,variant_segment,size_label)")
-    .eq("active", true)
     .order("name");
 
   const productOptions = buildProductPickOptions(products ?? []);
