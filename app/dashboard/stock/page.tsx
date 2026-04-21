@@ -3,6 +3,7 @@ import { requirePermission } from "@/lib/auth/permissions-server";
 import { permissions } from "@/lib/auth/permissions";
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseServiceClient } from "@/lib/supabase/service";
 import { normalizeVariantBlock } from "@/lib/shop/product-json";
 import { StockRowsTable, type StockRow } from "@/components/dashboard/StockRowsTable";
 
@@ -90,6 +91,26 @@ export default async function DashboardStockPage({
   const canStockRead = myPerms.includes("stock:read");
   const canStockWrite = myPerms.includes("stock:write");
 
+  // Service-role view (bypasses RLS) to debug “DB has rows but user sees none”.
+  let svcBatchCount: number | null = null;
+  let svcBatchSample: any = null;
+  let svcErr: string | null = null;
+  if (canDebug) {
+    try {
+      const svc = createSupabaseServiceClient();
+      const [cnt, sample] = await Promise.all([
+        svc.from("stock_batches").select("*", { count: "exact", head: true }),
+        svc.from("stock_batches").select("id,product_id,quantity_remaining,variant_segment,size_label,created_at").order("created_at", { ascending: false }).limit(1).maybeSingle()
+      ]);
+      if (cnt.error) svcErr = cnt.error.message;
+      else svcBatchCount = cnt.count ?? 0;
+      if (sample.error) svcErr = svcErr ?? sample.error.message;
+      else svcBatchSample = sample.data ?? null;
+    } catch (e) {
+      svcErr = e instanceof Error ? e.message : String(e);
+    }
+  }
+
   for (const p of products ?? []) {
     const youthCode = String(normalizeVariantBlock((p as any).variant_youth).model_number ?? "").trim();
     const adultCode = String(normalizeVariantBlock((p as any).variant_adult).model_number ?? "").trim();
@@ -173,6 +194,15 @@ export default async function DashboardStockPage({
             <div className="mt-1">
               stock:read = <strong>{String(canStockRead)}</strong> • stock:write = <strong>{String(canStockWrite)}</strong>
             </div>
+            <div className="mt-2">
+              service_role stock_batches count: <strong>{svcErr ? "ERROR" : svcBatchCount ?? "—"}</strong>
+              {svcErr ? <span className="ml-2 text-red-700">{svcErr}</span> : null}
+            </div>
+            {svcBatchSample ? (
+              <div className="mt-1 font-mono text-xs text-zinc-700">
+                sample: {String(svcBatchSample.id)} • {String(svcBatchSample.product_id)} • rem={String(svcBatchSample.quantity_remaining)}
+              </div>
+            ) : null}
           </div>
           <div className="mt-3 text-sm text-zinc-800">
             Totaal batches: <strong>{(batches ?? []).length}</strong> • Met voorraad:{" "}
