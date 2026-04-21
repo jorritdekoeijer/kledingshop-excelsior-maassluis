@@ -31,6 +31,20 @@ function emptyLine(): LineState {
   };
 }
 
+type Defaults = {
+  invoiceDate?: string;
+  supplier?: string;
+  invoiceNumber?: string;
+  invoiceTotalInclEuro?: string;
+  lines?: Array<{
+    productId: string;
+    variantSegment: VariantSegment;
+    quantity: number;
+    sizeLabel: string;
+    unitExclEuro: string;
+  }>;
+};
+
 function defaultSegmentForProduct(p: ProductPickOption | undefined): VariantSegment {
   if (!p) return "adult";
   const o = p.onesize?.sizes.length ?? 0;
@@ -62,12 +76,32 @@ function modelForSegment(p: ProductPickOption, seg: VariantSegment): string {
   return p.shoes?.modelNumber ?? "";
 }
 
-export function NewDeliveryForm({ products }: { products: ProductPickOption[] }) {
-  const [invoiceDate, setInvoiceDate] = useState("");
-  const [supplier, setSupplier] = useState("");
-  const [invoiceNumber, setInvoiceNumber] = useState("");
-  const [invoiceTotalInclEuro, setInvoiceTotalInclEuro] = useState("");
-  const [lines, setLines] = useState<LineState[]>(() => [emptyLine()]);
+export function NewDeliveryForm({
+  products,
+  defaults,
+  action
+}: {
+  products: ProductPickOption[];
+  defaults?: Defaults;
+  action?: (payload: unknown) => void | Promise<void>;
+}) {
+  const act = action ?? createStockDeliveryAction;
+  const [invoiceDate, setInvoiceDate] = useState(defaults?.invoiceDate ?? "");
+  const [supplier, setSupplier] = useState(defaults?.supplier ?? "");
+  const [invoiceNumber, setInvoiceNumber] = useState(defaults?.invoiceNumber ?? "");
+  const [invoiceTotalInclEuro, setInvoiceTotalInclEuro] = useState(defaults?.invoiceTotalInclEuro ?? "");
+  const [lines, setLines] = useState<LineState[]>(() => {
+    const dls = defaults?.lines ?? [];
+    if (!dls.length) return [emptyLine()];
+    return dls.map((l) => ({
+      key: typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : String(Math.random()),
+      productId: l.productId,
+      segment: l.variantSegment,
+      quantity: l.quantity,
+      sizeLabel: l.sizeLabel,
+      unitExclEuro: l.unitExclEuro
+    }));
+  });
   const [pending, startTransition] = useTransition();
 
   const productMap = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
@@ -239,7 +273,7 @@ export function NewDeliveryForm({ products }: { products: ProductPickOption[] })
     };
 
     startTransition(() => {
-      createStockDeliveryAction(payload);
+      act(payload);
     });
   }
 
