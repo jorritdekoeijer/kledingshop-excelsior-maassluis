@@ -40,52 +40,63 @@ export default async function DashboardStockPage({
   const error = typeof sp.error === "string" ? sp.error : "";
 
   const supabase = await createSupabaseServerClient();
-  const { data: products } = await supabase
-    .from("products")
-    .select("id,name,active,variant_youth,variant_adult,stock_batches(quantity_remaining,variant_segment,size_label)")
-    .order("name");
-
-  type BatchRow = {
-    quantity_remaining: number | null;
-    variant_segment: string | null;
-    size_label: string | null;
-  };
 
   const stockRows: StockRow[] = [];
 
-  for (const p of products ?? []) {
-    const batches = ((p as { stock_batches?: BatchRow[] }).stock_batches ?? []) as BatchRow[];
-    const youthCode = String(normalizeVariantBlock((p as any).variant_youth).model_number ?? "").trim();
-    const adultCode = String(normalizeVariantBlock((p as any).variant_adult).model_number ?? "").trim();
-    const agg = new Map<string, number>();
-    for (const b of batches) {
-      const vr = b.variant_segment != null && String(b.variant_segment).trim() !== "" ? String(b.variant_segment).trim() : "";
-      const sz = b.size_label != null && String(b.size_label).trim() !== "" ? String(b.size_label).trim() : "";
-      const key = `${vr}\0${sz}`;
-      agg.set(key, (agg.get(key) ?? 0) + (b.quantity_remaining ?? 0));
-    }
-    if (agg.size === 0) {
-      stockRows.push({ name: p.name, articleCode: "", variantLabel: "—", sizeLabel: "—", qty: 0 });
-      continue;
-    }
-    const lines: StockRow[] = [];
-    for (const [key, qty] of agg) {
-      if (qty <= 0) continue;
-      const [vr, sz] = key.split("\0");
-      const articleCode = vr === "youth" ? youthCode : vr === "adult" ? adultCode : "";
-      lines.push({
-        name: p.name,
-        articleCode,
-        variantLabel: formatVariantSegment(vr || null),
-        sizeLabel: formatSizeLabel(sz || null),
-        qty
-      });
-    }
-    if (lines.length === 0) {
-      stockRows.push({ name: p.name, articleCode: "", variantLabel: "—", sizeLabel: "—", qty: 0 });
-    } else {
-      stockRows.push(...lines);
-    }
+  // Belangrijk: lees voorraad direct uit stock_batches.
+  // In sommige DB setups werkt de geneste relatie products(stock_batches(...)) niet betrouwbaar door schema cache / FK introspectie.
+  const { data: batchRows, error: bErr } = await supabase
+    .from("stock_batches")
+    .select("product_id,quantity_remaining,variant_segment,size_label,products(name,variant_youth,variant_adult)")
+    .gt("quantity_remaining", 0);
+  if (bErr) {
+    return (
+      <div className="rounded-lg border border-zinc-200 bg-white p-6">
+        <h1 className="text-xl font-semibold">Voorraad</h1>
+        <p className="mt-2 text-sm text-red-700">Voorraad laden mislukt: {bErr.message}</p>
+      </div>
+    );
+  }
+
+  type Row = {
+    product_id: string;
+    quantity_remaining: number | null;
+    variant_segment: string | null;
+    size_label: string | null;
+    products:
+      | { name: string; variant_youth: unknown; variant_adult: unknown }
+      | { name: string; variant_youth: unknown; variant_adult: unknown }[]
+      | null;
+  };
+
+  const agg = new Map<string, { name: string; youthCode: string; adultCode: string; qty: number }>();
+  for (const r0 of (batchRows ?? []) as any[]) {
+    const r = r0 as Row;
+    const p = Array.isArray(r.products) ? r.products[0] : r.products;
+    const name = p?.name ?? "—";
+    const youthCode = p ? String(normalizeVariantBlock((p as any).variant_youth).model_number ?? "").trim() : "";
+    const adultCode = p ? String(normalizeVariantBlock((p as any).variant_adult).model_number ?? "").trim() : "";
+
+    const vr = r.variant_segment != null && String(r.variant_segment).trim() !== "" ? String(r.variant_segment).trim() : "";
+    const sz = r.size_label != null && String(r.size_label).trim() !== "" ? String(r.size_label).trim() : "";
+    const key = `${r.product_id}\0${vr}\0${sz}`;
+    const prev = agg.get(key);
+    const add = Number(r.quantity_remaining ?? 0);
+    if (prev) prev.qty += add;
+    else agg.set(key, { name, youthCode, adultCode, qty: add });
+  }
+
+  for (const [key, v] of agg) {
+    if (v.qty <= 0) continue;
+    const [, vr, sz] = key.split("\0");
+    const articleCode = vr === "youth" ? v.youthCode : vr === "adult" ? v.adultCode : "";
+    stockRows.push({
+      name: v.name,
+      articleCode,
+      variantLabel: formatVariantSegment(vr || null),
+      sizeLabel: formatSizeLabel(sz || null),
+      qty: v.qty
+    });
   }
 
   stockRows.sort((a, b) => {
