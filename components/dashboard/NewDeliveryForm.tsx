@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
-import { createStockDeliveryAction, updateStockDeliveryAction } from "@/app/dashboard/stock/levering/actions";
+import { submitStockDeliveryFormAction } from "@/app/dashboard/stock/levering/form-actions";
 import { inclCentsFromExcl21, parseDutchEuroToCents } from "@/lib/money/nl-euro";
 import type { ProductPickOption, VariantSegment } from "@/lib/stock/product-pick-types";
 
@@ -79,15 +79,12 @@ function modelForSegment(p: ProductPickOption, seg: VariantSegment): string {
 export function NewDeliveryForm({
   products,
   defaults,
-  action,
   deliveryId
 }: {
   products: ProductPickOption[];
   defaults?: Defaults;
-  action?: (payload: unknown) => void | Promise<void>;
   deliveryId?: string;
 }) {
-  const act = action ?? (deliveryId ? updateStockDeliveryAction.bind(null, deliveryId) : createStockDeliveryAction);
   const [invoiceDate, setInvoiceDate] = useState(defaults?.invoiceDate ?? "");
   const [supplier, setSupplier] = useState(defaults?.supplier ?? "");
   const [invoiceNumber, setInvoiceNumber] = useState(defaults?.invoiceNumber ?? "");
@@ -214,8 +211,7 @@ export function NewDeliveryForm({
     );
   }
 
-  function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  const payloadJson = useMemo(() => {
     const outLines: {
       productId: string;
       variantSegment: VariantSegment;
@@ -228,29 +224,11 @@ export function NewDeliveryForm({
     for (const line of lines) {
       if (!line.productId) continue;
       const unit = parseDutchEuroToCents(line.unitExclEuro);
-      if (!Number.isFinite(unit) || unit < 0) {
-        alert("Vul per regel een geldige inkoopprijs excl. btw in (bijv. 12,50).");
-        return;
-      }
-      if (!line.sizeLabel.trim()) {
-        alert("Kies per regel een maat (of vul deze in bij producten zonder vaste matenlijst).");
-        return;
-      }
-      if (line.quantity < 1) {
-        alert("Aantal moet minstens 1 zijn.");
-        return;
-      }
+      if (!Number.isFinite(unit) || unit < 0) continue;
+      if (!line.sizeLabel.trim()) continue;
+      if (line.quantity < 1) continue;
       const p = productMap.get(line.productId);
       if (!p) continue;
-      const allowed = sizesForSegment(p, line.segment);
-      if (allowed.length > 0 && !allowed.includes(line.sizeLabel.trim())) {
-        alert(
-          `Maat "${line.sizeLabel}" hoort niet bij ${
-            line.segment === "youth" ? "Jeugd" : line.segment === "adult" ? "Volwassenen" : line.segment.toUpperCase()
-          } voor dit product.`
-        );
-        return;
-      }
       outLines.push({
         productId: line.productId,
         variantSegment: line.segment,
@@ -261,26 +239,24 @@ export function NewDeliveryForm({
       });
     }
 
-    if (outLines.length === 0) {
-      alert("Voeg minstens één regel met product toe.");
-      return;
-    }
-
-    const payload = {
+    return JSON.stringify({
       invoiceDate: invoiceDate.trim() || null,
       supplier: supplier.trim() || null,
       invoiceNumber: invoiceNumber.trim() || null,
       invoiceTotalInclCents: invoiceInclParsed,
       lines: outLines
-    };
-
-    startTransition(async () => {
-      await act(payload);
     });
-  }
+  }, [invoiceDate, supplier, invoiceNumber, invoiceInclParsed, lines, productMap]);
 
   return (
-    <form onSubmit={onSubmit} className="space-y-8">
+    <form
+      action={(fd) => {
+        startTransition(() => submitStockDeliveryFormAction(fd));
+      }}
+      className="space-y-8"
+    >
+      <input type="hidden" name="payloadJson" value={payloadJson} readOnly />
+      <input type="hidden" name="deliveryId" value={deliveryId ?? ""} readOnly />
       <div className="grid gap-4 sm:grid-cols-3">
         <label className="block">
           <span className="text-sm font-medium text-zinc-700">Factuurdatum</span>
