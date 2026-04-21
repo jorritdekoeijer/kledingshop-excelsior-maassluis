@@ -81,6 +81,15 @@ export default async function DashboardStockPage({
     agg.set(key, (agg.get(key) ?? 0) + (Number.isFinite(q) ? q : 0));
   }
 
+  const { data: authUser } = await supabase.auth.getUser();
+  const userId = authUser.user?.id ?? null;
+  const { data: myProfile } = userId
+    ? await supabase.from("user_profiles").select("permissions").eq("id", userId).maybeSingle()
+    : { data: null };
+  const myPerms = ((myProfile as any)?.permissions ?? []) as string[];
+  const canStockRead = myPerms.includes("stock:read");
+  const canStockWrite = myPerms.includes("stock:write");
+
   for (const p of products ?? []) {
     const youthCode = String(normalizeVariantBlock((p as any).variant_youth).model_number ?? "").trim();
     const adultCode = String(normalizeVariantBlock((p as any).variant_adult).model_number ?? "").trim();
@@ -154,6 +163,17 @@ export default async function DashboardStockPage({
           <p className="mt-1 text-sm text-zinc-600">
             Dit helpt om te zien of “Nieuwe levering” echt voorraad toevoegt (quantity_remaining &gt; 0).
           </p>
+          <div className="mt-3 rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-800">
+            <div>
+              User id: <span className="font-mono text-xs">{userId ?? "—"}</span>
+            </div>
+            <div className="mt-1">
+              user_profiles.permissions: <span className="font-mono text-xs">{myPerms.length ? myPerms.join(", ") : "—"}</span>
+            </div>
+            <div className="mt-1">
+              stock:read = <strong>{String(canStockRead)}</strong> • stock:write = <strong>{String(canStockWrite)}</strong>
+            </div>
+          </div>
           <div className="mt-3 text-sm text-zinc-800">
             Totaal batches: <strong>{(batches ?? []).length}</strong> • Met voorraad:{" "}
             <strong>{(batches ?? []).filter((r: any) => Number(r.quantity_remaining ?? 0) > 0).length}</strong>
