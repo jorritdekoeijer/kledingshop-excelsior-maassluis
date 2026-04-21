@@ -6,6 +6,8 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { normalizeVariantBlock } from "@/lib/shop/product-json";
 import { StockRowsTable, type StockRow } from "@/components/dashboard/StockRowsTable";
 
+export const dynamic = "force-dynamic";
+
 function formatVariantSegment(v: string | null | undefined): string {
   if (v == null || v === "") return "—";
   if (v === "youth") return "Jeugd (YOUTH)";
