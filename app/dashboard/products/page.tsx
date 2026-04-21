@@ -28,8 +28,8 @@ export default async function DashboardProductsPage({
   const { data: products } = await supabase
     .from("products")
     .select("id,name,slug,price_cents,active,created_at,product_images(path,is_primary,sort_order,created_at)")
-    .order("created_at", { ascending: false })
-    .limit(100);
+    .order("name", { ascending: true })
+    .limit(500);
 
   const canSyncSizes = gate.isAdmin || gate.permissions.includes(permissions.dashboard.access) || gate.permissions.includes(permissions.stock.write);
 
