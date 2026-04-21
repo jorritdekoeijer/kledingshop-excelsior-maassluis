@@ -78,12 +78,10 @@ function modelForSegment(p: ProductPickOption, seg: VariantSegment): string {
 
 export function NewDeliveryForm({
   products,
-  defaults,
-  deliveryId
+  defaults
 }: {
   products: ProductPickOption[];
   defaults?: Defaults;
-  deliveryId?: string;
 }) {
   const [invoiceDate, setInvoiceDate] = useState(defaults?.invoiceDate ?? "");
   const [supplier, setSupplier] = useState(defaults?.supplier ?? "");
@@ -256,7 +254,6 @@ export function NewDeliveryForm({
       className="space-y-8"
     >
       <input type="hidden" name="payloadJson" value={payloadJson} readOnly />
-      <input type="hidden" name="deliveryId" value={deliveryId ?? ""} readOnly />
       <div className="grid gap-4 sm:grid-cols-3">
         <label className="block">
           <span className="text-sm font-medium text-zinc-700">Factuurdatum</span>

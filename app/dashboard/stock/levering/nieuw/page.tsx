@@ -72,7 +72,6 @@ export default async function NewStockDeliveryPage({
                   <th className="px-4 py-3">Factuurdatum</th>
                   <th className="px-4 py-3">Factuurnummer</th>
                   <th className="px-4 py-3 text-right">Factuurbedrag (incl. btw)</th>
-                  <th className="px-4 py-3 text-right">Acties</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-100">
@@ -83,11 +82,6 @@ export default async function NewStockDeliveryPage({
                     <td className="px-4 py-3 font-mono text-xs text-zinc-700">{d.invoice_number ?? "—"}</td>
                     <td className="px-4 py-3 text-right font-medium">
                       {typeof (d as any).invoice_total_incl_cents === "number" ? eur((d as any).invoice_total_incl_cents) : "—"}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <Link className="text-sm font-medium text-brand-blue hover:underline" href={`/dashboard/stock/levering/${(d as any).id}/edit`}>
-                        Bewerken
-                      </Link>
                     </td>
                   </tr>
                 ))}
