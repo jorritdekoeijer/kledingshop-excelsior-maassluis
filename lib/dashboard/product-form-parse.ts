@@ -35,6 +35,7 @@ export function parseProductUpsertFormData(formData: FormData): ProductFormParse
   const variantAdultRaw = parseJsonField<unknown>(formData.get("variantAdultJson"), {});
   const variantSocksRaw = parseJsonField<unknown>(formData.get("variantSocksJson"), {});
   const variantShoesRaw = parseJsonField<unknown>(formData.get("variantShoesJson"), {});
+  const variantOneSizeRaw = parseJsonField<unknown>(formData.get("variantOneSizeJson"), {});
 
   const youthZ = productVariantBlockSchema.safeParse(variantYouthRaw);
   if (!youthZ.success) {
@@ -52,11 +53,16 @@ export function parseProductUpsertFormData(formData: FormData): ProductFormParse
   if (!shoesZ.success) {
     return { ok: false, message: shoesZ.error.issues[0]?.message ?? "Ongeldige schoenen-variant." };
   }
+  const oneZ = productVariantBlockSchema.safeParse(variantOneSizeRaw);
+  if (!oneZ.success) {
+    return { ok: false, message: oneZ.error.issues[0]?.message ?? "Ongeldige one size-variant." };
+  }
 
   const variantYouth = youthZ.data;
   const variantAdult = adultZ.data;
   const variantSocks = socksZ.data;
   const variantShoes = shoesZ.data;
+  const variantOneSize = oneZ.data;
 
   const garmentType = formData.get("garmentType");
   const priceCents =
@@ -64,6 +70,8 @@ export function parseProductUpsertFormData(formData: FormData): ProductFormParse
       ? (variantSocks.sale_cents != null ? variantSocks.sale_cents : null)
       : garmentType === "shoes"
         ? (variantShoes.sale_cents != null ? variantShoes.sale_cents : null)
+        : garmentType === "onesize"
+          ? (variantOneSize.sale_cents != null ? variantOneSize.sale_cents : null)
         : canonicalPriceCentsFromVariants(variantYouth, variantAdult);
   if (priceCents === null) {
     return {
@@ -73,6 +81,8 @@ export function parseProductUpsertFormData(formData: FormData): ProductFormParse
           ? "Vul een verkoopprijs in bij Sokken (SOCKS), incl. btw."
           : garmentType === "shoes"
             ? "Vul een verkoopprijs in bij Schoenen (SHOES), incl. btw."
+            : garmentType === "onesize"
+              ? "Vul een verkoopprijs in bij One Size, incl. btw."
           : "Vul minstens één verkoopprijs in bij Jeugd (YOUTH) of Volwassenen (ADULT), incl. btw."
     };
   }
@@ -100,7 +110,8 @@ export function parseProductUpsertFormData(formData: FormData): ProductFormParse
     variantYouth,
     variantAdult,
     variantSocks,
-    variantShoes
+    variantShoes,
+    variantOneSize
   });
 
   if (!zr.success) {

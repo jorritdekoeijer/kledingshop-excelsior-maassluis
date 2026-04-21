@@ -10,6 +10,7 @@ export function buildProductPickOptions(
     variant_adult: unknown;
     variant_socks?: unknown;
     variant_shoes?: unknown;
+    variant_onesize?: unknown;
   }[]
 ): ProductPickOption[] {
   return rows.map((p) => {
@@ -17,6 +18,7 @@ export function buildProductPickOptions(
     const a = normalizeVariantBlock(p.variant_adult);
     const s = normalizeVariantBlock(p.variant_socks);
     const h = normalizeVariantBlock(p.variant_shoes);
+    const o = normalizeVariantBlock(p.variant_onesize);
     const printing =
       typeof p.printing_excl_cents === "number" && Number.isFinite(p.printing_excl_cents) && p.printing_excl_cents >= 0
         ? p.printing_excl_cents
@@ -40,6 +42,10 @@ export function buildProductPickOptions(
       shoes: {
         modelNumber: String(h.model_number ?? "").trim(),
         sizes: [...new Set(h.sizes ?? [])]
+      },
+      onesize: {
+        modelNumber: String(o.model_number ?? "").trim(),
+        sizes: [...new Set(o.sizes ?? [])]
       }
     };
   });

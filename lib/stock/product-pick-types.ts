@@ -1,4 +1,4 @@
-export type VariantSegment = "youth" | "adult" | "socks" | "shoes";
+export type VariantSegment = "youth" | "adult" | "socks" | "shoes" | "onesize";
 
 export type ProductPickOption = {
   id: string;
@@ -9,4 +9,5 @@ export type ProductPickOption = {
   adult: { modelNumber: string; sizes: string[] };
   socks?: { modelNumber: string; sizes: string[] };
   shoes?: { modelNumber: string; sizes: string[] };
+  onesize?: { modelNumber: string; sizes: string[] };
 };

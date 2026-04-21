@@ -7,7 +7,7 @@ import { createSupabaseServiceClient } from "@/lib/supabase/service";
 import { formatPostgrestError } from "@/lib/supabase/format-postgrest-error";
 import { activeSizesInTemplateOrder, variantBlockToDbJson } from "@/lib/dashboard/product-db-row";
 import { normalizeVariantBlock } from "@/lib/shop/product-json";
-import { ADULT_SIZE_OPTIONS, SHOES_SIZE_OPTIONS, SOCKS_SIZE_OPTIONS, YOUTH_SIZE_OPTIONS } from "@/lib/products/variant-constants";
+import { ADULT_SIZE_OPTIONS, ONESIZE_SIZE_OPTIONS, SHOES_SIZE_OPTIONS, SOCKS_SIZE_OPTIONS, YOUTH_SIZE_OPTIONS } from "@/lib/products/variant-constants";
 import { upsertReorderRulesSchema } from "@/lib/validation/reorder-rules";
 
 function parseJsonField(raw: FormDataEntryValue | null, fallback: unknown): unknown {
@@ -53,33 +53,44 @@ export async function updateReorderRules(productId: string, formData: FormData) 
 
   const { data: prod, error: prodErr } = await service
     .from("products")
-    .select("variant_youth,variant_adult,variant_socks,variant_shoes,garment_type")
+    .select("variant_youth,variant_adult,variant_socks,variant_shoes,variant_onesize,garment_type")
     .eq("id", productId)
     .single();
   if (prodErr || !prod) {
     redirect(`/dashboard/products/${productId}/edit?error=${encodeURIComponent(formatPostgrestError(prodErr))}`);
   }
 
-  const garmentType = prod.garment_type === "socks" ? "socks" : prod.garment_type === "shoes" ? "shoes" : "clothing";
+  const garmentType =
+    prod.garment_type === "socks"
+      ? "socks"
+      : prod.garment_type === "shoes"
+        ? "shoes"
+        : prod.garment_type === "onesize"
+          ? "onesize"
+          : "clothing";
   const templateYouth = YOUTH_SIZE_OPTIONS;
   const templateAdult = ADULT_SIZE_OPTIONS;
   const templateSocks = SOCKS_SIZE_OPTIONS;
   const templateShoes = SHOES_SIZE_OPTIONS;
+  const templateOne = ONESIZE_SIZE_OPTIONS;
 
   const vy = normalizeVariantBlock(prod.variant_youth);
   const va = normalizeVariantBlock(prod.variant_adult);
   const vs = normalizeVariantBlock((prod as any).variant_socks);
   const vh = normalizeVariantBlock((prod as any).variant_shoes);
+  const vo = normalizeVariantBlock((prod as any).variant_onesize);
 
   const activeYouthLabels = parsed.data.rules.filter((r) => r.variantSegment === "youth" && r.isActive).map((r) => r.sizeLabel);
   const activeAdultLabels = parsed.data.rules.filter((r) => r.variantSegment === "adult" && r.isActive).map((r) => r.sizeLabel);
   const activeSocksLabels = parsed.data.rules.filter((r) => r.variantSegment === "socks" && r.isActive).map((r) => r.sizeLabel);
   const activeShoesLabels = parsed.data.rules.filter((r) => r.variantSegment === "shoes" && r.isActive).map((r) => r.sizeLabel);
+  const activeOneLabels = parsed.data.rules.filter((r) => r.variantSegment === "onesize" && r.isActive).map((r) => r.sizeLabel);
 
   const youthSizes = activeSizesInTemplateOrder(activeYouthLabels, templateYouth);
   const adultSizes = activeSizesInTemplateOrder(activeAdultLabels, templateAdult);
   const socksSizes = activeSizesInTemplateOrder(activeSocksLabels, templateSocks);
   const shoesSizes = activeSizesInTemplateOrder(activeShoesLabels, templateShoes);
+  const oneSizes = activeSizesInTemplateOrder(activeOneLabels, templateOne);
 
   const { error: updErr } = await service
     .from("products")
@@ -87,7 +98,8 @@ export async function updateReorderRules(productId: string, formData: FormData) 
       variant_youth: variantBlockToDbJson({ ...vy, sizes: garmentType === "clothing" ? youthSizes : [] }),
       variant_adult: variantBlockToDbJson({ ...va, sizes: garmentType === "clothing" ? adultSizes : [] }),
       variant_socks: variantBlockToDbJson({ ...vs, sizes: garmentType === "socks" ? socksSizes : [] }),
-      variant_shoes: variantBlockToDbJson({ ...vh, sizes: garmentType === "shoes" ? shoesSizes : [] })
+      variant_shoes: variantBlockToDbJson({ ...vh, sizes: garmentType === "shoes" ? shoesSizes : [] }),
+      variant_onesize: variantBlockToDbJson({ ...vo, sizes: garmentType === "onesize" ? oneSizes : [] })
     })
     .eq("id", productId);
   if (updErr) {
@@ -106,7 +118,7 @@ export async function syncVariantSizesFromReorderRules(productId: string) {
 
   const { data: prod, error: prodErr } = await service
     .from("products")
-    .select("variant_youth,variant_adult,variant_socks,variant_shoes,garment_type")
+    .select("variant_youth,variant_adult,variant_socks,variant_shoes,variant_onesize,garment_type")
     .eq("id", productId)
     .single();
   if (prodErr || !prod) {
@@ -121,16 +133,25 @@ export async function syncVariantSizesFromReorderRules(productId: string) {
     redirect(`/dashboard/products/${productId}/edit?error=${encodeURIComponent(formatPostgrestError(rrErr))}`);
   }
 
-  const garmentType = prod.garment_type === "socks" ? "socks" : prod.garment_type === "shoes" ? "shoes" : "clothing";
+  const garmentType =
+    prod.garment_type === "socks"
+      ? "socks"
+      : prod.garment_type === "shoes"
+        ? "shoes"
+        : prod.garment_type === "onesize"
+          ? "onesize"
+          : "clothing";
   const templateYouth = YOUTH_SIZE_OPTIONS;
   const templateAdult = ADULT_SIZE_OPTIONS;
   const templateSocks = SOCKS_SIZE_OPTIONS;
   const templateShoes = SHOES_SIZE_OPTIONS;
+  const templateOne = ONESIZE_SIZE_OPTIONS;
 
   const vy = normalizeVariantBlock(prod.variant_youth);
   const va = normalizeVariantBlock(prod.variant_adult);
   const vs = normalizeVariantBlock((prod as any).variant_socks);
   const vh = normalizeVariantBlock((prod as any).variant_shoes);
+  const vo = normalizeVariantBlock((prod as any).variant_onesize);
 
   const activeYouthLabels = (rules ?? [])
     .filter((r: any) => r.variant_segment === "youth" && r.is_active)
@@ -144,11 +165,15 @@ export async function syncVariantSizesFromReorderRules(productId: string) {
   const activeShoesLabels = (rules ?? [])
     .filter((r: any) => r.variant_segment === "shoes" && r.is_active)
     .map((r: any) => String(r.size_label));
+  const activeOneLabels = (rules ?? [])
+    .filter((r: any) => r.variant_segment === "onesize" && r.is_active)
+    .map((r: any) => String(r.size_label));
 
   const youthSizes = activeSizesInTemplateOrder(activeYouthLabels, templateYouth);
   const adultSizes = activeSizesInTemplateOrder(activeAdultLabels, templateAdult);
   const socksSizes = activeSizesInTemplateOrder(activeSocksLabels, templateSocks);
   const shoesSizes = activeSizesInTemplateOrder(activeShoesLabels, templateShoes);
+  const oneSizes = activeSizesInTemplateOrder(activeOneLabels, templateOne);
 
   const { error: updErr } = await service
     .from("products")
@@ -156,7 +181,8 @@ export async function syncVariantSizesFromReorderRules(productId: string) {
       variant_youth: variantBlockToDbJson({ ...vy, sizes: garmentType === "clothing" ? youthSizes : [] }),
       variant_adult: variantBlockToDbJson({ ...va, sizes: garmentType === "clothing" ? adultSizes : [] }),
       variant_socks: variantBlockToDbJson({ ...vs, sizes: garmentType === "socks" ? socksSizes : [] }),
-      variant_shoes: variantBlockToDbJson({ ...vh, sizes: garmentType === "shoes" ? shoesSizes : [] })
+      variant_shoes: variantBlockToDbJson({ ...vh, sizes: garmentType === "shoes" ? shoesSizes : [] }),
+      variant_onesize: variantBlockToDbJson({ ...vo, sizes: garmentType === "onesize" ? oneSizes : [] })
     })
     .eq("id", productId);
   if (updErr) {

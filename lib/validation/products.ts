@@ -1,7 +1,7 @@
 import { z } from "zod";
-import { ADULT_SIZE_OPTIONS, SHOES_SIZE_OPTIONS, SOCKS_SIZE_OPTIONS, YOUTH_SIZE_OPTIONS } from "@/lib/products/variant-constants";
+import { ADULT_SIZE_OPTIONS, ONESIZE_SIZE_OPTIONS, SHOES_SIZE_OPTIONS, SOCKS_SIZE_OPTIONS, YOUTH_SIZE_OPTIONS } from "@/lib/products/variant-constants";
 
-export const garmentTypeSchema = z.enum(["clothing", "socks", "shoes"]);
+export const garmentTypeSchema = z.enum(["clothing", "socks", "shoes", "onesize"]);
 export type GarmentType = z.infer<typeof garmentTypeSchema>;
 
 const sizeStr = z.string().max(16);
@@ -41,14 +41,15 @@ export const productUpsertSchema = z.object({
   ),
   categoryId: z.string().min(1, "Kies een categorie.").uuid("Kies een geldige categorie."),
   garmentType: z.preprocess(
-    (v) => (v === "socks" || v === "shoes" ? v : "clothing"),
+    (v) => (v === "socks" || v === "shoes" || v === "onesize" ? v : "clothing"),
     garmentTypeSchema
   ),
   productDetails: z.array(productDetailRowSchema).max(40).default([]),
   variantYouth: productVariantBlockSchema,
   variantAdult: productVariantBlockSchema,
   variantSocks: productVariantBlockSchema,
-  variantShoes: productVariantBlockSchema
+  variantShoes: productVariantBlockSchema,
+  variantOneSize: productVariantBlockSchema
 });
 
 export function validateYouthSizes(sizes: string[]): boolean {
@@ -69,4 +70,9 @@ export function validateSockSizes(sizes: string[]): boolean {
 export function validateShoeSizes(sizes: string[]): boolean {
   const allowed = new Set(SHOES_SIZE_OPTIONS);
   return sizes.every((s) => allowed.has(s as (typeof SHOES_SIZE_OPTIONS)[number]));
+}
+
+export function validateOneSizeSizes(sizes: string[]): boolean {
+  const allowed = new Set(ONESIZE_SIZE_OPTIONS);
+  return sizes.every((s) => allowed.has(s as (typeof ONESIZE_SIZE_OPTIONS)[number]));
 }

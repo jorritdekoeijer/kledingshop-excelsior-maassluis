@@ -14,11 +14,12 @@ type Props = {
   name: string;
   slug: string;
   discountPercent: number;
-  garmentType: "clothing" | "socks" | "shoes";
+  garmentType: "clothing" | "socks" | "shoes" | "onesize";
   youth: ProductVariantBlock;
   adult: ProductVariantBlock;
   socks: ProductVariantBlock;
   shoes: ProductVariantBlock;
+  onesize: ProductVariantBlock;
   fallbackEffectiveCents: number;
 };
 
@@ -32,6 +33,7 @@ export function ProductPurchasePanel({
   adult,
   socks,
   shoes,
+  onesize,
   fallbackEffectiveCents
 }: Props) {
   const { addLine } = useCart();
@@ -43,12 +45,14 @@ export function ProductPurchasePanel({
   const adultSale = adult.sale_cents != null && adult.sale_cents >= 0 ? adult.sale_cents : null;
   const socksSale = socks.sale_cents != null && socks.sale_cents >= 0 ? socks.sale_cents : null;
   const shoesSale = shoes.sale_cents != null && shoes.sale_cents >= 0 ? shoes.sale_cents : null;
+  const onesizeSale = onesize.sale_cents != null && onesize.sale_cents >= 0 ? onesize.sale_cents : null;
   const hasY = youthSale != null;
   const hasA = adultSale != null;
 
   const initialSegment = useMemo((): "youth" | "adult" | "socks" | "shoes" | null => {
     if (garmentType === "socks") return "socks";
     if (garmentType === "shoes") return "shoes";
+    if (garmentType === "onesize") return null;
     if (hasY && hasA) return "adult";
     if (hasY && !hasA) return "youth";
     if (!hasY && hasA) return "adult";
@@ -62,13 +66,14 @@ export function ProductPurchasePanel({
   }, [initialSegment]);
 
   const sizes = useMemo(() => {
+    if (garmentType === "onesize") return onesize.sizes ?? [];
     if (segment === "youth") return youth.sizes ?? [];
     if (segment === "adult") return adult.sizes ?? [];
     if (segment === "socks") return socks.sizes ?? [];
     if (segment === "shoes") return shoes.sizes ?? [];
     const merged = [...new Set([...(youth.sizes ?? []), ...(adult.sizes ?? [])])];
     return merged;
-  }, [segment, youth.sizes, adult.sizes, socks.sizes, shoes.sizes]);
+  }, [segment, garmentType, youth.sizes, adult.sizes, socks.sizes, shoes.sizes, onesize.sizes]);
 
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
 
@@ -77,17 +82,32 @@ export function ProductPurchasePanel({
   }, [segment, productId]);
 
   const displayCents = useMemo(() => {
+    if (garmentType === "onesize" && onesizeSale != null) return effectivePriceCents(onesizeSale, pct);
     if (segment === "youth" && youthSale != null) return effectivePriceCents(youthSale, pct);
     if (segment === "adult" && adultSale != null) return effectivePriceCents(adultSale, pct);
     if (segment === "socks" && socksSale != null) return effectivePriceCents(socksSale, pct);
     if (segment === "shoes" && shoesSale != null) return effectivePriceCents(shoesSale, pct);
     return fallbackEffectiveCents;
-  }, [segment, youthSale, adultSale, socksSale, shoesSale, pct, fallbackEffectiveCents]);
+  }, [segment, garmentType, youthSale, adultSale, socksSale, shoesSale, onesizeSale, pct, fallbackEffectiveCents]);
 
   const needSize = sizes.length > 0;
   const canAdd = !needSize || (selectedSize != null && selectedSize.length > 0);
 
   function buildLine() {
+    if (garmentType === "onesize") {
+      const sz = selectedSize ?? "";
+      const lineId = `${productId}:onesize:${sz}`;
+      const label = `${name}${sz ? ` · ${sz}` : ""}`;
+      return {
+        lineId,
+        productId,
+        name: label,
+        slug,
+        priceCents: displayCents,
+        variant: "onesize" as const,
+        sizeLabel: sz || undefined
+      };
+    }
     if (segment === "youth" || segment === "adult") {
       const sz = selectedSize ?? "";
       const lineId = `${productId}:${segment}:${sz}`;

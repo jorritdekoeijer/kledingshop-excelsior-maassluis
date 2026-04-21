@@ -37,7 +37,7 @@ export function ProductEditPageClient({
   updateReorderRulesAction: (formData: FormData) => void | Promise<void>;
   syncVariantSizesAction: () => void | Promise<void>;
 }) {
-  const [garmentType, setGarmentType] = useState<"clothing" | "socks" | "shoes">(defaults.garmentType);
+  const [garmentType, setGarmentType] = useState<"clothing" | "socks" | "shoes" | "onesize">(defaults.garmentType);
 
   return (
     <div className="space-y-10">

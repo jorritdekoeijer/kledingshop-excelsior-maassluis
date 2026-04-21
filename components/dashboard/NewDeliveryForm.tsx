@@ -33,6 +33,8 @@ function emptyLine(): LineState {
 
 function defaultSegmentForProduct(p: ProductPickOption | undefined): VariantSegment {
   if (!p) return "adult";
+  const o = p.onesize?.sizes.length ?? 0;
+  if (o > 0) return "onesize";
   const h = p.shoes?.sizes.length ?? 0;
   if (h > 0) return "shoes";
   const s = p.socks?.sizes.length ?? 0;
@@ -48,6 +50,7 @@ function sizesForSegment(p: ProductPickOption, seg: VariantSegment): string[] {
   if (seg === "youth") return p.youth.sizes;
   if (seg === "adult") return p.adult.sizes;
   if (seg === "socks") return p.socks?.sizes ?? [];
+  if (seg === "onesize") return p.onesize?.sizes ?? [];
   return p.shoes?.sizes ?? [];
 }
 
@@ -55,6 +58,7 @@ function modelForSegment(p: ProductPickOption, seg: VariantSegment): string {
   if (seg === "youth") return p.youth.modelNumber;
   if (seg === "adult") return p.adult.modelNumber;
   if (seg === "socks") return p.socks?.modelNumber ?? "";
+  if (seg === "onesize") return p.onesize?.modelNumber ?? "";
   return p.shoes?.modelNumber ?? "";
 }
 
@@ -124,6 +128,14 @@ export function NewDeliveryForm({ products }: { products: ProductPickOption[] })
     if (!p) return null;
     const hasShoes = (p.shoes?.sizes.length ?? 0) > 0;
     const hasSocks = (p.socks?.sizes.length ?? 0) > 0;
+    const hasOne = (p.onesize?.sizes.length ?? 0) > 0;
+    if (hasOne) {
+      return (
+        <div className="mt-2 inline-flex rounded-full border border-zinc-300 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-700">
+          ONE SIZE
+        </div>
+      );
+    }
     if (hasShoes) {
       return (
         <div className="mt-2 inline-flex rounded-full border border-zinc-300 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-700">

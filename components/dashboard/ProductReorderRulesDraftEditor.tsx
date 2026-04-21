@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ADULT_SIZE_OPTIONS, SHOES_SIZE_OPTIONS, SOCKS_SIZE_OPTIONS, YOUTH_SIZE_OPTIONS } from "@/lib/products/variant-constants";
+import { ADULT_SIZE_OPTIONS, ONESIZE_SIZE_OPTIONS, SHOES_SIZE_OPTIONS, SOCKS_SIZE_OPTIONS, YOUTH_SIZE_OPTIONS } from "@/lib/products/variant-constants";
 
-type VariantSegment = "youth" | "adult" | "socks" | "shoes";
+type VariantSegment = "youth" | "adult" | "socks" | "shoes" | "onesize";
 
 type Row = {
   variantSegment: VariantSegment;
@@ -21,7 +21,7 @@ export function ProductReorderRulesDraftEditor({
   garmentType,
   name = "reorderRulesJson"
 }: {
-  garmentType: "clothing" | "socks" | "shoes";
+  garmentType: "clothing" | "socks" | "shoes" | "onesize";
   /** Naam van hidden input dat bij submit meegaat. */
   name?: string;
 }) {
@@ -37,6 +37,7 @@ export function ProductReorderRulesDraftEditor({
 
     if (garmentType === "socks") return build("socks", [...SOCKS_SIZE_OPTIONS]);
     if (garmentType === "shoes") return build("shoes", [...SHOES_SIZE_OPTIONS]);
+    if (garmentType === "onesize") return build("onesize", [...ONESIZE_SIZE_OPTIONS]);
     return [...build("youth", [...YOUTH_SIZE_OPTIONS]), ...build("adult", [...ADULT_SIZE_OPTIONS])];
   }, [garmentType]);
 

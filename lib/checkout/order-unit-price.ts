@@ -9,7 +9,8 @@ export function orderUnitPriceCentsFromProductRow(row: {
   variant_adult: unknown;
   variant_socks?: unknown;
   variant_shoes?: unknown;
-  variant?: "youth" | "adult" | "socks" | "shoes";
+  variant_onesize?: unknown;
+  variant?: "youth" | "adult" | "socks" | "shoes" | "onesize";
 }): number {
   const pct = Number(row.temporary_discount_percent ?? 0);
   if (!row.variant) {
@@ -22,7 +23,9 @@ export function orderUnitPriceCentsFromProductRow(row: {
         ? row.variant_adult
         : row.variant === "socks"
           ? row.variant_socks
-          : row.variant_shoes
+          : row.variant === "shoes"
+            ? row.variant_shoes
+            : row.variant_onesize
   );
   const sale = block.sale_cents;
   if (sale != null && Number.isFinite(sale) && sale >= 0) {

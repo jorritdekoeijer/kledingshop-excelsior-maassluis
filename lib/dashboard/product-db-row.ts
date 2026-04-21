@@ -1,5 +1,5 @@
 import type { ProductUpsertParsed } from "@/lib/dashboard/product-form-parse";
-import { ADULT_SIZE_OPTIONS, SHOES_SIZE_OPTIONS, SOCKS_SIZE_OPTIONS, YOUTH_SIZE_OPTIONS } from "@/lib/products/variant-constants";
+import { ADULT_SIZE_OPTIONS, ONESIZE_SIZE_OPTIONS, SHOES_SIZE_OPTIONS, SOCKS_SIZE_OPTIONS, YOUTH_SIZE_OPTIONS } from "@/lib/products/variant-constants";
 import type { GarmentType, ProductVariantBlock } from "@/lib/validation/products";
 
 /**
@@ -18,6 +18,7 @@ export function variantBlockToDbJson(v: ProductVariantBlock) {
 function sizeTemplateForVariant(garmentType: GarmentType, segment: "youth" | "adult"): readonly string[] {
   if (garmentType === "socks") return SOCKS_SIZE_OPTIONS;
   if (garmentType === "shoes") return SHOES_SIZE_OPTIONS;
+  if (garmentType === "onesize") return ONESIZE_SIZE_OPTIONS;
   return segment === "youth" ? YOUTH_SIZE_OPTIONS : ADULT_SIZE_OPTIONS;
 }
 
@@ -47,6 +48,7 @@ export function productParsedToDbRow(d: ProductUpsertParsed) {
   const variantAdult = filterVariantBlockSizesForGarment(d.garmentType, "adult", d.variantAdult);
   const variantSocks = filterVariantBlockSizesForGarment(d.garmentType, "adult", d.variantSocks);
   const variantShoes = filterVariantBlockSizesForGarment(d.garmentType, "adult", d.variantShoes);
+  const variantOneSize = filterVariantBlockSizesForGarment(d.garmentType, "adult", d.variantOneSize);
   return {
     name: d.name,
     slug: d.slug,
@@ -60,7 +62,8 @@ export function productParsedToDbRow(d: ProductUpsertParsed) {
     variant_youth: variantBlockToDbJson(variantYouth),
     variant_adult: variantBlockToDbJson(variantAdult),
     variant_socks: variantBlockToDbJson(variantSocks),
-    variant_shoes: variantBlockToDbJson(variantShoes)
+    variant_shoes: variantBlockToDbJson(variantShoes),
+    variant_onesize: variantBlockToDbJson(variantOneSize)
   };
 }
 

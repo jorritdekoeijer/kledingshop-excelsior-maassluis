@@ -22,3 +22,6 @@ export const SHOES_SIZE_OPTIONS = [
   "48",
   "49 1/3"
 ] as const;
+
+/** One size: precies één maat. */
+export const ONESIZE_SIZE_OPTIONS = ["ONE SIZE"] as const;

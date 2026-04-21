@@ -14,7 +14,7 @@ export const runtime = "nodejs";
 type CheckoutLine = {
   productId: string;
   quantity: number;
-  variant?: "youth" | "adult" | "socks" | "shoes";
+  variant?: "youth" | "adult" | "socks" | "shoes" | "onesize";
   size?: string;
 };
 
@@ -54,7 +54,7 @@ export async function POST(request: Request) {
   const productIds = [...new Set(lines.map((l) => l.productId))];
   const { data: products, error: pe } = await svc
     .from("products")
-    .select("id,price_cents,temporary_discount_percent,active,variant_youth,variant_adult,variant_socks,variant_shoes")
+    .select("id,price_cents,temporary_discount_percent,active,variant_youth,variant_adult,variant_socks,variant_shoes,variant_onesize")
     .in("id", productIds);
   if (pe) return NextResponse.json({ error: pe.message }, { status: 500 });
 
@@ -95,7 +95,8 @@ export async function POST(request: Request) {
         p.variant_youth as unknown,
         p.variant_adult as unknown,
         (p as any).variant_socks as unknown,
-        (p as any).variant_shoes as unknown
+        (p as any).variant_shoes as unknown,
+        (p as any).variant_onesize as unknown
       )
     ) {
       return NextResponse.json(
@@ -110,6 +111,7 @@ export async function POST(request: Request) {
       variant_adult: p.variant_adult,
       variant_socks: (p as any).variant_socks,
       variant_shoes: (p as any).variant_shoes,
+      variant_onesize: (p as any).variant_onesize,
       variant: line.variant
     });
     const lineTotal = unit * line.quantity;

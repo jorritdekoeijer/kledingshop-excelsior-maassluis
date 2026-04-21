@@ -26,7 +26,7 @@ export default async function ProductDetailPage({ params }: Props) {
   const { data: product } = await supabase
     .from("products")
     .select(
-      "id,name,slug,price_cents,temporary_discount_percent,description,product_details,garment_type,variant_youth,variant_adult,variant_socks,variant_shoes,product_images(path,is_primary,sort_order)"
+      "id,name,slug,price_cents,temporary_discount_percent,description,product_details,garment_type,variant_youth,variant_adult,variant_socks,variant_shoes,variant_onesize,product_images(path,is_primary,sort_order)"
     )
     .eq("slug", slug)
     .eq("active", true)
@@ -41,6 +41,7 @@ export default async function ProductDetailPage({ params }: Props) {
   const adult = normalizeVariantBlock(product.variant_adult);
   const socks = normalizeVariantBlock((product as any).variant_socks);
   const shoes = normalizeVariantBlock((product as any).variant_shoes);
+  const onesize = normalizeVariantBlock((product as any).variant_onesize);
   const pct = Number(product.temporary_discount_percent ?? 0);
 
   return (
@@ -75,6 +76,7 @@ export default async function ProductDetailPage({ params }: Props) {
               adult={adult}
               socks={socks}
               shoes={shoes}
+              onesize={onesize}
               fallbackEffectiveCents={pricing.effectiveCents}
             />
 

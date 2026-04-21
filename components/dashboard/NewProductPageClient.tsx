@@ -13,7 +13,7 @@ export function NewProductPageClient({
   action: (formData: FormData) => void | Promise<void>;
   categories: Cat[];
 }) {
-  const [garmentType, setGarmentType] = useState<"clothing" | "socks" | "shoes">("clothing");
+  const [garmentType, setGarmentType] = useState<"clothing" | "socks" | "shoes" | "onesize">("clothing");
 
   return (
     <ProductEditorForm

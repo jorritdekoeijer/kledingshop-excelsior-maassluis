@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState, useTransition } from "react";
-import { ADULT_SIZE_OPTIONS, SHOES_SIZE_OPTIONS, SOCKS_SIZE_OPTIONS, YOUTH_SIZE_OPTIONS } from "@/lib/products/variant-constants";
+import { ADULT_SIZE_OPTIONS, ONESIZE_SIZE_OPTIONS, SHOES_SIZE_OPTIONS, SOCKS_SIZE_OPTIONS, YOUTH_SIZE_OPTIONS } from "@/lib/products/variant-constants";
 
-type VariantSegment = "youth" | "adult" | "socks" | "shoes";
+type VariantSegment = "youth" | "adult" | "socks" | "shoes" | "onesize";
 
 export type ExistingRule = {
   variant_segment: VariantSegment;
@@ -20,7 +20,7 @@ export function ProductReorderRulesEditor({
   action
 }: {
   productId: string;
-  garmentType: "clothing" | "socks" | "shoes";
+  garmentType: "clothing" | "socks" | "shoes" | "onesize";
   existing: ExistingRule[];
   action: (formData: FormData) => void | Promise<void>;
 }) {
@@ -31,6 +31,7 @@ export function ProductReorderRulesEditor({
     const adultSizes = garmentType === "socks" ? [] : [...ADULT_SIZE_OPTIONS];
     const socksSizes = garmentType === "socks" ? [...SOCKS_SIZE_OPTIONS] : [];
     const shoesSizes = garmentType === "shoes" ? [...SHOES_SIZE_OPTIONS] : [];
+    const onesizeSizes = garmentType === "onesize" ? [...ONESIZE_SIZE_OPTIONS] : [];
 
     const key = (seg: VariantSegment, size: string) => `${seg}\0${size}`;
     const map = new Map<string, ExistingRule>();
@@ -52,6 +53,7 @@ export function ProductReorderRulesEditor({
 
     if (garmentType === "socks") return build("socks", socksSizes);
     if (garmentType === "shoes") return build("shoes", shoesSizes);
+    if (garmentType === "onesize") return build("onesize", onesizeSizes);
     return [...build("youth", youthSizes), ...build("adult", adultSizes)];
   }, [existing, garmentType]);
 
