@@ -272,8 +272,8 @@ export function NewDeliveryForm({
       lines: outLines
     };
 
-    startTransition(() => {
-      act(payload);
+    startTransition(async () => {
+      await act(payload);
     });
   }
 
