@@ -62,6 +62,24 @@ export async function createStockDeliveryAction(input: unknown) {
     redirect(`/dashboard/stock/levering/nieuw?error=${encodeURIComponent(be.message)}`);
   }
 
+  // Sanity check: als batches niet bestaan, is er iets mis (schema mismatch / trigger / silent failure).
+  const { count: batchCount, error: bcErr } = await service
+    .from("stock_batches")
+    .select("*", { count: "exact", head: true })
+    .eq("stock_delivery_id", delivery.id);
+  if (bcErr) {
+    await service.from("stock_deliveries").delete().eq("id", delivery.id);
+    redirect(`/dashboard/stock/levering/nieuw?error=${encodeURIComponent(formatPostgrestError(bcErr))}`);
+  }
+  if (!batchCount || batchCount < 1) {
+    await service.from("stock_deliveries").delete().eq("id", delivery.id);
+    redirect(
+      `/dashboard/stock/levering/nieuw?error=${encodeURIComponent(
+        "Levering is opgeslagen, maar er zijn geen voorraadregels (batches) aangemaakt. Controleer je database-migraties voor stock_batches (kolommen/constraints)."
+      )}`
+    );
+  }
+
   redirect("/dashboard/stock?ok=1");
 }
 
@@ -148,6 +166,21 @@ export async function updateStockDeliveryAction(deliveryId: string, input: unkno
 
   const ins = await service.from("stock_batches").insert(batchRows);
   if (ins.error) redirect(`/dashboard/stock/levering/${deliveryId}/edit?error=${encodeURIComponent(formatPostgrestError(ins.error))}`);
+
+  const { count: batchCount, error: bcErr } = await service
+    .from("stock_batches")
+    .select("*", { count: "exact", head: true })
+    .eq("stock_delivery_id", deliveryId);
+  if (bcErr) {
+    redirect(`/dashboard/stock/levering/${deliveryId}/edit?error=${encodeURIComponent(formatPostgrestError(bcErr))}`);
+  }
+  if (!batchCount || batchCount < 1) {
+    redirect(
+      `/dashboard/stock/levering/${deliveryId}/edit?error=${encodeURIComponent(
+        "Opgeslagen, maar er zijn geen voorraadregels (batches) aangemaakt. Controleer je database-migraties voor stock_batches."
+      )}`
+    );
+  }
 
   redirect(`/dashboard/stock/levering/${deliveryId}/edit?ok=1`);
 }
