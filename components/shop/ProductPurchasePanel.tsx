@@ -102,6 +102,8 @@ export function ProductPurchasePanel({
   const [jerseyNumber, setJerseyNumber] = useState("");
   const jerseyOk = !jerseyEnabled || !addJersey || /^\d{1,3}$/.test(jerseyNumber.trim());
   const canAddFinal = canAdd && jerseyOk && (!jerseyEnabled || !addJersey || jerseyNumber.trim().length > 0);
+  const jerseySaleAdd = jerseyEnabled && addJersey ? Math.max(0, Number(jerseyNumberSaleCents ?? 0)) : 0;
+  const displayTotalCents = displayCents + jerseySaleAdd;
 
   function buildLine() {
     const jersey = jerseyEnabled && addJersey ? jerseyNumber.trim() : "";
@@ -201,7 +203,7 @@ export function ProductPurchasePanel({
 
       <div>
         <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">Verkoopprijs incl. btw</p>
-        <p className="mt-1 text-4xl font-bold tabular-nums tracking-tight text-zinc-900">{eur(displayCents)}</p>
+        <p className="mt-1 text-4xl font-bold tabular-nums tracking-tight text-zinc-900">{eur(displayTotalCents)}</p>
       </div>
 
       {sizes.length > 0 ? (
@@ -256,7 +258,7 @@ export function ProductPurchasePanel({
                 />
               </label>
               <div className="text-sm text-zinc-700">
-                + {eur(Math.max(0, Number(jerseyNumberSaleCents ?? 0)))}
+                + {eur(jerseySaleAdd || Math.max(0, Number(jerseyNumberSaleCents ?? 0)))}
               </div>
               {!jerseyOk ? <p className="w-full text-sm text-red-700">Vul een geldig rugnummer in.</p> : null}
             </div>
