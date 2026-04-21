@@ -25,9 +25,6 @@ export async function requirePermission(required: Permission) {
   if (admin.ok && admin.user.id === user.id) {
     return { ok: true as const, user, permissions: perms, isAdmin: true as const };
   }
-  if (perms.includes(permissions.dashboard.access)) {
-    return { ok: true as const, user, permissions: perms, isAdmin: false as const };
-  }
   if (!perms.includes(required)) {
     return { ok: false as const, user, permissions: perms, isAdmin: false as const };
   }
@@ -53,9 +50,6 @@ export async function requireOneOfPermissions(required: Permission[]) {
   const admin = await requireAdmin();
   if (admin.ok && admin.user.id === user.id) {
     return { ok: true as const, user, permissions: perms, isAdmin: true as const };
-  }
-  if (perms.includes(permissions.dashboard.access)) {
-    return { ok: true as const, user, permissions: perms, isAdmin: false as const };
   }
   if (required.some((r) => perms.includes(r))) {
     return { ok: true as const, user, permissions: perms, isAdmin: false as const };
