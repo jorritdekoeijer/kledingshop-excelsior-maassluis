@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
-import { createStockDeliveryAction } from "@/app/dashboard/stock/levering/nieuw/actions";
+import { createStockDeliveryAction, updateStockDeliveryAction } from "@/app/dashboard/stock/levering/actions";
 import { inclCentsFromExcl21, parseDutchEuroToCents } from "@/lib/money/nl-euro";
 import type { ProductPickOption, VariantSegment } from "@/lib/stock/product-pick-types";
 
@@ -79,13 +79,15 @@ function modelForSegment(p: ProductPickOption, seg: VariantSegment): string {
 export function NewDeliveryForm({
   products,
   defaults,
-  action
+  action,
+  deliveryId
 }: {
   products: ProductPickOption[];
   defaults?: Defaults;
   action?: (payload: unknown) => void | Promise<void>;
+  deliveryId?: string;
 }) {
-  const act = action ?? createStockDeliveryAction;
+  const act = action ?? (deliveryId ? updateStockDeliveryAction.bind(null, deliveryId) : createStockDeliveryAction);
   const [invoiceDate, setInvoiceDate] = useState(defaults?.invoiceDate ?? "");
   const [supplier, setSupplier] = useState(defaults?.supplier ?? "");
   const [invoiceNumber, setInvoiceNumber] = useState(defaults?.invoiceNumber ?? "");

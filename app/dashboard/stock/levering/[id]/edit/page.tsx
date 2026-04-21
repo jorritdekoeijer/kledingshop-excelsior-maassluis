@@ -6,7 +6,6 @@ import { requirePermission } from "@/lib/auth/permissions-server";
 import { permissions } from "@/lib/auth/permissions";
 import { buildProductPickOptions } from "@/lib/stock/build-product-pick-options";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { updateStockDeliveryAction } from "@/app/dashboard/stock/levering/[id]/edit/actions";
 
 export const dynamic = "force-dynamic";
 
@@ -122,7 +121,7 @@ export default async function EditStockDeliveryPage({
               unitExclEuro: l.unitExclEuro
             }))
           }}
-          action={updateStockDeliveryAction.bind(null, id)}
+          deliveryId={id}
         />
       </div>
     </div>
