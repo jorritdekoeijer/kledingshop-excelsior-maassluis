@@ -13,7 +13,9 @@ export function ProductEditPageClient({
   reorderRules,
   updateProductAction,
   updateReorderRulesAction,
-  syncVariantSizesAction
+  syncVariantSizesAction,
+  setInactiveAction,
+  deleteHardAction
 }: {
   productId: string;
   categories: Cat[];
@@ -25,22 +27,60 @@ export function ProductEditPageClient({
     printingExclCents: number;
     active: boolean;
     categoryId: string | null;
-    garmentType: "clothing" | "socks" | "shoes";
+    garmentType: "clothing" | "socks" | "shoes" | "onesize";
     productDetails: any[];
     variantYouth: any;
     variantAdult: any;
     variantSocks?: any;
     variantShoes?: any;
+    variantOneSize?: any;
   };
   reorderRules: ExistingRule[];
   updateProductAction: (formData: FormData) => void | Promise<void>;
   updateReorderRulesAction: (formData: FormData) => void | Promise<void>;
   syncVariantSizesAction: () => void | Promise<void>;
+  setInactiveAction: () => void | Promise<void>;
+  deleteHardAction: () => void | Promise<void>;
 }) {
   const [garmentType, setGarmentType] = useState<"clothing" | "socks" | "shoes" | "onesize">(defaults.garmentType);
 
   return (
     <div className="space-y-10">
+      <div className="rounded-lg border border-zinc-200 bg-white p-4">
+        <h2 className="text-sm font-semibold text-zinc-900">Product acties</h2>
+        <p className="mt-1 text-sm text-zinc-600">
+          Normaal gesproken zet je een product <strong>inactief</strong> zodat het niet meer zichtbaar is in de shop.
+          Definitief verwijderen is alleen bedoeld voor foutief ingevoerde producten en kan niet als er al data gekoppeld is.
+        </p>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <form action={setInactiveAction}>
+            <button
+              type="submit"
+              className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-medium hover:bg-zinc-50"
+              onClick={(e) => {
+                if (!window.confirm("Weet je zeker dat je dit product inactief wilt zetten?")) e.preventDefault();
+              }}
+            >
+              Product op inactief zetten
+            </button>
+          </form>
+          <form action={deleteHardAction}>
+            <button
+              type="submit"
+              className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-800 hover:bg-red-100"
+              onClick={(e) => {
+                const ok = window.confirm(
+                  "LET OP: Dit verwijdert het product definitief en alle data kan verloren gaan.\n\nGebruik dit alleen voor foutief ingevoerde producten.\n\nDoorgaan?"
+                );
+                if (!ok) e.preventDefault();
+              }}
+            >
+              Product definitief verwijderen
+            </button>
+          </form>
+        </div>
+      </div>
+
       <div>
         <ProductEditorForm
           action={updateProductAction}

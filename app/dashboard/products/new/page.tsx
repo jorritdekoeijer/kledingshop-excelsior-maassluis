@@ -11,7 +11,7 @@ import { formatPostgrestError } from "@/lib/supabase/format-postgrest-error";
 import { createSupabaseServiceClient } from "@/lib/supabase/service";
 import { activeSizesInTemplateOrder, variantBlockToDbJson } from "@/lib/dashboard/product-db-row";
 import { normalizeVariantBlock } from "@/lib/shop/product-json";
-import { ADULT_SIZE_OPTIONS, SHOES_SIZE_OPTIONS, SOCKS_SIZE_OPTIONS, YOUTH_SIZE_OPTIONS } from "@/lib/products/variant-constants";
+import { ADULT_SIZE_OPTIONS, ONESIZE_SIZE_OPTIONS, SHOES_SIZE_OPTIONS, SOCKS_SIZE_OPTIONS, YOUTH_SIZE_OPTIONS } from "@/lib/products/variant-constants";
 import { z } from "zod";
 import { reorderRuleRowSchema } from "@/lib/validation/reorder-rules";
 
@@ -99,16 +99,19 @@ async function createProduct(formData: FormData) {
     const activeAdult = rulesArr.data.filter((r) => r.variantSegment === "adult" && r.isActive).map((r) => r.sizeLabel);
     const activeSocks = rulesArr.data.filter((r) => r.variantSegment === "socks" && r.isActive).map((r) => r.sizeLabel);
     const activeShoes = rulesArr.data.filter((r) => r.variantSegment === "shoes" && r.isActive).map((r) => r.sizeLabel);
+    const activeOne = rulesArr.data.filter((r) => r.variantSegment === "onesize" && r.isActive).map((r) => r.sizeLabel);
 
     const youthSizes = activeSizesInTemplateOrder(activeYouth, YOUTH_SIZE_OPTIONS);
     const adultSizes = activeSizesInTemplateOrder(activeAdult, ADULT_SIZE_OPTIONS);
     const socksSizes = activeSizesInTemplateOrder(activeSocks, SOCKS_SIZE_OPTIONS);
     const shoesSizes = activeSizesInTemplateOrder(activeShoes, SHOES_SIZE_OPTIONS);
+    const oneSizes = activeSizesInTemplateOrder(activeOne, ONESIZE_SIZE_OPTIONS);
 
     const vy = normalizeVariantBlock((d as any).variantYouth);
     const va = normalizeVariantBlock((d as any).variantAdult);
     const vs = normalizeVariantBlock((d as any).variantSocks);
     const vh = normalizeVariantBlock((d as any).variantShoes);
+    const vo = normalizeVariantBlock((d as any).variantOneSize);
 
     const { error: updErr } = await service
       .from("products")
@@ -116,7 +119,8 @@ async function createProduct(formData: FormData) {
         variant_youth: variantBlockToDbJson({ ...vy, sizes: d.garmentType === "clothing" ? youthSizes : [] }),
         variant_adult: variantBlockToDbJson({ ...va, sizes: d.garmentType === "clothing" ? adultSizes : [] }),
         variant_socks: variantBlockToDbJson({ ...vs, sizes: d.garmentType === "socks" ? socksSizes : [] }),
-        variant_shoes: variantBlockToDbJson({ ...vh, sizes: d.garmentType === "shoes" ? shoesSizes : [] })
+        variant_shoes: variantBlockToDbJson({ ...vh, sizes: d.garmentType === "shoes" ? shoesSizes : [] }),
+        variant_onesize: variantBlockToDbJson({ ...vo, sizes: d.garmentType === "onesize" ? oneSizes : [] })
       })
       .eq("id", created.id);
     if (updErr) {

@@ -23,6 +23,7 @@ export type CartLine = {
   slug: string;
   variant?: "youth" | "adult" | "socks" | "shoes" | "onesize";
   sizeLabel?: string;
+  jerseyNumber?: string;
 };
 
 type CartContextValue = {
@@ -108,6 +109,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
                   ? o.variant
                   : undefined,
               sizeLabel: typeof o.sizeLabel === "string" ? o.sizeLabel : undefined
+              ,
+              jerseyNumber: typeof o.jerseyNumber === "string" ? o.jerseyNumber : undefined
             });
           }
           setLines(next);

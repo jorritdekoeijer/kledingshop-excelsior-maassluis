@@ -55,6 +55,12 @@ export function productParsedToDbRow(d: ProductUpsertParsed) {
     description: d.description,
     price_cents: d.priceCents,
     printing_excl_cents: d.printingExclCents,
+    allow_jersey_number: d.allowJerseyNumber && d.garmentType === "clothing",
+    jersey_number_sale_cents: d.allowJerseyNumber && d.garmentType === "clothing" ? d.jerseyNumberSaleCents : 0,
+    jersey_number_purchase_single_excl_cents:
+      d.allowJerseyNumber && d.garmentType === "clothing" ? d.jerseyNumberPurchaseSingleExclCents : 0,
+    jersey_number_purchase_double_excl_cents:
+      d.allowJerseyNumber && d.garmentType === "clothing" ? d.jerseyNumberPurchaseDoubleExclCents : 0,
     temporary_discount_percent: d.temporaryDiscountPercent,
     active: d.active,
     garment_type: d.garmentType,

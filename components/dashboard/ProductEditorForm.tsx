@@ -26,6 +26,10 @@ type Defaults = {
   description: string | null;
   temporaryDiscountPercent: number;
   printingExclCents: number;
+  allowJerseyNumber: boolean;
+  jerseyNumberSaleCents: number;
+  jerseyNumberPurchaseSingleExclCents: number;
+  jerseyNumberPurchaseDoubleExclCents: number;
   active: boolean;
   categoryId: string | null;
   /** Kleding: jeugd/volwassen maatlijsten; sokken: vaste sokkenmaten onder voorraad per maat. */
@@ -77,6 +81,10 @@ export function ProductEditorForm({
     description: defaults?.description ?? "",
     temporaryDiscountPercent: defaults?.temporaryDiscountPercent ?? 0,
     printingExclCents: defaults?.printingExclCents ?? 0,
+    allowJerseyNumber: (defaults as any)?.allowJerseyNumber ?? false,
+    jerseyNumberSaleCents: Number((defaults as any)?.jerseyNumberSaleCents ?? 0),
+    jerseyNumberPurchaseSingleExclCents: Number((defaults as any)?.jerseyNumberPurchaseSingleExclCents ?? 0),
+    jerseyNumberPurchaseDoubleExclCents: Number((defaults as any)?.jerseyNumberPurchaseDoubleExclCents ?? 0),
     active: defaults?.active ?? true,
     categoryId: defaults?.categoryId ?? null,
     garmentType: defaults?.garmentType ?? "clothing",
@@ -98,6 +106,14 @@ export function ProductEditorForm({
   const [youth, setYouth] = useState<ProductVariantBlock>(d.variantYouth);
   const [adult, setAdult] = useState<ProductVariantBlock>(d.variantAdult);
   const [printingExclEuro, setPrintingExclEuro] = useState(() => centsToNlInput(Math.max(0, d.printingExclCents ?? 0)));
+  const [allowJerseyNumber, setAllowJerseyNumber] = useState<boolean>(Boolean(d.allowJerseyNumber));
+  const [jerseySaleIncl, setJerseySaleIncl] = useState(() => centsToNlInput(Math.max(0, d.jerseyNumberSaleCents ?? 0)));
+  const [jerseyPurchaseSingleExcl, setJerseyPurchaseSingleExcl] = useState(() =>
+    centsToNlInput(Math.max(0, d.jerseyNumberPurchaseSingleExclCents ?? 0))
+  );
+  const [jerseyPurchaseDoubleExcl, setJerseyPurchaseDoubleExcl] = useState(() =>
+    centsToNlInput(Math.max(0, d.jerseyNumberPurchaseDoubleExclCents ?? 0))
+  );
   const [socks, setSocks] = useState<ProductVariantBlock>(d.variantSocks);
   const [shoes, setShoes] = useState<ProductVariantBlock>(d.variantShoes);
   const [one, setOne] = useState<ProductVariantBlock>(d.variantOneSize);
@@ -205,6 +221,19 @@ export function ProductEditorForm({
     return Number.isFinite(c) && c >= 0 ? c : 0;
   }, [printingExclEuro]);
 
+  const jerseyNumberSaleCents = useMemo(() => {
+    const c = nlInputToCents(jerseySaleIncl);
+    return Number.isFinite(c) && c >= 0 ? c : 0;
+  }, [jerseySaleIncl]);
+  const jerseyNumberPurchaseSingleExclCents = useMemo(() => {
+    const c = nlInputToCents(jerseyPurchaseSingleExcl);
+    return Number.isFinite(c) && c >= 0 ? c : 0;
+  }, [jerseyPurchaseSingleExcl]);
+  const jerseyNumberPurchaseDoubleExclCents = useMemo(() => {
+    const c = nlInputToCents(jerseyPurchaseDoubleExcl);
+    return Number.isFinite(c) && c >= 0 ? c : 0;
+  }, [jerseyPurchaseDoubleExcl]);
+
   return (
     <form action={action} className="grid gap-4 md:grid-cols-2">
       <input type="hidden" name="productDetailsJson" value={productDetailsJson} readOnly />
@@ -214,6 +243,20 @@ export function ProductEditorForm({
       <input type="hidden" name="variantShoesJson" value={variantShoesJson} readOnly />
       <input type="hidden" name="variantOneSizeJson" value={variantOneSizeJson} readOnly />
       <input type="hidden" name="printingExclCents" value={String(printingExclCents)} readOnly />
+      <input type="hidden" name="allowJerseyNumber" value={allowJerseyNumber ? "on" : ""} readOnly />
+      <input type="hidden" name="jerseyNumberSaleCents" value={String(jerseyNumberSaleCents)} readOnly />
+      <input
+        type="hidden"
+        name="jerseyNumberPurchaseSingleExclCents"
+        value={String(jerseyNumberPurchaseSingleExclCents)}
+        readOnly
+      />
+      <input
+        type="hidden"
+        name="jerseyNumberPurchaseDoubleExclCents"
+        value={String(jerseyNumberPurchaseDoubleExclCents)}
+        readOnly
+      />
 
       <fieldset className="md:col-span-2 rounded-lg border border-zinc-200 p-4">
         <legend className="px-1 text-sm font-medium text-zinc-800">Kledingsoort</legend>
@@ -293,6 +336,64 @@ export function ProductEditorForm({
           />
         </div>
       </label>
+
+      {garmentType === "clothing" ? (
+        <fieldset className="md:col-span-2 rounded-lg border border-zinc-200 p-4">
+          <legend className="px-1 text-sm font-medium text-zinc-800">Rugnummer (optioneel)</legend>
+          <div className="mt-1 flex flex-col gap-3">
+            <label className="flex cursor-pointer items-center gap-2 text-sm text-zinc-800">
+              <input
+                type="checkbox"
+                checked={allowJerseyNumber}
+                onChange={(e) => setAllowJerseyNumber(e.target.checked)}
+                className="h-4 w-4 border-zinc-300 text-brand-blue focus:ring-brand-blue/40"
+              />
+              Mogelijkheid rugnummer
+            </label>
+
+            {allowJerseyNumber ? (
+              <div className="grid gap-3 md:grid-cols-3">
+                <label className="block">
+                  <span className="text-sm text-zinc-700">Verkoopprijs rugnummer (incl. btw)</span>
+                  <div className="mt-1 flex max-w-xs items-center gap-2">
+                    <span className="text-sm text-zinc-500">€</span>
+                    <input
+                      value={jerseySaleIncl}
+                      onChange={(e) => setJerseySaleIncl(e.target.value)}
+                      className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
+                      placeholder="0,00"
+                    />
+                  </div>
+                </label>
+                <label className="block">
+                  <span className="text-sm text-zinc-700">Inkoopprijs enkel (1-9) (excl. btw)</span>
+                  <div className="mt-1 flex max-w-xs items-center gap-2">
+                    <span className="text-sm text-zinc-500">€</span>
+                    <input
+                      value={jerseyPurchaseSingleExcl}
+                      onChange={(e) => setJerseyPurchaseSingleExcl(e.target.value)}
+                      className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
+                      placeholder="0,00"
+                    />
+                  </div>
+                </label>
+                <label className="block">
+                  <span className="text-sm text-zinc-700">Inkoopprijs dubbel (10+) (excl. btw)</span>
+                  <div className="mt-1 flex max-w-xs items-center gap-2">
+                    <span className="text-sm text-zinc-500">€</span>
+                    <input
+                      value={jerseyPurchaseDoubleExcl}
+                      onChange={(e) => setJerseyPurchaseDoubleExcl(e.target.value)}
+                      className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
+                      placeholder="0,00"
+                    />
+                  </div>
+                </label>
+              </div>
+            ) : null}
+          </div>
+        </fieldset>
+      ) : null}
 
       <label className="block md:col-span-2">
         <span className="text-sm text-zinc-700">Naam product</span>

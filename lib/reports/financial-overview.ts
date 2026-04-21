@@ -241,6 +241,27 @@ export async function fetchFinancialOverview(
     }
   }
 
+  // Extra COGS: rugnummer (interne kostprijs) op order_items.
+  // Dit is geen voorraad-batch, dus zit niet in stock_consumptions.
+  const oiRes = await supabase
+    .from("order_items")
+    .select("quantity,jersey_number_purchase_excl_cents,orders(status,created_at)")
+    .not("jersey_number_purchase_excl_cents", "is", null)
+    .gte("orders.created_at", startIso)
+    .lte("orders.created_at", endIso);
+  if (oiRes.error) {
+    warnings.push(`Rugnummer-kostprijs kon niet worden meegenomen: ${oiRes.error.message}`);
+  } else {
+    for (const row of oiRes.data ?? []) {
+      const r = row as any;
+      const qty = Number(r.quantity ?? 0);
+      const unit = Number(r.jersey_number_purchase_excl_cents ?? 0);
+      if (Number.isFinite(qty) && qty > 0 && Number.isFinite(unit) && unit > 0) {
+        cogsExclCents += qty * unit;
+      }
+    }
+  }
+
   const grossMarginExclCents = revenueExclCents - cogsExclCents;
   const marginPercent =
     revenueExclCents > 0 ? Math.round((grossMarginExclCents / revenueExclCents) * 1000) / 10 : null;

@@ -15,6 +15,8 @@ type Props = {
   slug: string;
   discountPercent: number;
   garmentType: "clothing" | "socks" | "shoes" | "onesize";
+  allowJerseyNumber?: boolean;
+  jerseyNumberSaleCents?: number;
   youth: ProductVariantBlock;
   adult: ProductVariantBlock;
   socks: ProductVariantBlock;
@@ -29,6 +31,8 @@ export function ProductPurchasePanel({
   slug,
   discountPercent,
   garmentType,
+  allowJerseyNumber,
+  jerseyNumberSaleCents,
   youth,
   adult,
   socks,
@@ -93,24 +97,34 @@ export function ProductPurchasePanel({
   const needSize = sizes.length > 0;
   const canAdd = !needSize || (selectedSize != null && selectedSize.length > 0);
 
+  const jerseyEnabled = garmentType === "clothing" && Boolean(allowJerseyNumber) && Number(jerseyNumberSaleCents ?? 0) > 0;
+  const [addJersey, setAddJersey] = useState(false);
+  const [jerseyNumber, setJerseyNumber] = useState("");
+  const jerseyOk = !jerseyEnabled || !addJersey || /^\d{1,3}$/.test(jerseyNumber.trim());
+  const canAddFinal = canAdd && jerseyOk && (!jerseyEnabled || !addJersey || jerseyNumber.trim().length > 0);
+
   function buildLine() {
+    const jersey = jerseyEnabled && addJersey ? jerseyNumber.trim() : "";
+    const jerseySale = jerseyEnabled && addJersey ? Math.max(0, Number(jerseyNumberSaleCents ?? 0)) : 0;
+    const jerseyLabel = jersey ? ` · Rugnummer ${jersey}` : "";
     if (garmentType === "onesize") {
       const sz = selectedSize ?? "";
-      const lineId = `${productId}:onesize:${sz}`;
-      const label = `${name}${sz ? ` · ${sz}` : ""}`;
+      const lineId = `${productId}:onesize:${sz}:${jersey}`;
+      const label = `${name}${sz ? ` · ${sz}` : ""}${jerseyLabel}`;
       return {
         lineId,
         productId,
         name: label,
         slug,
-        priceCents: displayCents,
+        priceCents: displayCents + jerseySale,
         variant: "onesize" as const,
-        sizeLabel: sz || undefined
+        sizeLabel: sz || undefined,
+        jerseyNumber: jersey || undefined
       };
     }
     if (segment === "youth" || segment === "adult") {
       const sz = selectedSize ?? "";
-      const lineId = `${productId}:${segment}:${sz}`;
+      const lineId = `${productId}:${segment}:${sz}:${jersey}`;
       const label =
         segment === "youth"
           ? `${name} · Jeugd (YOUTH)${sz ? ` · ${sz}` : ""}`
@@ -118,11 +132,12 @@ export function ProductPurchasePanel({
       return {
         lineId,
         productId,
-        name: label,
+        name: `${label}${jerseyLabel}`,
         slug,
-        priceCents: displayCents,
+        priceCents: displayCents + jerseySale,
         variant: segment as "youth" | "adult",
-        sizeLabel: sz || undefined
+        sizeLabel: sz || undefined,
+        jerseyNumber: jersey || undefined
       };
     }
     if (segment === "socks" || segment === "shoes") {
@@ -140,15 +155,16 @@ export function ProductPurchasePanel({
       };
     }
     const sz = selectedSize ?? "";
-    const lineId = `${productId}:st:${sz}`;
-    const label = `${name}${sz ? ` · ${sz}` : ""}`;
+    const lineId = `${productId}:st:${sz}:${jersey}`;
+    const label = `${name}${sz ? ` · ${sz}` : ""}${jerseyLabel}`;
     return {
       lineId,
       productId,
       name: label,
       slug,
-      priceCents: displayCents,
-      sizeLabel: sz || undefined
+      priceCents: displayCents + jerseySale,
+      sizeLabel: sz || undefined,
+      jerseyNumber: jersey || undefined
     };
   }
 
@@ -213,12 +229,47 @@ export function ProductPurchasePanel({
         </div>
       ) : null}
 
+      {jerseyEnabled ? (
+        <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4">
+          <label className="flex cursor-pointer items-center gap-2 text-sm font-medium text-zinc-900">
+            <input
+              type="checkbox"
+              checked={addJersey}
+              onChange={(e) => {
+                setAddJersey(e.target.checked);
+                if (!e.target.checked) setJerseyNumber("");
+              }}
+              className="h-4 w-4 border-zinc-300 text-brand-blue focus:ring-brand-blue/40"
+            />
+            Rugnummer toevoegen
+          </label>
+          {addJersey ? (
+            <div className="mt-3 flex flex-wrap items-end gap-3">
+              <label className="block">
+                <span className="text-xs font-medium uppercase tracking-wide text-zinc-500">Rugnummer</span>
+                <input
+                  value={jerseyNumber}
+                  onChange={(e) => setJerseyNumber(e.target.value)}
+                  inputMode="numeric"
+                  className="mt-1 w-32 rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-semibold"
+                  placeholder="bijv. 10"
+                />
+              </label>
+              <div className="text-sm text-zinc-700">
+                + {eur(Math.max(0, Number(jerseyNumberSaleCents ?? 0)))}
+              </div>
+              {!jerseyOk ? <p className="w-full text-sm text-red-700">Vul een geldig rugnummer in.</p> : null}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
       <div className="space-y-3">
         <button
           type="button"
-          disabled={!canAdd}
+          disabled={!canAddFinal}
           onClick={() => {
-            if (!canAdd) return;
+            if (!canAddFinal) return;
             const line = buildLine();
             addLine({ ...line, quantity: 1 });
             setDone(true);

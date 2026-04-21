@@ -34,6 +34,13 @@ export const productUpsertSchema = z.object({
   description: z.string().max(20000).optional().nullable(),
   priceCents: z.coerce.number().int().min(0),
   printingExclCents: z.coerce.number().int().min(0).default(0),
+  allowJerseyNumber: z.preprocess(
+    (v) => v === "on" || v === true || v === "true",
+    z.boolean()
+  ).default(false),
+  jerseyNumberSaleCents: z.coerce.number().int().min(0).default(0),
+  jerseyNumberPurchaseSingleExclCents: z.coerce.number().int().min(0).default(0),
+  jerseyNumberPurchaseDoubleExclCents: z.coerce.number().int().min(0).default(0),
   temporaryDiscountPercent: z.coerce.number().min(0).max(100).default(0),
   active: z.preprocess(
     (v) => v === "on" || v === true || v === "true",

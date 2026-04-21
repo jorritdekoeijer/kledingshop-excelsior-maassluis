@@ -16,12 +16,13 @@ type CheckoutLine = {
   quantity: number;
   variant?: "youth" | "adult" | "socks" | "shoes" | "onesize";
   size?: string;
+  jerseyNumber?: string;
 };
 
 function mergeCheckoutLines(items: CheckoutLine[]): CheckoutLine[] {
   const m = new Map<string, CheckoutLine>();
   for (const it of items) {
-    const key = `${it.productId}\u0001${it.variant ?? ""}\u0001${it.size ?? ""}`;
+    const key = `${it.productId}\u0001${it.variant ?? ""}\u0001${it.size ?? ""}\u0001${it.jerseyNumber ?? ""}`;
     const prev = m.get(key);
     if (prev) prev.quantity += it.quantity;
     else m.set(key, { ...it });
@@ -54,7 +55,9 @@ export async function POST(request: Request) {
   const productIds = [...new Set(lines.map((l) => l.productId))];
   const { data: products, error: pe } = await svc
     .from("products")
-    .select("id,price_cents,temporary_discount_percent,active,variant_youth,variant_adult,variant_socks,variant_shoes,variant_onesize")
+    .select(
+      "id,price_cents,temporary_discount_percent,active,allow_jersey_number,jersey_number_sale_cents,jersey_number_purchase_single_excl_cents,jersey_number_purchase_double_excl_cents,variant_youth,variant_adult,variant_socks,variant_shoes,variant_onesize"
+    )
     .in("id", productIds);
   if (pe) return NextResponse.json({ error: pe.message }, { status: 500 });
 
@@ -84,6 +87,9 @@ export async function POST(request: Request) {
     line_total_cents: number;
     variant_segment: string | null;
     size_label: string | null;
+    jersey_number: string | null;
+    jersey_number_sale_cents: number | null;
+    jersey_number_purchase_excl_cents: number | null;
   }[] = [];
 
   for (const line of lines) {
@@ -114,15 +120,39 @@ export async function POST(request: Request) {
       variant_onesize: (p as any).variant_onesize,
       variant: line.variant
     });
-    const lineTotal = unit * line.quantity;
+    const jersey = (line.jerseyNumber ?? "").trim();
+    const jerseyAllowed = Boolean((p as any).allow_jersey_number ?? false);
+    const jerseySale = jersey && jerseyAllowed ? Math.max(0, Number((p as any).jersey_number_sale_cents ?? 0)) : 0;
+    if (jersey && !/^\d{1,3}$/.test(jersey)) {
+      return NextResponse.json({ error: "Ongeldig rugnummer. Pas je winkelmand aan." }, { status: 400 });
+    }
+    if (jersey && !jerseyAllowed) {
+      return NextResponse.json({ error: "Rugnummer is niet beschikbaar voor een of meer regels." }, { status: 400 });
+    }
+    const jerseyPurchaseExcl =
+      jersey && jerseyAllowed
+        ? (() => {
+            const n = Number(jersey);
+            const single = Math.max(0, Number((p as any).jersey_number_purchase_single_excl_cents ?? 0));
+            const dbl = Math.max(0, Number((p as any).jersey_number_purchase_double_excl_cents ?? 0));
+            if (!Number.isFinite(n)) return single;
+            return n >= 10 ? dbl : single;
+          })()
+        : 0;
+
+    const unitWithJersey = unit + jerseySale;
+    const lineTotal = unitWithJersey * line.quantity;
     totalCents += lineTotal;
     orderLines.push({
       product_id: line.productId,
       quantity: line.quantity,
-      unit_price_cents: unit,
+      unit_price_cents: unitWithJersey,
       line_total_cents: lineTotal,
       variant_segment: line.variant ?? null,
-      size_label: line.size?.trim() || null
+      size_label: line.size?.trim() || null,
+      jersey_number: jersey || null,
+      jersey_number_sale_cents: jersey ? jerseySale : null,
+      jersey_number_purchase_excl_cents: jersey ? jerseyPurchaseExcl : null
     });
   }
 
@@ -161,7 +191,10 @@ export async function POST(request: Request) {
       unit_price_cents: l.unit_price_cents,
       line_total_cents: l.line_total_cents,
       variant_segment: l.variant_segment,
-      size_label: l.size_label
+      size_label: l.size_label,
+      jersey_number: l.jersey_number,
+      jersey_number_sale_cents: l.jersey_number_sale_cents,
+      jersey_number_purchase_excl_cents: l.jersey_number_purchase_excl_cents
     }))
   );
 

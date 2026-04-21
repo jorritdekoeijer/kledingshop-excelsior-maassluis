@@ -64,6 +64,11 @@ export default async function DashboardProductsPage({
           Maten gesynchroniseerd voor {updated || "alle"} producten.
         </p>
       ) : null}
+      {ok === "deleted" ? (
+        <p className="rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-900">
+          Product is definitief verwijderd.
+        </p>
+      ) : null}
 
       <div className="rounded-lg border border-zinc-200 bg-white">
         <div className="divide-y divide-zinc-200">

@@ -15,6 +15,7 @@ import { createSupabaseServiceClient } from "@/lib/supabase/service";
 import { getPublicProductImageUrl } from "@/lib/utils/supabase-storage";
 import { ProductEditPageClient } from "@/components/dashboard/ProductEditPageClient";
 import { syncVariantSizesFromReorderRules, updateReorderRules } from "@/app/dashboard/products/[id]/reorder-rules/actions";
+import { deleteProductHardAction, setProductInactiveAction } from "@/app/dashboard/products/[id]/edit/actions";
 
 export const dynamic = "force-dynamic";
 
@@ -168,7 +169,7 @@ export default async function EditProductPage({
   const { data: product, error: productError } = await supabase
     .from("products")
     .select(
-      "id,name,slug,description,price_cents,printing_excl_cents,temporary_discount_percent,active,category_id,garment_type,product_details,variant_youth,variant_adult,variant_socks,variant_shoes,variant_onesize"
+      "id,name,slug,description,price_cents,printing_excl_cents,allow_jersey_number,jersey_number_sale_cents,jersey_number_purchase_single_excl_cents,jersey_number_purchase_double_excl_cents,temporary_discount_percent,active,category_id,garment_type,product_details,variant_youth,variant_adult,variant_socks,variant_shoes,variant_onesize"
     )
     .eq("id", id)
     .single();
@@ -201,12 +202,25 @@ export default async function EditProductPage({
     description: product.description,
     temporaryDiscountPercent: Number(product.temporary_discount_percent ?? 0),
     printingExclCents: Number(product.printing_excl_cents ?? 0),
+    allowJerseyNumber: Boolean((product as any).allow_jersey_number ?? false),
+    jerseyNumberSaleCents: Number((product as any).jersey_number_sale_cents ?? 0),
+    jerseyNumberPurchaseSingleExclCents: Number((product as any).jersey_number_purchase_single_excl_cents ?? 0),
+    jerseyNumberPurchaseDoubleExclCents: Number((product as any).jersey_number_purchase_double_excl_cents ?? 0),
     active: product.active,
     categoryId: product.category_id,
-    garmentType: (product.garment_type === "socks" ? "socks" : product.garment_type === "shoes" ? "shoes" : "clothing") as
+    garmentType: (
+      product.garment_type === "socks"
+        ? "socks"
+        : product.garment_type === "shoes"
+          ? "shoes"
+          : product.garment_type === "onesize"
+            ? "onesize"
+            : "clothing"
+    ) as
       | "clothing"
       | "socks"
-      | "shoes",
+      | "shoes"
+      | "onesize",
     productDetails: normalizeProductDetails(product.product_details),
     variantYouth: normalizeVariantBlock(product.variant_youth),
     variantAdult: normalizeVariantBlock(product.variant_adult),
@@ -241,6 +255,8 @@ export default async function EditProductPage({
           updateProductAction={updateProduct.bind(null, id)}
           updateReorderRulesAction={updateReorderRules.bind(null, id)}
           syncVariantSizesAction={syncVariantSizesFromReorderRules.bind(null, id)}
+          setInactiveAction={setProductInactiveAction.bind(null, id)}
+          deleteHardAction={deleteProductHardAction.bind(null, id)}
         />
       </div>
 
