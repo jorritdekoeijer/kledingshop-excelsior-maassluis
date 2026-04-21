@@ -166,7 +166,9 @@ export async function updateUserPermissions(formData: FormData) {
 
   let fromKnown: string[];
   if (fullDashboard) {
-    fromKnown = [DASHBOARD_ACCESS_KEY];
+    // "Volledige toegang" moet echt alle onderdelen activeren (RLS verwacht bijv. stock:read/stock:write).
+    // Daarom slaan we alle bekende read+write keys op, plus dashboard:access.
+    fromKnown = [...new Set([DASHBOARD_ACCESS_KEY, ...PERMISSION_LEVEL_PAIRS.flatMap((p) => [p.readKey, p.writeKey])])];
   } else {
     fromKnown = [];
     for (const pair of PERMISSION_LEVEL_PAIRS) {
