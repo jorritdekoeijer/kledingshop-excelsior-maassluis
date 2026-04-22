@@ -12,7 +12,12 @@ export function parseDutchEuroToCents(input: unknown): number {
 }
 
 export function centsToEuroString(cents: number): string {
-  return (cents / 100).toFixed(2).replace(".", ",");
+  const n = Number(cents ?? 0) / 100;
+  if (!Number.isFinite(n)) return "0,00";
+  return new Intl.NumberFormat("nl-NL", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  }).format(n);
 }
 
 /** Prijs excl. btw uit incl. (21%). */

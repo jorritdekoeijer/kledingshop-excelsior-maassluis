@@ -76,8 +76,8 @@ export function FinancialReportView({ report }: { report: FinancialOverviewRepor
           Periode toepassen
         </button>
         <p className="w-full text-xs text-zinc-500">
-          Standaard: dit kalenderjaar t/m vandaag. Webshop gebruikt betaalde orders in de periode; inkoop kosten volgt FIFO
-          op het moment van betaling. Voorraad is een momentopname (nu).
+          Standaard: huidig voetbalseizoen (01-07 t/m 30-06). Webshop gebruikt betaalde orders in de periode. Voorraad is een
+          momentopname (nu).
         </p>
       </form>
 
@@ -100,7 +100,7 @@ export function FinancialReportView({ report }: { report: FinancialOverviewRepor
           <p className="mt-1 text-xs text-white/75">{webshop.orderCount} betaalde orders</p>
         </div>
         <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-zinc-700 to-zinc-900 p-5 text-white shadow-lg">
-          <p className="text-xs font-medium uppercase tracking-wide text-white/80">Inkoop verkopen (FIFO)</p>
+          <p className="text-xs font-medium uppercase tracking-wide text-white/80">Inkoop verkopen</p>
           <p className="mt-2 text-2xl font-bold tabular-nums">{eurExcl(webshop.cogsExclCents)}</p>
           <p className="mt-1 text-xs text-white/75">T.o.v. omzet excl. btw</p>
         </div>
@@ -112,16 +112,13 @@ export function FinancialReportView({ report }: { report: FinancialOverviewRepor
           </p>
         </div>
         <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-amber-600 to-amber-800 p-5 text-white shadow-lg">
-          <p className="text-xs font-medium uppercase tracking-wide text-white/80">Voorraadwaarde (inkoop)</p>
+          <p className="text-xs font-medium uppercase tracking-wide text-white/80">INKOOPWAARDE VOORRAAD</p>
           <p className="mt-2 text-2xl font-bold tabular-nums">{eurExcl(inventory.valueExclCents)}</p>
           <p className="mt-1 text-xs text-white/75">
-            {inventory.linesWithStock} batch-regels ·{" "}
             {inventory.batchesMissingPurchasePrice > 0 ? (
-              <span className="text-amber-100">
-                {inventory.batchesMissingPurchasePrice} zonder inkoopprijs
-              </span>
+              <span className="text-amber-100">{inventory.batchesMissingPurchasePrice} batch(s) zonder inkoopprijs</span>
             ) : (
-              "alle batches gewaardeerd"
+              "—"
             )}
           </p>
         </div>
@@ -159,7 +156,7 @@ export function FinancialReportView({ report }: { report: FinancialOverviewRepor
                 <span className="h-2 w-4 rounded bg-brand-blue/90" /> Omzet excl. btw
               </span>
               <span className="inline-flex items-center gap-2">
-                <span className="h-2 w-4 rounded bg-zinc-400" /> Inkoop (FIFO)
+                <span className="h-2 w-4 rounded bg-zinc-400" /> Inkoop
               </span>
             </div>
           </div>
@@ -219,14 +216,7 @@ export function FinancialReportView({ report }: { report: FinancialOverviewRepor
       </div>
 
       <section className="rounded-2xl border border-zinc-200 bg-gradient-to-br from-zinc-50 to-white p-6 shadow-sm">
-        <h2 className="text-lg font-semibold text-brand-blue">Voorraadwaarde</h2>
-        <p className="mt-1 max-w-3xl text-sm text-zinc-600">
-          Huidige voorraad gewaardeerd tegen <strong>inkoopprijs excl. btw</strong> per batch (
-          <code className="rounded bg-zinc-100 px-1 text-xs">
-            quantity_remaining × (unit_purchase_excl_cents + unit_printing_excl_cents)
-          </code>
-          ). Dit is geen verkoopwaarde.
-        </p>
+        <h2 className="text-lg font-semibold text-brand-blue">INKOOPWAARDE VOORRAAD</h2>
         <p className="mt-4 text-3xl font-bold tabular-nums text-brand-blue">{eurExcl(inventory.valueExclCents)}</p>
         {inventory.batchesMissingPurchasePrice > 0 ? (
           <p className="mt-2 text-sm text-amber-800">

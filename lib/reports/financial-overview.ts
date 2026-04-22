@@ -42,13 +42,16 @@ function sum(nums: number[]): number {
   return nums.reduce((a, b) => a + b, 0);
 }
 
-/** Parse YYYY-MM-DD; valt terug op begin dit jaar / vandaag. */
+/** Parse YYYY-MM-DD; valt terug op huidig voetbalseizoen (01-07 t/m 30-06). */
 export function resolveReportPeriod(fromRaw: string | undefined, toRaw: string | undefined): FinancialPeriod {
   const today = new Date();
-  const y = today.getFullYear();
   const pad = (n: number) => String(n).padStart(2, "0");
-  const defaultFrom = `${y}-01-01`;
-  const defaultTo = `${y}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`;
+  const y = today.getFullYear();
+  const m = today.getMonth() + 1; // 1-12
+  const seasonStartYear = m >= 7 ? y : y - 1;
+  const seasonEndYear = seasonStartYear + 1;
+  const defaultFrom = `${seasonStartYear}-07-01`;
+  const defaultTo = `${seasonEndYear}-06-30`;
 
   const fromDate = fromRaw && /^\d{4}-\d{2}-\d{2}$/.test(fromRaw) ? fromRaw : defaultFrom;
   const toDate = toRaw && /^\d{4}-\d{2}-\d{2}$/.test(toRaw) ? toRaw : defaultTo;
