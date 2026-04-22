@@ -3,7 +3,6 @@ import { requirePermission } from "@/lib/auth/permissions-server";
 import { permissions } from "@/lib/auth/permissions";
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { createSupabaseServiceClient } from "@/lib/supabase/service";
 import { normalizeVariantBlock } from "@/lib/shop/product-json";
 import { StockRowsTable, type StockRow } from "@/components/dashboard/StockRowsTable";
 
@@ -43,7 +42,6 @@ export default async function DashboardStockPage({
   const supabase = await createSupabaseServerClient();
 
   const stockRows: StockRow[] = [];
-  const canDebug = gate.isAdmin || gate.permissions.includes(permissions.dashboard.access) || gate.permissions.includes(permissions.stock.write);
 
   // Toon alle producten (ook met 0 voorraad), maar aggregeer de voorraad direct uit stock_batches.
   const { data: products, error: pErr } = await supabase
@@ -80,35 +78,6 @@ export default async function DashboardStockPage({
     const key = `${productId}\0${vr}\0${sz}`;
     const q = Number((r as any).quantity_remaining ?? 0);
     agg.set(key, (agg.get(key) ?? 0) + (Number.isFinite(q) ? q : 0));
-  }
-
-  const { data: authUser } = await supabase.auth.getUser();
-  const userId = authUser.user?.id ?? null;
-  const { data: myProfile } = userId
-    ? await supabase.from("user_profiles").select("permissions").eq("id", userId).maybeSingle()
-    : { data: null };
-  const myPerms = ((myProfile as any)?.permissions ?? []) as string[];
-  const canStockRead = myPerms.includes("stock:read");
-  const canStockWrite = myPerms.includes("stock:write");
-
-  // Service-role view (bypasses RLS) to debug “DB has rows but user sees none”.
-  let svcBatchCount: number | null = null;
-  let svcBatchSample: any = null;
-  let svcErr: string | null = null;
-  if (canDebug) {
-    try {
-      const svc = createSupabaseServiceClient();
-      const [cnt, sample] = await Promise.all([
-        svc.from("stock_batches").select("*", { count: "exact", head: true }),
-        svc.from("stock_batches").select("id,product_id,quantity_remaining,variant_segment,size_label,created_at").order("created_at", { ascending: false }).limit(1).maybeSingle()
-      ]);
-      if (cnt.error) svcErr = cnt.error.message;
-      else svcBatchCount = cnt.count ?? 0;
-      if (sample.error) svcErr = svcErr ?? sample.error.message;
-      else svcBatchSample = sample.data ?? null;
-    } catch (e) {
-      svcErr = e instanceof Error ? e.message : String(e);
-    }
   }
 
   for (const p of products ?? []) {
@@ -177,68 +146,6 @@ export default async function DashboardStockPage({
           <p className="mt-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
         ) : null}
       </div>
-
-      {canDebug ? (
-        <div className="rounded-lg border border-zinc-200 bg-white p-6">
-          <h2 className="text-sm font-semibold text-zinc-900">Debug: stock_batches</h2>
-          <p className="mt-1 text-sm text-zinc-600">
-            Dit helpt om te zien of “Nieuwe levering” echt voorraad toevoegt (quantity_remaining &gt; 0).
-          </p>
-          <div className="mt-3 rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-800">
-            <div>
-              User id: <span className="font-mono text-xs">{userId ?? "—"}</span>
-            </div>
-            <div className="mt-1">
-              user_profiles.permissions: <span className="font-mono text-xs">{myPerms.length ? myPerms.join(", ") : "—"}</span>
-            </div>
-            <div className="mt-1">
-              stock:read = <strong>{String(canStockRead)}</strong> • stock:write = <strong>{String(canStockWrite)}</strong>
-            </div>
-            <div className="mt-2">
-              service_role stock_batches count: <strong>{svcErr ? "ERROR" : svcBatchCount ?? "—"}</strong>
-              {svcErr ? <span className="ml-2 text-red-700">{svcErr}</span> : null}
-            </div>
-            {svcBatchSample ? (
-              <div className="mt-1 font-mono text-xs text-zinc-700">
-                sample: {String(svcBatchSample.id)} • {String(svcBatchSample.product_id)} • rem={String(svcBatchSample.quantity_remaining)}
-              </div>
-            ) : null}
-          </div>
-          <div className="mt-3 text-sm text-zinc-800">
-            Totaal batches: <strong>{(batches ?? []).length}</strong> • Met voorraad:{" "}
-            <strong>{(batches ?? []).filter((r: any) => Number(r.quantity_remaining ?? 0) > 0).length}</strong>
-          </div>
-          <div className="mt-3 overflow-x-auto rounded-lg border border-zinc-200">
-            <table className="w-full min-w-[760px] text-left text-sm">
-              <thead className="border-b border-zinc-200 bg-zinc-50 text-xs font-semibold uppercase tracking-wide text-zinc-600">
-                <tr>
-                  <th className="px-4 py-3">Product</th>
-                  <th className="px-4 py-3">Variant</th>
-                  <th className="px-4 py-3">Maat</th>
-                  <th className="px-4 py-3 text-right">Remaining</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-zinc-100">
-                {(batches ?? []).slice(0, 15).map((r: any, i: number) => (
-                  <tr key={`${String(r.product_id)}-${String(r.variant_segment)}-${String(r.size_label)}-${i}`}>
-                    <td className="px-4 py-3 font-mono text-xs text-zinc-700">{String(r.product_id ?? "")}</td>
-                    <td className="px-4 py-3 text-zinc-700">{formatVariantSegment(r.variant_segment ?? null)}</td>
-                    <td className="px-4 py-3 font-mono text-xs text-zinc-700">{formatSizeLabel(r.size_label ?? null)}</td>
-                    <td className="px-4 py-3 text-right font-medium tabular-nums">{Number(r.quantity_remaining ?? 0)}</td>
-                  </tr>
-                ))}
-                {(batches ?? []).length === 0 ? (
-                  <tr>
-                    <td className="px-4 py-6 text-sm text-zinc-600" colSpan={4}>
-                      Geen batches gevonden.
-                    </td>
-                  </tr>
-                ) : null}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      ) : null}
 
       <div className="rounded-lg border border-zinc-200 bg-white">
         <StockRowsTable rows={stockRows} />
