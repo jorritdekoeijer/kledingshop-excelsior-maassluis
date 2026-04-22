@@ -46,6 +46,43 @@ function emptyLine(): LineState {
 const eur = (cents: number) =>
   new Intl.NumberFormat("nl-NL", { style: "currency", currency: "EUR" }).format(cents / 100);
 
+function fifoUnitCostEstimateCents(
+  arr: Array<{
+    qty: number;
+    unit: number | null;
+    unitPrinting: number | null;
+  }>,
+  qty: number
+): { unitCents: number | null; missingQty: number; noStock: boolean } {
+  let need = Math.max(0, qty);
+  if (need <= 0) return { unitCents: 0, missingQty: 0, noStock: false };
+  if (arr.length === 0) return { unitCents: null, missingQty: 0, noStock: true };
+
+  let total = 0;
+  let taken = 0;
+  let missing = 0;
+
+  for (const b of arr) {
+    if (need <= 0) break;
+    const take = Math.min(need, Math.max(0, b.qty));
+    if (take <= 0) continue;
+
+    if (b.unit == null) {
+      missing += take;
+    } else {
+      const print = b.unitPrinting != null ? b.unitPrinting : 0;
+      total += take * (b.unit + print);
+      taken += take;
+    }
+    need -= take;
+  }
+
+  const denom = taken + missing;
+  if (denom <= 0) return { unitCents: null, missingQty: 0, noStock: true };
+  if (missing > 0) return { unitCents: null, missingQty: missing, noStock: false };
+  return { unitCents: Math.round(total / denom), missingQty: 0, noStock: false };
+}
+
 function defaultSegmentForProduct(p: ProductRow | undefined): VariantSegment {
   if (!p) return "adult";
   const y = normalizeVariantBlock(p.variant_youth).sizes.length;
@@ -142,6 +179,7 @@ export function InternalOrderForm({
       for (const b of arr) remainingByBatch.set(b, b.qty);
     }
     let total = 0;
+    let missingQty = 0;
     for (const l of lines) {
       if (!l.productId || !l.sizeLabel.trim()) continue;
       let need = Math.max(0, l.quantity);
@@ -156,11 +194,13 @@ export function InternalOrderForm({
         if (b.unit != null) {
           const print = b.unitPrinting != null ? b.unitPrinting : 0;
           total += take * (b.unit + print);
+        } else {
+          missingQty += take;
         }
         need -= take;
       }
     }
-    return total;
+    return { total, missingQty };
   }, [lines, batchIndex]);
 
   function updateLine(key: string, patch: Partial<LineState>) {
@@ -299,20 +339,10 @@ export function InternalOrderForm({
             const sizes = p ? segmentSizes(p, line.segment) : [];
             const showToggle = Boolean(p && segmentSizes(p, "youth").length > 0 && segmentSizes(p, "adult").length > 0);
             const model = p ? segmentModel(p, line.segment) : "";
-            const lineTotal = (() => {
-              if (!line.productId || !line.sizeLabel.trim()) return null;
-              let need = Math.max(0, line.quantity);
-              const key = `${line.productId}\0${line.segment}\0${line.sizeLabel.trim()}`;
-              const arr = batchIndex.get(key) ?? [];
-              let t = 0;
-              for (const b of arr) {
-                if (need <= 0) break;
-                const take = Math.min(need, b.qty);
-                if (b.unit != null) t += take * b.unit;
-                need -= take;
-              }
-              return t;
-            })();
+            const fifoKey = line.productId && line.sizeLabel.trim() ? `${line.productId}\0${line.segment}\0${line.sizeLabel.trim()}` : "";
+            const fifoArr = fifoKey ? batchIndex.get(fifoKey) ?? [] : [];
+            const fifo = fifoKey ? fifoUnitCostEstimateCents(fifoArr, line.quantity) : { unitCents: null, missingQty: 0, noStock: false };
+            const lineTotal = fifo.unitCents != null ? fifo.unitCents * Math.max(0, line.quantity) : null;
 
             return (
               <div
@@ -410,7 +440,21 @@ export function InternalOrderForm({
 
                 <div className="md:col-span-2">
                   <span className="text-xs font-medium text-zinc-600">Inkoop (FIFO)</span>
-                  <p className="mt-2 text-xs text-zinc-600">Automatisch uit voorraadleveringen.</p>
+                  {!line.productId || !line.sizeLabel.trim() ? (
+                    <p className="mt-2 text-xs text-zinc-500">Kies product en maat.</p>
+                  ) : fifo.noStock ? (
+                    <p className="mt-2 text-xs text-zinc-500">Geen voorraad voor deze combinatie.</p>
+                  ) : fifo.unitCents != null ? (
+                    <div className="mt-2 text-xs text-zinc-700">
+                      Kostprijs / stuk (excl. btw, incl. bedrukking):{" "}
+                      <span className="font-semibold text-zinc-900">{eur(fifo.unitCents)}</span>
+                    </div>
+                  ) : (
+                    <p className="mt-2 text-xs text-amber-900">
+                      Onbekend: {fifo.missingQty > 0 ? `${fifo.missingQty}× ` : ""}batch(s) missen inkoopprijs. Vul inkoopprijs in
+                      bij “Nieuwe levering”.
+                    </p>
+                  )}
                 </div>
 
                 <div className="flex items-end justify-between gap-4 md:col-span-12">
@@ -444,9 +488,17 @@ export function InternalOrderForm({
       <div className="rounded-lg border border-zinc-200 bg-white p-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="text-sm font-semibold text-zinc-900">Totaal inkoop excl. btw</div>
-          <div className="text-lg font-bold tabular-nums text-zinc-900">{eur(totalExclEstimate)}</div>
+          <div className="text-lg font-bold tabular-nums text-zinc-900">{eur(totalExclEstimate.total)}</div>
         </div>
-        <p className="mt-1 text-xs text-zinc-500">Indicatie op basis van huidige FIFO-voorraad. Definitief totaal wordt bij opslaan vastgelegd.</p>
+        {totalExclEstimate.missingQty > 0 ? (
+          <p className="mt-1 text-xs text-amber-900">
+            Let op: {totalExclEstimate.missingQty} stuk(s) hebben geen inkoopprijs op voorraadbatches, daarom is dit totaal niet compleet.
+          </p>
+        ) : (
+          <p className="mt-1 text-xs text-zinc-500">
+            Indicatie op basis van huidige FIFO-voorraad (inkoop + bedrukking, excl. btw). Definitief totaal wordt bij opslaan vastgelegd.
+          </p>
+        )}
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
