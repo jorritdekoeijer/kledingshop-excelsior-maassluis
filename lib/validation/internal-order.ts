@@ -16,3 +16,18 @@ export const createInternalOrderSchema = z.object({
 
 export type CreateInternalOrderInput = z.infer<typeof createInternalOrderSchema>;
 
+export const updateInternalOrderMetaSchema = z.object({
+  id: z.string().uuid(),
+  orderDate: z.string().min(1).max(32),
+  costGroupId: z.string().uuid(),
+  note: z.string().min(3).max(2000)
+});
+
+export type UpdateInternalOrderMetaInput = z.infer<typeof updateInternalOrderMetaSchema>;
+
+export const updateInternalOrderRebookSchema = updateInternalOrderMetaSchema.extend({
+  lines: z.array(internalOrderLineSchema).min(1).max(200)
+});
+
+export type UpdateInternalOrderRebookInput = z.infer<typeof updateInternalOrderRebookSchema>;
+

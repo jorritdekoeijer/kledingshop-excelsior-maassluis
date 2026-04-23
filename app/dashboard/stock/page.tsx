@@ -182,6 +182,7 @@ export default async function DashboardStockPage({
                   <th className="px-4 py-3">Kostengroep</th>
                   <th className="px-4 py-3">Omschrijving</th>
                   <th className="px-4 py-3 text-right">Totaal inkoop (excl.)</th>
+                  <th className="px-4 py-3 text-right">Acties</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-100">
@@ -192,6 +193,22 @@ export default async function DashboardStockPage({
                     <td className="px-4 py-3 text-zinc-700">{String(o.note ?? "")}</td>
                     <td className="px-4 py-3 text-right font-medium tabular-nums">
                       € {centsToEuroString(Number(o.total_purchase_excl_cents ?? 0))}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <div className="flex justify-end gap-3 text-sm font-semibold">
+                        <Link
+                          href={`/dashboard/stock/interne-bestelling/${encodeURIComponent(String(o.id))}`}
+                          className="text-brand-blue hover:underline"
+                        >
+                          Bekijken
+                        </Link>
+                        <Link
+                          href={`/dashboard/stock/interne-bestelling/${encodeURIComponent(String(o.id))}/edit`}
+                          className="text-brand-blue hover:underline"
+                        >
+                          Bewerken
+                        </Link>
+                      </div>
                     </td>
                   </tr>
                 ))}
