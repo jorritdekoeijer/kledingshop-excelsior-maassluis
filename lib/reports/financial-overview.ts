@@ -176,17 +176,30 @@ export async function fetchFinancialOverview(
   if (batchRes.error) throw asErr("stock_batches select", batchRes.error);
 
   // COGS (inkoop van verkochte voorraad) via stock_consumptions + batch.unit_purchase_excl_cents.
-  // Oudere schema's missen `stock_consumptions.reason`; dan kunnen we 'sale' niet filteren.
-  const consRes = await supabase
+  // Oudere schema's missen `stock_consumptions.reason`; dan kunnen we niet filteren.
+  // Nieuw: handmatige verkopen tellen mee als COGS (reason = manual_sale).
+  let consRes: any = await supabase
     .from("stock_consumptions")
-    .select("quantity,reason,created_at,stock_batches(unit_purchase_excl_cents,unit_printing_excl_cents)")
-    .eq("reason", "sale")
-    .gte("created_at", startIso)
-    .lte("created_at", endIso);
+    .select("quantity,reason,occurred_at,created_at,stock_batches(unit_purchase_excl_cents,unit_printing_excl_cents)")
+    .in("reason", ["sale", "manual_sale"])
+    .gte("occurred_at", startIso)
+    .lte("occurred_at", endIso);
 
   const reasonMissing =
     Boolean((consRes.error as any)?.code === "42703") &&
     String((consRes.error as any)?.message ?? "").toLowerCase().includes("reason");
+  const occurredMissing =
+    Boolean((consRes.error as any)?.code === "42703") &&
+    String((consRes.error as any)?.message ?? "").toLowerCase().includes("occurred_at");
+
+  if (occurredMissing) {
+    consRes = await supabase
+      .from("stock_consumptions")
+      .select("quantity,reason,created_at,stock_batches(unit_purchase_excl_cents,unit_printing_excl_cents)")
+      .in("reason", ["sale", "manual_sale"])
+      .gte("created_at", startIso)
+      .lte("created_at", endIso);
+  }
   if (consRes.error && !reasonMissing) throw asErr("stock_consumptions select", consRes.error);
   if (reasonMissing) {
     warnings.push(
