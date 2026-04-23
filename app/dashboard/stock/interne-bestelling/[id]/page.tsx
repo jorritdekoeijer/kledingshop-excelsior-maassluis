@@ -5,6 +5,7 @@ import { permissions } from "@/lib/auth/permissions";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { centsToEuroString } from "@/lib/money/nl-euro";
 import { InternalOrderCancelButton } from "@/components/dashboard/InternalOrderCancelButton";
+import { InternalOrderRestoreStockButton } from "@/components/dashboard/InternalOrderRestoreStockButton";
 
 export const dynamic = "force-dynamic";
 
@@ -27,7 +28,9 @@ export default async function InternalOrderDetailPage({
 
   const { data: order, error: oErr } = await supabase
     .from("internal_orders")
-    .select("id,order_date,note,total_purchase_excl_cents,cost_group_id,cancelled_at,cancelled_note,cost_groups(name)")
+    .select(
+      "id,order_date,note,total_purchase_excl_cents,cost_group_id,cancelled_at,cancelled_note,stock_restored_at,cost_groups(name)"
+    )
     .eq("id", id)
     .maybeSingle();
 
@@ -81,6 +84,9 @@ export default async function InternalOrderDetailPage({
             </Link>
           )}
           {(order as any).cancelled_at ? null : <InternalOrderCancelButton id={String((order as any).id)} />}
+          {(order as any).cancelled_at && !(order as any).stock_restored_at ? (
+            <InternalOrderRestoreStockButton id={String((order as any).id)} />
+          ) : null}
         </div>
       </div>
 
@@ -106,6 +112,14 @@ export default async function InternalOrderDetailPage({
                     — {String((order as any).cancelled_note)}
                   </span>
                 ) : null}
+              </dd>
+            </div>
+          ) : null}
+          {(order as any).stock_restored_at ? (
+            <div className="sm:col-span-2">
+              <dt className="text-zinc-600">Voorraad</dt>
+              <dd className="mt-1 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800">
+                Hersteld
               </dd>
             </div>
           ) : null}

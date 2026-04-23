@@ -38,3 +38,9 @@ export const cancelInternalOrderSchema = z.object({
 
 export type CancelInternalOrderInput = z.infer<typeof cancelInternalOrderSchema>;
 
+export const restoreInternalOrderStockSchema = z.object({
+  id: z.string().uuid()
+});
+
+export type RestoreInternalOrderStockInput = z.infer<typeof restoreInternalOrderStockSchema>;
+

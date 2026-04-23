@@ -8,7 +8,8 @@ import {
   createInternalOrderSchema,
   updateInternalOrderMetaSchema,
   updateInternalOrderRebookSchema,
-  cancelInternalOrderSchema
+  cancelInternalOrderSchema,
+  restoreInternalOrderStockSchema
 } from "@/lib/validation/internal-order";
 
 export async function createInternalOrderAction(input: unknown) {
@@ -119,6 +120,33 @@ export async function cancelInternalOrderAction(input: unknown) {
 
   if (error || !orderId) {
     redirect(`/dashboard/stock/interne-bestelling/${encodeURIComponent(d.id)}?error=${encodeURIComponent(error?.message ?? "Annuleren mislukt")}`);
+  }
+
+  redirect(`/dashboard/stock/interne-bestelling/${encodeURIComponent(d.id)}?ok=1`);
+}
+
+export async function restoreInternalOrderStockAction(input: unknown) {
+  const gate = await requirePermission(permissions.stock.write);
+  if (!gate.ok) redirect("/dashboard/stock?error=Geen%20toegang");
+
+  const parsed = restoreInternalOrderStockSchema.safeParse(input);
+  if (!parsed.success) {
+    redirect(`/dashboard/stock?error=${encodeURIComponent(parsed.error.issues[0]?.message ?? "Ongeldige invoer")}`);
+  }
+
+  const d = parsed.data;
+  const service = createSupabaseServiceClient();
+
+  const { data: orderId, error } = await service.rpc("restore_internal_order_stock", {
+    p_internal_order_id: d.id
+  });
+
+  if (error || !orderId) {
+    redirect(
+      `/dashboard/stock/interne-bestelling/${encodeURIComponent(d.id)}?error=${encodeURIComponent(
+        error?.message ?? "Voorraad herstellen mislukt"
+      )}`
+    );
   }
 
   redirect(`/dashboard/stock/interne-bestelling/${encodeURIComponent(d.id)}?ok=1`);
