@@ -31,3 +31,10 @@ export const updateInternalOrderRebookSchema = updateInternalOrderMetaSchema.ext
 
 export type UpdateInternalOrderRebookInput = z.infer<typeof updateInternalOrderRebookSchema>;
 
+export const cancelInternalOrderSchema = z.object({
+  id: z.string().uuid(),
+  cancelNote: z.string().max(2000).optional()
+});
+
+export type CancelInternalOrderInput = z.infer<typeof cancelInternalOrderSchema>;
+

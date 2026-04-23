@@ -4,6 +4,7 @@ import { requirePermission } from "@/lib/auth/permissions-server";
 import { permissions } from "@/lib/auth/permissions";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { centsToEuroString } from "@/lib/money/nl-euro";
+import { InternalOrderCancelButton } from "@/components/dashboard/InternalOrderCancelButton";
 
 export const dynamic = "force-dynamic";
 
@@ -26,7 +27,7 @@ export default async function InternalOrderDetailPage({
 
   const { data: order, error: oErr } = await supabase
     .from("internal_orders")
-    .select("id,order_date,note,total_purchase_excl_cents,cost_group_id,cost_groups(name)")
+    .select("id,order_date,note,total_purchase_excl_cents,cost_group_id,cancelled_at,cancelled_note,cost_groups(name)")
     .eq("id", id)
     .maybeSingle();
 
@@ -70,12 +71,17 @@ export default async function InternalOrderDetailPage({
         <Link href="/dashboard/stock" className="text-sm text-brand-blue hover:underline">
           ← Terug naar voorraad
         </Link>
-        <Link
-          href={`/dashboard/stock/interne-bestelling/${encodeURIComponent(id)}/edit`}
-          className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm font-semibold text-zinc-800 hover:bg-zinc-50"
-        >
-          Bewerken
-        </Link>
+        <div className="flex items-center gap-2">
+          {(order as any).cancelled_at ? null : (
+            <Link
+              href={`/dashboard/stock/interne-bestelling/${encodeURIComponent(id)}/edit`}
+              className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm font-semibold text-zinc-800 hover:bg-zinc-50"
+            >
+              Bewerken
+            </Link>
+          )}
+          {(order as any).cancelled_at ? null : <InternalOrderCancelButton id={String((order as any).id)} />}
+        </div>
       </div>
 
       <div className="rounded-lg border border-zinc-200 bg-white p-6">
@@ -90,6 +96,19 @@ export default async function InternalOrderDetailPage({
         ) : null}
 
         <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
+          {(order as any).cancelled_at ? (
+            <div className="sm:col-span-2">
+              <dt className="text-zinc-600">Status</dt>
+              <dd className="mt-1 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-800">
+                Geannuleerd
+                {(order as any).cancelled_note ? (
+                  <span className="ml-2 text-xs font-medium text-red-700">
+                    — {String((order as any).cancelled_note)}
+                  </span>
+                ) : null}
+              </dd>
+            </div>
+          ) : null}
           <div>
             <dt className="text-zinc-600">Datum</dt>
             <dd className="font-medium text-zinc-900">{String((order as any).order_date ?? "—")}</dd>
