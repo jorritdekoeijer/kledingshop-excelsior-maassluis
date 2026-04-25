@@ -34,6 +34,7 @@ export default async function NewStockDeliveryPage({
   const { data: deliveries, error: delErr } = await supabase
     .from("stock_deliveries")
     .select("id,supplier,invoice_date,invoice_number,invoice_total_incl_cents,created_at")
+    .order("invoice_date", { ascending: false })
     .order("created_at", { ascending: false })
     .range(from, to);
 
