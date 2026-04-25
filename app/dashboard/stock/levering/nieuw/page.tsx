@@ -19,6 +19,11 @@ export default async function NewStockDeliveryPage({
 
   const sp = (await searchParams) ?? {};
   const error = typeof sp.error === "string" ? sp.error : "";
+  const pageRaw = typeof sp.page === "string" ? sp.page : "1";
+  const page = Math.max(1, Number.parseInt(pageRaw, 10) || 1);
+  const pageSize = 30;
+  const from = (page - 1) * pageSize;
+  const to = from + pageSize - 1;
 
   const supabase = await createSupabaseServerClient();
   const { data: products } = await supabase
@@ -26,11 +31,11 @@ export default async function NewStockDeliveryPage({
     .select("id,name,printing_excl_cents,variant_youth,variant_adult,variant_socks,variant_shoes,variant_onesize")
     .order("name");
 
-  const { data: deliveries } = await supabase
+  const { data: deliveries, error: delErr } = await supabase
     .from("stock_deliveries")
     .select("id,supplier,invoice_date,invoice_number,invoice_total_incl_cents,created_at")
     .order("created_at", { ascending: false })
-    .limit(30);
+    .range(from, to);
 
   const options = buildProductPickOptions(products ?? []);
 
@@ -59,8 +64,32 @@ export default async function NewStockDeliveryPage({
         <p className="mt-2 text-sm text-zinc-600">
           Overzicht van recente leveringen (factuurkop). Bedrukkingskosten tellen niet mee in het factuurbedrag.
         </p>
+        <div className="mt-3 flex items-center justify-between gap-3 text-sm">
+          <p className="text-zinc-600">
+            Pagina <span className="font-semibold text-zinc-900">{page}</span>
+          </p>
+          <div className="flex gap-2">
+            <Link
+              aria-disabled={page <= 1}
+              className={`rounded-md border px-3 py-2 text-sm font-semibold ${
+                page <= 1 ? "cursor-not-allowed border-zinc-200 text-zinc-400" : "border-zinc-300 text-zinc-800 hover:bg-zinc-50"
+              }`}
+              href={page <= 1 ? "/dashboard/stock/levering/nieuw" : `/dashboard/stock/levering/nieuw?page=${page - 1}`}
+            >
+              Vorige
+            </Link>
+            <Link
+              className="rounded-md border border-zinc-300 px-3 py-2 text-sm font-semibold text-zinc-800 hover:bg-zinc-50"
+              href={`/dashboard/stock/levering/nieuw?page=${page + 1}`}
+            >
+              Volgende
+            </Link>
+          </div>
+        </div>
 
-        {(deliveries ?? []).length === 0 ? (
+        {delErr ? (
+          <p className="mt-4 text-sm text-red-700">Leveringen laden mislukt: {delErr.message}</p>
+        ) : (deliveries ?? []).length === 0 ? (
           <p className="mt-4 text-sm text-zinc-500">Nog geen leveringen.</p>
         ) : (
           <div className="mt-4 overflow-x-auto rounded-lg border border-zinc-200">
