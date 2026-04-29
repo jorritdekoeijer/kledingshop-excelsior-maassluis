@@ -139,10 +139,14 @@ export function NewDeliveryForm({
     const p = productMap.get(productId);
     const seg = defaultSegmentForProduct(p);
     const sizes = p ? sizesForSegment(p, seg) : [];
+    const prev = lines.find((l) => l.key === key);
+    const prevSize = prev?.sizeLabel?.trim() ? prev.sizeLabel.trim() : "";
+    const nextSize =
+      sizes.length > 0 ? (sizes.includes(prevSize) ? prevSize : sizes[0] ?? "") : prevSize;
     updateLine(key, {
       productId,
       segment: seg,
-      sizeLabel: sizes[0] ?? ""
+      sizeLabel: nextSize
     });
   }
 
