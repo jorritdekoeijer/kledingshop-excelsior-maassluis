@@ -196,6 +196,12 @@ export function FinancialReportView({ report }: { report: FinancialOverviewRepor
           <p className="mt-3 text-sm font-medium text-zinc-800">
             Totaal intern: <span className="tabular-nums text-brand-red">{eurExcl(report.internalOrdersTotalExclCents)}</span>
           </p>
+          {report.internalOrdersExcludedGroupNames.length > 0 ? (
+            <p className="mt-1 text-xs text-zinc-500">
+              Niet meegerekend in totaal:{" "}
+              <span className="font-medium text-zinc-700">{report.internalOrdersExcludedGroupNames.join(", ")}</span>
+            </p>
+          ) : null}
 
           <div className="mt-6 space-y-4">
             {costGroups.length === 0 ? (

@@ -34,6 +34,7 @@ export type FinancialOverviewReport = {
   period: FinancialPeriod;
   costGroups: CostGroupSpend[];
   internalOrdersTotalExclCents: number;
+  internalOrdersExcludedGroupNames: string[];
   webshop: WebshopFinancials;
   inventory: InventoryValuation;
   warnings: string[];
@@ -222,7 +223,17 @@ export async function fetchFinancialOverview(
     name: g.name,
     totalPurchaseExclCents: spendByGroup.get(g.id) ?? 0
   }));
-  const internalOrdersTotalExclCents = sum(costGroups.map((c) => c.totalPurchaseExclCents));
+
+  const excludedNames = new Set(["BOEKINGSVERSCHILLEN"]);
+  const internalOrdersExcludedGroupNames = costGroups
+    .map((c) => c.name)
+    .filter((n) => excludedNames.has(String(n ?? "").trim().toUpperCase()));
+
+  const internalOrdersTotalExclCents = sum(
+    costGroups
+      .filter((c) => !excludedNames.has(String(c.name ?? "").trim().toUpperCase()))
+      .map((c) => c.totalPurchaseExclCents)
+  );
 
   const orderRows = [
     ...(paidRes.data ?? []),
@@ -395,6 +406,7 @@ export async function fetchFinancialOverview(
     period: { fromDate, toDate, startIso, endIso },
     costGroups,
     internalOrdersTotalExclCents,
+    internalOrdersExcludedGroupNames,
     webshop: {
       orderCount,
       revenueInclCents: totalRevenueInclCents,
