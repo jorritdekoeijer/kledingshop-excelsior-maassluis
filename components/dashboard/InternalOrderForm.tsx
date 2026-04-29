@@ -3,15 +3,9 @@
 import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { createInternalOrderAction } from "@/app/dashboard/stock/interne-bestelling/actions";
-import { normalizeVariantBlock } from "@/lib/shop/product-json";
+import type { ProductPickOption, VariantSegment } from "@/lib/stock/product-pick-types";
 
-type VariantSegment = "youth" | "adult";
-
-type ProductRow = {
-  id: string;
-  name: string;
-  variant_youth: unknown;
-  variant_adult: unknown;
+type ProductRow = ProductPickOption & {
   stock_batches?: {
     quantity_remaining: number | null;
     variant_segment: string | null;
@@ -85,21 +79,33 @@ function fifoUnitCostEstimateCents(
 
 function defaultSegmentForProduct(p: ProductRow | undefined): VariantSegment {
   if (!p) return "adult";
-  const y = normalizeVariantBlock(p.variant_youth).sizes.length;
-  const a = normalizeVariantBlock(p.variant_adult).sizes.length;
+  const o = p.onesize?.sizes.length ?? 0;
+  if (o > 0) return "onesize";
+  const h = p.shoes?.sizes.length ?? 0;
+  if (h > 0) return "shoes";
+  const s = p.socks?.sizes.length ?? 0;
+  if (s > 0) return "socks";
+  const y = p.youth.sizes.length;
+  const a = p.adult.sizes.length;
   if (y > 0 && a === 0) return "youth";
   if (a > 0 && y === 0) return "adult";
   return "adult";
 }
 
-function segmentSizes(p: ProductRow, seg: VariantSegment): string[] {
-  const v = seg === "youth" ? normalizeVariantBlock(p.variant_youth) : normalizeVariantBlock(p.variant_adult);
-  return [...new Set((v.sizes ?? []).map((s) => String(s).trim()).filter(Boolean))];
+function sizesForSegment(p: ProductRow, seg: VariantSegment): string[] {
+  if (seg === "youth") return p.youth.sizes;
+  if (seg === "adult") return p.adult.sizes;
+  if (seg === "socks") return p.socks?.sizes ?? [];
+  if (seg === "onesize") return p.onesize?.sizes ?? [];
+  return p.shoes?.sizes ?? [];
 }
 
 function segmentModel(p: ProductRow, seg: VariantSegment): string {
-  const v = seg === "youth" ? normalizeVariantBlock(p.variant_youth) : normalizeVariantBlock(p.variant_adult);
-  return String(v.model_number ?? "").trim();
+  if (seg === "youth") return p.youth.modelNumber;
+  if (seg === "adult") return p.adult.modelNumber;
+  if (seg === "socks") return p.socks?.modelNumber ?? "";
+  if (seg === "onesize") return p.onesize?.modelNumber ?? "";
+  return p.shoes?.modelNumber ?? "";
 }
 
 export function InternalOrderForm({
@@ -137,7 +143,7 @@ export function InternalOrderForm({
         if (qty <= 0) continue;
         const variant = String(b.variant_segment ?? "").trim();
         const size = String(b.size_label ?? "").trim();
-        if (variant !== "youth" && variant !== "adult") continue;
+        if (variant !== "youth" && variant !== "adult" && variant !== "socks" && variant !== "shoes" && variant !== "onesize") continue;
         if (!size) continue;
         const key = `${p.id}\0${variant}\0${size}`;
         const arr = m.get(key) ?? [];
@@ -210,7 +216,7 @@ export function InternalOrderForm({
   function onProductChange(key: string, productId: string) {
     const p = productId ? productMap.get(productId) : undefined;
     const seg = defaultSegmentForProduct(p);
-    const sizes = p ? segmentSizes(p, seg) : [];
+    const sizes = p ? sizesForSegment(p, seg) : [];
     updateLine(key, {
       productId,
       segment: seg,
@@ -221,7 +227,7 @@ export function InternalOrderForm({
   function onSegmentChange(key: string, productId: string, seg: VariantSegment) {
     const p = productId ? productMap.get(productId) : undefined;
     if (!p) return;
-    const sizes = segmentSizes(p, seg);
+    const sizes = sizesForSegment(p, seg);
     updateLine(key, {
       segment: seg,
       sizeLabel: sizes[0] ?? ""
@@ -336,8 +342,11 @@ export function InternalOrderForm({
         <div className="mt-4 space-y-4">
           {lines.map((line) => {
             const p = line.productId ? productMap.get(line.productId) : undefined;
-            const sizes = p ? segmentSizes(p, line.segment) : [];
-            const showToggle = Boolean(p && segmentSizes(p, "youth").length > 0 && segmentSizes(p, "adult").length > 0);
+            const sizes = p ? sizesForSegment(p, line.segment) : [];
+            const hasShoes = Boolean(p && (p.shoes?.sizes.length ?? 0) > 0);
+            const hasSocks = Boolean(p && (p.socks?.sizes.length ?? 0) > 0);
+            const hasOne = Boolean(p && (p.onesize?.sizes.length ?? 0) > 0);
+            const showToggle = Boolean(p && !hasShoes && !hasSocks && !hasOne && p.youth.sizes.length > 0 && p.adult.sizes.length > 0);
             const model = p ? segmentModel(p, line.segment) : "";
             const fifoKey = line.productId && line.sizeLabel.trim() ? `${line.productId}\0${line.segment}\0${line.sizeLabel.trim()}` : "";
             const fifoArr = fifoKey ? batchIndex.get(fifoKey) ?? [] : [];
@@ -377,9 +386,15 @@ export function InternalOrderForm({
                 </label>
 
                 <div className="md:col-span-3">
-                  <span className="text-xs font-medium text-zinc-600">Jeugd / Volwassenen</span>
+                  <span className="text-xs font-medium text-zinc-600">Variant</span>
                   {!line.productId ? (
                     <p className="mt-2 text-xs text-zinc-400">Kies eerst een product</p>
+                  ) : hasOne ? (
+                    <p className="mt-2 text-xs font-semibold text-zinc-700">ONE SIZE</p>
+                  ) : hasShoes ? (
+                    <p className="mt-2 text-xs font-semibold text-zinc-700">SHOES</p>
+                  ) : hasSocks ? (
+                    <p className="mt-2 text-xs font-semibold text-zinc-700">SOCKS</p>
                   ) : showToggle ? (
                     <div
                       className="mt-2 inline-flex rounded-full border border-zinc-300 bg-white p-0.5"
@@ -407,7 +422,15 @@ export function InternalOrderForm({
                     </div>
                   ) : (
                     <p className="mt-2 text-xs font-medium text-zinc-700">
-                      {line.segment === "youth" ? "Jeugd (YOUTH)" : "Volwassenen (ADULT)"}
+                      {line.segment === "youth"
+                        ? "Jeugd (YOUTH)"
+                        : line.segment === "adult"
+                          ? "Volwassenen (ADULT)"
+                          : line.segment === "socks"
+                            ? "SOCKS"
+                            : line.segment === "shoes"
+                              ? "SHOES"
+                              : "ONE SIZE"}
                     </p>
                   )}
                   {model ? (

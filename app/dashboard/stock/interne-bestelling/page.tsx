@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requirePermission } from "@/lib/auth/permissions-server";
 import { permissions } from "@/lib/auth/permissions";
+import { buildProductPickOptions } from "@/lib/stock/build-product-pick-options";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { InternalOrderForm } from "@/components/dashboard/InternalOrderForm";
 
@@ -20,7 +21,7 @@ export default async function InterneBestellingPage({
   const { data: products } = await supabase
     .from("products")
     .select(
-      "id,name,variant_youth,variant_adult,stock_batches(quantity_remaining,variant_segment,size_label,unit_purchase_excl_cents,unit_printing_excl_cents,received_at,created_at)"
+      "id,name,printing_excl_cents,variant_youth,variant_adult,variant_socks,variant_shoes,variant_onesize,stock_batches(quantity_remaining,variant_segment,size_label,unit_purchase_excl_cents,unit_printing_excl_cents,received_at,created_at)"
     )
     .order("name");
 
@@ -42,7 +43,13 @@ export default async function InterneBestellingPage({
       </div>
 
       <div className="rounded-lg border border-zinc-200 bg-white p-6">
-        <InternalOrderForm products={(products ?? []) as any} costGroups={(costGroups ?? []) as any} />
+        <InternalOrderForm
+          products={buildProductPickOptions((products ?? []) as any).map((o) => ({
+            ...o,
+            stock_batches: ((products ?? []) as any[]).find((p) => String(p.id) === String(o.id))?.stock_batches ?? []
+          })) as any}
+          costGroups={(costGroups ?? []) as any}
+        />
       </div>
     </div>
   );
