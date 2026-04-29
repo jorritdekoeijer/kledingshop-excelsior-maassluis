@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { exclCentsFromIncl21 } from "@/lib/money/nl-euro";
+import { normalizeVariantBlock } from "@/lib/shop/product-json";
 
 export type FinancialPeriod = {
   fromDate: string;
@@ -235,6 +236,96 @@ export async function fetchFinancialOverview(
   const revenueInclCents = sum(orderRows.map((o) => Number(o.total_cents ?? 0)));
   const revenueExclCents = sum(orderRows.map((o) => exclCentsFromIncl21(Number(o.total_cents ?? 0))));
 
+  // Extra omzet: handmatige verkopen (interne verkooporders) → aantal × verkoopprijs (productvariant sale_cents).
+  let manualRevenueInclCents = 0;
+  const manualConsRes: any = await supabase
+    .from("stock_consumptions")
+    .select("quantity,reason,occurred_at,created_at,stock_batches(product_id,variant_segment)")
+    .eq("reason", "manual_sale")
+    .gte("occurred_at", startIso)
+    .lte("occurred_at", endIso);
+
+  const manualOccurredMissing =
+    Boolean((manualConsRes.error as any)?.code === "42703") &&
+    String((manualConsRes.error as any)?.message ?? "").toLowerCase().includes("occurred_at");
+  if (manualOccurredMissing) {
+    const retry: any = await supabase
+      .from("stock_consumptions")
+      .select("quantity,reason,created_at,stock_batches(product_id,variant_segment)")
+      .eq("reason", "manual_sale")
+      .gte("created_at", startIso)
+      .lte("created_at", endIso);
+    (manualConsRes as any).data = retry.data;
+    (manualConsRes as any).error = retry.error;
+  }
+
+  if (manualConsRes.error) {
+    warnings.push(
+      `Handmatige verkoop-omzet kon niet worden berekend: ${(manualConsRes.error as any)?.message ?? "Onbekende fout"}`
+    );
+  } else {
+    const rows = (manualConsRes.data ?? []) as any[];
+    const productIds = Array.from(
+      new Set(rows.map((r) => String((r as any)?.stock_batches?.product_id ?? "")).filter(Boolean))
+    );
+
+    const productMap = new Map<string, any>();
+    if (productIds.length > 0) {
+      const pr = await supabase
+        .from("products")
+        .select("id,variant_youth,variant_adult,variant_socks,variant_shoes,variant_onesize")
+        .in("id", productIds);
+      if (pr.error) {
+        warnings.push(`Handmatige verkoop-omzet kon producten niet laden: ${pr.error.message}`);
+      } else {
+        for (const p of pr.data ?? []) productMap.set(String((p as any).id), p);
+      }
+    }
+
+    const saleCentsFor = (p: any, variant: string | null | undefined): number | null => {
+      const v = String(variant ?? "").trim();
+      const block =
+        v === "youth"
+          ? normalizeVariantBlock(p?.variant_youth)
+          : v === "adult"
+            ? normalizeVariantBlock(p?.variant_adult)
+            : v === "socks"
+              ? normalizeVariantBlock(p?.variant_socks)
+              : v === "shoes"
+                ? normalizeVariantBlock(p?.variant_shoes)
+                : v === "onesize"
+                  ? normalizeVariantBlock(p?.variant_onesize)
+                  : null;
+      const sc = block ? block.sale_cents : null;
+      return typeof sc === "number" && Number.isFinite(sc) && sc >= 0 ? sc : null;
+    };
+
+    let missingPrice = 0;
+    for (const r of rows) {
+      const qty = Number((r as any).quantity ?? 0);
+      const b = (r as any).stock_batches;
+      const batch = Array.isArray(b) ? b[0] : b;
+      const productId = String(batch?.product_id ?? "");
+      const variant = batch?.variant_segment != null ? String(batch.variant_segment) : "";
+      if (!productId || !Number.isFinite(qty) || qty <= 0) continue;
+      const p = productMap.get(productId);
+      const sale = p ? saleCentsFor(p, variant) : null;
+      if (sale == null) {
+        missingPrice += 1;
+        continue;
+      }
+      manualRevenueInclCents += qty * sale;
+    }
+    if (missingPrice > 0) {
+      warnings.push(
+        `Handmatige verkoop-omzet: ${missingPrice} regel(s) konden niet worden gewaardeerd omdat verkoopprijs ontbreekt op het product.`
+      );
+    }
+  }
+
+  const totalRevenueInclCents = revenueInclCents + manualRevenueInclCents;
+  const totalRevenueExclCents = revenueExclCents + exclCentsFromIncl21(manualRevenueInclCents);
+
   let cogsExclCents = 0;
   if (!reasonMissing) {
     for (const row of consRes.data ?? []) {
@@ -278,9 +369,9 @@ export async function fetchFinancialOverview(
     }
   }
 
-  const grossMarginExclCents = revenueExclCents - cogsExclCents;
+  const grossMarginExclCents = totalRevenueExclCents - cogsExclCents;
   const marginPercent =
-    revenueExclCents > 0 ? Math.round((grossMarginExclCents / revenueExclCents) * 1000) / 10 : null;
+    totalRevenueExclCents > 0 ? Math.round((grossMarginExclCents / totalRevenueExclCents) * 1000) / 10 : null;
 
   let valueExclCents = 0;
   let batchesMissingPurchasePrice = 0;
@@ -306,8 +397,8 @@ export async function fetchFinancialOverview(
     internalOrdersTotalExclCents,
     webshop: {
       orderCount,
-      revenueInclCents,
-      revenueExclCents,
+      revenueInclCents: totalRevenueInclCents,
+      revenueExclCents: totalRevenueExclCents,
       cogsExclCents,
       grossMarginExclCents,
       marginPercent
