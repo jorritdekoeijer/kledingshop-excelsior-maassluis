@@ -78,7 +78,7 @@ export default async function EditStockDeliveryPage({
         </Link>
         <h1 className="mt-4 text-xl font-semibold">Levering bewerken</h1>
         <p className="mt-2 text-sm text-zinc-600">
-          Let op: bewerken kan alleen zolang er nog geen voorraad uit deze levering is verbruikt.
+          Let op: regels waar al voorraad van is verbruikt kunnen niet meer worden aangepast. Overige regels kun je wel corrigeren.
         </p>
         {ok ? (
           <p className="mt-4 rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-900">Opgeslagen.</p>

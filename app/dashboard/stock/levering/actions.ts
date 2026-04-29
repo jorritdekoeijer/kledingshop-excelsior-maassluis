@@ -125,33 +125,77 @@ export async function updateStockDeliveryAction(deliveryId: string, input: unkno
     }
   }
 
-  // Alleen bewerken als niets verbruikt is.
   const { data: batches, error: bErr } = await service
     .from("stock_batches")
-    .select("id,quantity_received,quantity_remaining")
+    .select(
+      "id,product_id,variant_segment,size_label,quantity_initial,quantity_received,quantity_remaining,unit_purchase_excl_cents,unit_printing_excl_cents,received_at,note"
+    )
     .eq("stock_delivery_id", deliveryId);
   if (bErr) redirect(`/dashboard/stock/levering/${deliveryId}/edit?error=${encodeURIComponent(formatPostgrestError(bErr))}`);
 
   const batchIds = (batches ?? []).map((b: any) => b.id).filter(Boolean);
-  const anyConsumed = (batches ?? []).some((b: any) => Number(b.quantity_remaining ?? 0) < Number(b.quantity_received ?? 0));
-  if (anyConsumed) {
-    redirect(
-      `/dashboard/stock/levering/${deliveryId}/edit?error=${encodeURIComponent(
-        "Deze levering kan niet meer worden bewerkt omdat er al voorraad uit is verbruikt. Maak een correctielevering."
-      )}`
-    );
+
+  // Determine which batches are "locked" (consumed / mutated).
+  const consumedByQty = new Set<string>();
+  for (const b of batches ?? []) {
+    const id = String((b as any).id ?? "");
+    if (!id) continue;
+    const rem = Number((b as any).quantity_remaining ?? 0);
+    const rec = Number((b as any).quantity_received ?? 0);
+    if (Number.isFinite(rem) && Number.isFinite(rec) && rem < rec) consumedByQty.add(id);
   }
 
+  const consumedByConsumption = new Set<string>();
   if (batchIds.length > 0) {
-    const cons = await service
-      .from("stock_consumptions")
-      .select("*", { count: "exact", head: true })
-      .in("stock_batch_id", batchIds);
+    const cons = await service.from("stock_consumptions").select("stock_batch_id").in("stock_batch_id", batchIds).limit(10000);
     if (cons.error) redirect(`/dashboard/stock/levering/${deliveryId}/edit?error=${encodeURIComponent(formatPostgrestError(cons.error))}`);
-    if ((cons.count ?? 0) > 0) {
+    for (const r of cons.data ?? []) {
+      const id = String((r as any).stock_batch_id ?? "");
+      if (id) consumedByConsumption.add(id);
+    }
+  }
+
+  const lockedBatchIds = new Set<string>([...consumedByQty, ...consumedByConsumption]);
+
+  const keyOf = (x: { product_id: any; variant_segment: any; size_label: any }) => {
+    const pid = String(x.product_id ?? "");
+    const vr = String(x.variant_segment ?? "").trim();
+    const sz = String(x.size_label ?? "").trim();
+    return `${pid}\0${vr}\0${sz}`;
+  };
+
+  // Validate that locked batches are unchanged (cannot delete/modify consumed lines).
+  const incomingByKey = new Map<string, (typeof d.lines)[number]>();
+  for (const line of d.lines) {
+    const k = `${String(line.productId)}\0${String(line.variantSegment ?? "").trim()}\0${String(line.sizeLabel ?? "").trim()}`;
+    if (incomingByKey.has(k)) {
+      redirect(`/dashboard/stock/levering/${deliveryId}/edit?error=${encodeURIComponent("Dubbele regel voor dezelfde product/variant/maat.")}`);
+    }
+    incomingByKey.set(k, line);
+  }
+
+  for (const b of batches ?? []) {
+    const id = String((b as any).id ?? "");
+    if (!id || !lockedBatchIds.has(id)) continue;
+    const k = keyOf(b as any);
+    const incoming = incomingByKey.get(k);
+    if (!incoming) {
       redirect(
         `/dashboard/stock/levering/${deliveryId}/edit?error=${encodeURIComponent(
-          "Deze levering kan niet meer worden bewerkt omdat er al voorraadmutaties aan gekoppeld zijn. Maak een correctielevering."
+          "Je probeert een regel te verwijderen waarvan al voorraad is verbruikt. Deze regel kan niet worden aangepast."
+        )}`
+      );
+    }
+    const wantQty = Number(incoming.quantity ?? 0);
+    const haveQty = Number((b as any).quantity_received ?? 0);
+    const wantUnit = Number(incoming.unitPurchaseExclCents ?? 0);
+    const haveUnit = Number((b as any).unit_purchase_excl_cents ?? 0);
+    const wantPrint = Number(incoming.unitPrintingExclCents ?? 0);
+    const havePrint = Number((b as any).unit_printing_excl_cents ?? 0);
+    if (wantQty !== haveQty || wantUnit !== haveUnit || wantPrint !== havePrint) {
+      redirect(
+        `/dashboard/stock/levering/${deliveryId}/edit?error=${encodeURIComponent(
+          "Je probeert een regel te wijzigen waarvan al voorraad is verbruikt. Pas alleen regels aan waar nog niets van is afgeboekt."
         )}`
       );
     }
@@ -175,25 +219,46 @@ export async function updateStockDeliveryAction(deliveryId: string, input: unkno
     ? `Levering ${d.invoiceNumber.trim()}${d.supplier?.trim() ? ` — ${d.supplier.trim()}` : ""}`
     : null;
 
-  const del = await service.from("stock_batches").delete().eq("stock_delivery_id", deliveryId);
-  if (del.error) redirect(`/dashboard/stock/levering/${deliveryId}/edit?error=${encodeURIComponent(formatPostgrestError(del.error))}`);
+  // Delete only batches that are NOT locked; locked batches remain intact.
+  const deletableIds = (batches ?? [])
+    .map((b: any) => String(b.id ?? ""))
+    .filter(Boolean)
+    .filter((id: string) => !lockedBatchIds.has(id));
+  if (deletableIds.length > 0) {
+    const del = await service.from("stock_batches").delete().in("id", deletableIds);
+    if (del.error) redirect(`/dashboard/stock/levering/${deliveryId}/edit?error=${encodeURIComponent(formatPostgrestError(del.error))}`);
+  }
 
-  const batchRows = d.lines.map((line) => ({
-    product_id: line.productId,
-    stock_delivery_id: deliveryId,
-    received_at: receivedAtIso,
-    quantity_initial: line.quantity,
-    quantity_received: line.quantity,
-    quantity_remaining: line.quantity,
-    variant_segment: line.variantSegment,
-    size_label: line.sizeLabel.trim(),
-    unit_purchase_excl_cents: line.unitPurchaseExclCents,
-    unit_printing_excl_cents: line.unitPrintingExclCents,
-    note
-  }));
+  const lockedKeys = new Set<string>();
+  for (const b of batches ?? []) {
+    const id = String((b as any).id ?? "");
+    if (!id || !lockedBatchIds.has(id)) continue;
+    lockedKeys.add(keyOf(b as any));
+  }
 
-  const ins = await service.from("stock_batches").insert(batchRows);
-  if (ins.error) redirect(`/dashboard/stock/levering/${deliveryId}/edit?error=${encodeURIComponent(formatPostgrestError(ins.error))}`);
+  const batchRows = d.lines
+    .filter((line) => {
+      const k = `${String(line.productId)}\0${String(line.variantSegment ?? "").trim()}\0${String(line.sizeLabel ?? "").trim()}`;
+      return !lockedKeys.has(k);
+    })
+    .map((line) => ({
+      product_id: line.productId,
+      stock_delivery_id: deliveryId,
+      received_at: receivedAtIso,
+      quantity_initial: line.quantity,
+      quantity_received: line.quantity,
+      quantity_remaining: line.quantity,
+      variant_segment: line.variantSegment,
+      size_label: line.sizeLabel.trim(),
+      unit_purchase_excl_cents: line.unitPurchaseExclCents,
+      unit_printing_excl_cents: line.unitPrintingExclCents,
+      note
+    }));
+
+  if (batchRows.length > 0) {
+    const ins = await service.from("stock_batches").insert(batchRows);
+    if (ins.error) redirect(`/dashboard/stock/levering/${deliveryId}/edit?error=${encodeURIComponent(formatPostgrestError(ins.error))}`);
+  }
 
   const { count: batchCount, error: bcErr } = await service
     .from("stock_batches")
