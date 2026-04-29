@@ -1,17 +1,9 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import { normalizeVariantBlock } from "@/lib/shop/product-json";
 import { createManualSaleAction } from "@/app/dashboard/stock/handmatige-verkoop/actions";
 
-type VariantSegment = "youth" | "adult";
-
-type ProductRow = {
-  id: string;
-  name: string;
-  variant_youth: unknown;
-  variant_adult: unknown;
-};
+import type { ProductPickOption, VariantSegment } from "@/lib/stock/product-pick-types";
 
 type LineState = {
   key: string;
@@ -29,21 +21,30 @@ function emptyLine(): LineState {
   return { key: mkKey(), productId: "", segment: "adult", sizeLabel: "", quantity: 1 };
 }
 
-function defaultSegmentForProduct(p: ProductRow | undefined): VariantSegment {
+function defaultSegmentForProduct(p: ProductPickOption | undefined): VariantSegment {
   if (!p) return "adult";
-  const y = normalizeVariantBlock(p.variant_youth).sizes.length;
-  const a = normalizeVariantBlock(p.variant_adult).sizes.length;
+  const o = p.onesize?.sizes.length ?? 0;
+  if (o > 0) return "onesize";
+  const h = p.shoes?.sizes.length ?? 0;
+  if (h > 0) return "shoes";
+  const s = p.socks?.sizes.length ?? 0;
+  if (s > 0) return "socks";
+  const y = p.youth.sizes.length;
+  const a = p.adult.sizes.length;
   if (y > 0 && a === 0) return "youth";
   if (a > 0 && y === 0) return "adult";
   return "adult";
 }
 
-function segmentSizes(p: ProductRow, seg: VariantSegment): string[] {
-  const v = seg === "youth" ? normalizeVariantBlock(p.variant_youth) : normalizeVariantBlock(p.variant_adult);
-  return [...new Set((v.sizes ?? []).map((s) => String(s).trim()).filter(Boolean))];
+function sizesForSegment(p: ProductPickOption, seg: VariantSegment): string[] {
+  if (seg === "youth") return p.youth.sizes;
+  if (seg === "adult") return p.adult.sizes;
+  if (seg === "socks") return p.socks?.sizes ?? [];
+  if (seg === "onesize") return p.onesize?.sizes ?? [];
+  return p.shoes?.sizes ?? [];
 }
 
-export function ManualSaleForm({ products }: { products: ProductRow[] }) {
+export function ManualSaleForm({ products }: { products: ProductPickOption[] }) {
   const [saleDate, setSaleDate] = useState("");
   const [note, setNote] = useState("");
   const [lines, setLines] = useState<LineState[]>(() => [emptyLine()]);
@@ -66,14 +67,14 @@ export function ManualSaleForm({ products }: { products: ProductRow[] }) {
   function onProductChange(key: string, productId: string) {
     const p = productId ? productMap.get(productId) : undefined;
     const seg = defaultSegmentForProduct(p);
-    const sizes = p ? segmentSizes(p, seg) : [];
+    const sizes = p ? sizesForSegment(p, seg) : [];
     updateLine(key, { productId, segment: seg, sizeLabel: sizes[0] ?? "" });
   }
 
   function onSegmentChange(key: string, productId: string, seg: VariantSegment) {
     const p = productId ? productMap.get(productId) : undefined;
     if (!p) return;
-    const sizes = segmentSizes(p, seg);
+    const sizes = sizesForSegment(p, seg);
     updateLine(key, { segment: seg, sizeLabel: sizes[0] ?? "" });
   }
 
@@ -148,8 +149,13 @@ export function ManualSaleForm({ products }: { products: ProductRow[] }) {
         <div className="mt-4 space-y-4">
           {lines.map((line) => {
             const p = line.productId ? productMap.get(line.productId) : undefined;
-            const sizes = p ? segmentSizes(p, line.segment) : [];
-            const showToggle = Boolean(p && segmentSizes(p, "youth").length > 0 && segmentSizes(p, "adult").length > 0);
+            const sizes = p ? sizesForSegment(p, line.segment) : [];
+            const hasShoes = Boolean(p && (p.shoes?.sizes.length ?? 0) > 0);
+            const hasSocks = Boolean(p && (p.socks?.sizes.length ?? 0) > 0);
+            const hasOne = Boolean(p && (p.onesize?.sizes.length ?? 0) > 0);
+            const showToggle = Boolean(
+              p && !hasShoes && !hasSocks && !hasOne && p.youth.sizes.length > 0 && p.adult.sizes.length > 0
+            );
 
             return (
               <div key={line.key} className="grid gap-3 rounded-lg border border-zinc-200 bg-zinc-50/50 p-4 md:grid-cols-12 md:items-end">
@@ -181,9 +187,15 @@ export function ManualSaleForm({ products }: { products: ProductRow[] }) {
                 </label>
 
                 <div className="md:col-span-3">
-                  <span className="text-xs font-medium text-zinc-600">Jeugd / Volwassenen</span>
+                  <span className="text-xs font-medium text-zinc-600">Variant</span>
                   {!line.productId ? (
                     <p className="mt-2 text-xs text-zinc-400">Kies eerst een product</p>
+                  ) : hasOne ? (
+                    <p className="mt-2 text-xs font-semibold text-zinc-700">ONE SIZE</p>
+                  ) : hasShoes ? (
+                    <p className="mt-2 text-xs font-semibold text-zinc-700">SHOES</p>
+                  ) : hasSocks ? (
+                    <p className="mt-2 text-xs font-semibold text-zinc-700">SOCKS</p>
                   ) : showToggle ? (
                     <div className="mt-2 inline-flex rounded-full border border-zinc-300 bg-white p-1" role="group">
                       <button
@@ -206,7 +218,17 @@ export function ManualSaleForm({ products }: { products: ProductRow[] }) {
                       </button>
                     </div>
                   ) : (
-                    <p className="mt-2 text-xs font-medium text-zinc-700">{line.segment === "youth" ? "Jeugd (YOUTH)" : "Volwassenen (ADULT)"}</p>
+                    <p className="mt-2 text-xs font-medium text-zinc-700">
+                      {line.segment === "youth"
+                        ? "Jeugd (YOUTH)"
+                        : line.segment === "adult"
+                          ? "Volwassenen (ADULT)"
+                          : line.segment === "socks"
+                            ? "SOCKS"
+                            : line.segment === "shoes"
+                              ? "SHOES"
+                              : "ONE SIZE"}
+                    </p>
                   )}
                 </div>
 

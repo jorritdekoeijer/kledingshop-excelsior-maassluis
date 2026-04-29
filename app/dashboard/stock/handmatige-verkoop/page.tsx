@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requirePermission } from "@/lib/auth/permissions-server";
 import { permissions } from "@/lib/auth/permissions";
+import { buildProductPickOptions } from "@/lib/stock/build-product-pick-options";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { ManualSaleForm } from "@/components/dashboard/ManualSaleForm";
 
@@ -19,7 +20,10 @@ export default async function HandmatigeVerkoopPage({
   const error = typeof sp.error === "string" ? sp.error : "";
 
   const supabase = await createSupabaseServerClient();
-  const { data: products, error: pErr } = await supabase.from("products").select("id,name,variant_youth,variant_adult").order("name");
+  const { data: products, error: pErr } = await supabase
+    .from("products")
+    .select("id,name,variant_youth,variant_adult,variant_socks,variant_shoes,variant_onesize")
+    .order("name");
 
   if (pErr) {
     return (
@@ -53,7 +57,7 @@ export default async function HandmatigeVerkoopPage({
       </div>
 
       <div className="rounded-lg border border-zinc-200 bg-white p-6">
-        <ManualSaleForm products={(products ?? []) as any} />
+        <ManualSaleForm products={buildProductPickOptions((products ?? []) as any)} />
       </div>
     </div>
   );
