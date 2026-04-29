@@ -7,7 +7,7 @@ import { createStockDeliverySchema } from "@/lib/validation/stock-delivery";
 import { createSupabaseServiceClient } from "@/lib/supabase/service";
 import { formatPostgrestError } from "@/lib/supabase/format-postgrest-error";
 
-function mergeDeliveryLines(
+function mergeDeliveryLinesExact(
   lines: Array<{
     productId: string;
     variantSegment: string;
@@ -16,29 +16,20 @@ function mergeDeliveryLines(
     unitPurchaseExclCents: number;
     unitPrintingExclCents: number;
   }>
-): {
-  merged: typeof lines;
-  conflictKey: string | null;
-} {
+): typeof lines {
+  // Merge only when everything matches, including unit costs.
   const byKey = new Map<string, (typeof lines)[number]>();
   for (const line of lines) {
-    const k = `${String(line.productId)}\0${String(line.variantSegment ?? "").trim()}\0${String(line.sizeLabel ?? "").trim()}`;
+    const k = `${String(line.productId)}\0${String(line.variantSegment ?? "").trim()}\0${String(line.sizeLabel ?? "").trim()}\0${Number(line.unitPurchaseExclCents ?? 0)}\0${Number(line.unitPrintingExclCents ?? 0)}`;
     const prev = byKey.get(k);
     if (!prev) {
       byKey.set(k, { ...line, sizeLabel: String(line.sizeLabel ?? "").trim() });
       continue;
     }
-    // Only auto-merge if unit costs match; otherwise keep strict to avoid ambiguous pricing.
-    if (
-      Number(prev.unitPurchaseExclCents ?? 0) !== Number(line.unitPurchaseExclCents ?? 0) ||
-      Number(prev.unitPrintingExclCents ?? 0) !== Number(line.unitPrintingExclCents ?? 0)
-    ) {
-      return { merged: [], conflictKey: k };
-    }
     prev.quantity = Number(prev.quantity ?? 0) + Number(line.quantity ?? 0);
     byKey.set(k, prev);
   }
-  return { merged: [...byKey.values()], conflictKey: null };
+  return [...byKey.values()];
 }
 
 export async function createStockDeliveryAction(input: unknown) {
@@ -53,15 +44,7 @@ export async function createStockDeliveryAction(input: unknown) {
   const d = parsed.data;
   const service = createSupabaseServiceClient();
 
-  const mergedRes = mergeDeliveryLines(d.lines as any);
-  if (mergedRes.conflictKey) {
-    redirect(
-      `/dashboard/stock/levering/nieuw?error=${encodeURIComponent(
-        "Dubbele regel voor dezelfde product/variant/maat met verschillende inkoopprijs. Combineer de regel of maak er 1 van."
-      )}`
-    );
-  }
-  const mergedLines = mergedRes.merged;
+  const mergedLines = mergeDeliveryLinesExact(d.lines as any);
 
   // Detect duplicate invoice numbers (global) when provided.
   const invNo = d.invoiceNumber?.trim() ? d.invoiceNumber.trim() : "";
@@ -153,15 +136,7 @@ export async function updateStockDeliveryAction(deliveryId: string, input: unkno
   const d = parsed.data;
   const service = createSupabaseServiceClient();
 
-  const mergedRes = mergeDeliveryLines(d.lines as any);
-  if (mergedRes.conflictKey) {
-    redirect(
-      `/dashboard/stock/levering/${deliveryId}/edit?error=${encodeURIComponent(
-        "Dubbele regel voor dezelfde product/variant/maat met verschillende inkoopprijs. Combineer de regel of maak er 1 van."
-      )}`
-    );
-  }
-  const mergedLines = mergedRes.merged;
+  const mergedLines = mergeDeliveryLinesExact(d.lines as any);
 
   // Detect duplicate invoice numbers (excluding this delivery) when provided.
   const invNo = d.invoiceNumber?.trim() ? d.invoiceNumber.trim() : "";
@@ -219,34 +194,29 @@ export async function updateStockDeliveryAction(deliveryId: string, input: unkno
   };
 
   // Validate that locked batches are unchanged (cannot delete/modify consumed lines).
-  const incomingByKey = new Map<string, (typeof mergedLines)[number]>();
-  for (const line of mergedLines as any) {
-    const k = `${String(line.productId)}\0${String(line.variantSegment ?? "").trim()}\0${String(line.sizeLabel ?? "").trim()}`;
-    incomingByKey.set(k, line);
-  }
+  // For locked batches we require an unchanged matching line (same product/variant/size + same received qty + same unit costs).
+  const lockedSigCounts = new Map<string, number>();
+  const sigOfBatch = (b: any) =>
+    `${keyOf(b)}\0${Number(b.quantity_received ?? 0)}\0${Number(b.unit_purchase_excl_cents ?? 0)}\0${Number(b.unit_printing_excl_cents ?? 0)}`;
 
   for (const b of batches ?? []) {
     const id = String((b as any).id ?? "");
     if (!id || !lockedBatchIds.has(id)) continue;
-    const k = keyOf(b as any);
-    const incoming = incomingByKey.get(k);
-    if (!incoming) {
-      redirect(
-        `/dashboard/stock/levering/${deliveryId}/edit?error=${encodeURIComponent(
-          "Je probeert een regel te verwijderen waarvan al voorraad is verbruikt. Deze regel kan niet worden aangepast."
-        )}`
-      );
+    const sig = sigOfBatch(b as any);
+    lockedSigCounts.set(sig, (lockedSigCounts.get(sig) ?? 0) + 1);
+  }
+
+  for (const [sig, need] of lockedSigCounts) {
+    let have = 0;
+    for (const line of mergedLines as any) {
+      const k = `${String(line.productId)}\0${String(line.variantSegment ?? "").trim()}\0${String(line.sizeLabel ?? "").trim()}`;
+      const lineSig = `${k}\0${Number(line.quantity ?? 0)}\0${Number(line.unitPurchaseExclCents ?? 0)}\0${Number(line.unitPrintingExclCents ?? 0)}`;
+      if (lineSig === sig) have += 1;
     }
-    const wantQty = Number(incoming.quantity ?? 0);
-    const haveQty = Number((b as any).quantity_received ?? 0);
-    const wantUnit = Number(incoming.unitPurchaseExclCents ?? 0);
-    const haveUnit = Number((b as any).unit_purchase_excl_cents ?? 0);
-    const wantPrint = Number(incoming.unitPrintingExclCents ?? 0);
-    const havePrint = Number((b as any).unit_printing_excl_cents ?? 0);
-    if (wantQty !== haveQty || wantUnit !== haveUnit || wantPrint !== havePrint) {
+    if (have < need) {
       redirect(
         `/dashboard/stock/levering/${deliveryId}/edit?error=${encodeURIComponent(
-          "Je probeert een regel te wijzigen waarvan al voorraad is verbruikt. Pas alleen regels aan waar nog niets van is afgeboekt."
+          "Je probeert een regel te wijzigen of verwijderen waarvan al voorraad is verbruikt. Pas alleen regels aan waar nog niets van is afgeboekt."
         )}`
       );
     }
@@ -280,17 +250,18 @@ export async function updateStockDeliveryAction(deliveryId: string, input: unkno
     if (del.error) redirect(`/dashboard/stock/levering/${deliveryId}/edit?error=${encodeURIComponent(formatPostgrestError(del.error))}`);
   }
 
-  const lockedKeys = new Set<string>();
-  for (const b of batches ?? []) {
-    const id = String((b as any).id ?? "");
-    if (!id || !lockedBatchIds.has(id)) continue;
-    lockedKeys.add(keyOf(b as any));
-  }
-
-  const batchRows = mergedLines
+  // Skip inserting lines that are already represented by an existing locked batch (match by signature, count-aware).
+  const remainingLockedSigCounts = new Map<string, number>(lockedSigCounts);
+  const batchRows = (mergedLines as any[])
     .filter((line) => {
       const k = `${String(line.productId)}\0${String(line.variantSegment ?? "").trim()}\0${String(line.sizeLabel ?? "").trim()}`;
-      return !lockedKeys.has(k);
+      const sig = `${k}\0${Number(line.quantity ?? 0)}\0${Number(line.unitPurchaseExclCents ?? 0)}\0${Number(line.unitPrintingExclCents ?? 0)}`;
+      const n = remainingLockedSigCounts.get(sig) ?? 0;
+      if (n > 0) {
+        remainingLockedSigCounts.set(sig, n - 1);
+        return false;
+      }
+      return true;
     })
     .map((line) => ({
       product_id: line.productId,
