@@ -7,6 +7,40 @@ import { createStockDeliverySchema } from "@/lib/validation/stock-delivery";
 import { createSupabaseServiceClient } from "@/lib/supabase/service";
 import { formatPostgrestError } from "@/lib/supabase/format-postgrest-error";
 
+function mergeDeliveryLines(
+  lines: Array<{
+    productId: string;
+    variantSegment: string;
+    sizeLabel: string;
+    quantity: number;
+    unitPurchaseExclCents: number;
+    unitPrintingExclCents: number;
+  }>
+): {
+  merged: typeof lines;
+  conflictKey: string | null;
+} {
+  const byKey = new Map<string, (typeof lines)[number]>();
+  for (const line of lines) {
+    const k = `${String(line.productId)}\0${String(line.variantSegment ?? "").trim()}\0${String(line.sizeLabel ?? "").trim()}`;
+    const prev = byKey.get(k);
+    if (!prev) {
+      byKey.set(k, { ...line, sizeLabel: String(line.sizeLabel ?? "").trim() });
+      continue;
+    }
+    // Only auto-merge if unit costs match; otherwise keep strict to avoid ambiguous pricing.
+    if (
+      Number(prev.unitPurchaseExclCents ?? 0) !== Number(line.unitPurchaseExclCents ?? 0) ||
+      Number(prev.unitPrintingExclCents ?? 0) !== Number(line.unitPrintingExclCents ?? 0)
+    ) {
+      return { merged: [], conflictKey: k };
+    }
+    prev.quantity = Number(prev.quantity ?? 0) + Number(line.quantity ?? 0);
+    byKey.set(k, prev);
+  }
+  return { merged: [...byKey.values()], conflictKey: null };
+}
+
 export async function createStockDeliveryAction(input: unknown) {
   const gate = await requirePermission(permissions.stock.write);
   if (!gate.ok) redirect("/dashboard/stock/levering/nieuw?error=Geen%20toegang");
@@ -18,6 +52,16 @@ export async function createStockDeliveryAction(input: unknown) {
 
   const d = parsed.data;
   const service = createSupabaseServiceClient();
+
+  const mergedRes = mergeDeliveryLines(d.lines as any);
+  if (mergedRes.conflictKey) {
+    redirect(
+      `/dashboard/stock/levering/nieuw?error=${encodeURIComponent(
+        "Dubbele regel voor dezelfde product/variant/maat met verschillende inkoopprijs. Combineer de regel of maak er 1 van."
+      )}`
+    );
+  }
+  const mergedLines = mergedRes.merged;
 
   // Detect duplicate invoice numbers (global) when provided.
   const invNo = d.invoiceNumber?.trim() ? d.invoiceNumber.trim() : "";
@@ -54,7 +98,7 @@ export async function createStockDeliveryAction(input: unknown) {
     ? `Levering ${d.invoiceNumber.trim()}${d.supplier?.trim() ? ` — ${d.supplier.trim()}` : ""}`
     : null;
 
-  const batchRows = d.lines.map((line) => ({
+  const batchRows = mergedLines.map((line) => ({
     product_id: line.productId,
     stock_delivery_id: delivery.id,
     received_at: receivedAtIso,
@@ -108,6 +152,16 @@ export async function updateStockDeliveryAction(deliveryId: string, input: unkno
 
   const d = parsed.data;
   const service = createSupabaseServiceClient();
+
+  const mergedRes = mergeDeliveryLines(d.lines as any);
+  if (mergedRes.conflictKey) {
+    redirect(
+      `/dashboard/stock/levering/${deliveryId}/edit?error=${encodeURIComponent(
+        "Dubbele regel voor dezelfde product/variant/maat met verschillende inkoopprijs. Combineer de regel of maak er 1 van."
+      )}`
+    );
+  }
+  const mergedLines = mergedRes.merged;
 
   // Detect duplicate invoice numbers (excluding this delivery) when provided.
   const invNo = d.invoiceNumber?.trim() ? d.invoiceNumber.trim() : "";
@@ -165,12 +219,9 @@ export async function updateStockDeliveryAction(deliveryId: string, input: unkno
   };
 
   // Validate that locked batches are unchanged (cannot delete/modify consumed lines).
-  const incomingByKey = new Map<string, (typeof d.lines)[number]>();
-  for (const line of d.lines) {
+  const incomingByKey = new Map<string, (typeof mergedLines)[number]>();
+  for (const line of mergedLines as any) {
     const k = `${String(line.productId)}\0${String(line.variantSegment ?? "").trim()}\0${String(line.sizeLabel ?? "").trim()}`;
-    if (incomingByKey.has(k)) {
-      redirect(`/dashboard/stock/levering/${deliveryId}/edit?error=${encodeURIComponent("Dubbele regel voor dezelfde product/variant/maat.")}`);
-    }
     incomingByKey.set(k, line);
   }
 
@@ -236,7 +287,7 @@ export async function updateStockDeliveryAction(deliveryId: string, input: unkno
     lockedKeys.add(keyOf(b as any));
   }
 
-  const batchRows = d.lines
+  const batchRows = mergedLines
     .filter((line) => {
       const k = `${String(line.productId)}\0${String(line.variantSegment ?? "").trim()}\0${String(line.sizeLabel ?? "").trim()}`;
       return !lockedKeys.has(k);
