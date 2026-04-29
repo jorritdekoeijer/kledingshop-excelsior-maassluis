@@ -136,18 +136,18 @@ export function NewDeliveryForm({
   }
 
   function onProductChange(key: string, productId: string) {
-    const p = productMap.get(productId);
-    const seg = defaultSegmentForProduct(p);
-    const sizes = p ? sizesForSegment(p, seg) : [];
-    const prev = lines.find((l) => l.key === key);
-    const prevSize = prev?.sizeLabel?.trim() ? prev.sizeLabel.trim() : "";
-    const nextSize =
-      sizes.length > 0 ? (sizes.includes(prevSize) ? prevSize : sizes[0] ?? "") : prevSize;
-    updateLine(key, {
-      productId,
-      segment: seg,
-      sizeLabel: nextSize
-    });
+    // Use functional state update to avoid stale reads (important when quickly editing multiple fields).
+    setLines((prev) =>
+      prev.map((l) => {
+        if (l.key !== key) return l;
+        const p = productMap.get(productId);
+        const seg = defaultSegmentForProduct(p);
+        const sizes = p ? sizesForSegment(p, seg) : [];
+        const prevSize = l.sizeLabel?.trim() ? l.sizeLabel.trim() : "";
+        const nextSize = sizes.length > 0 ? (sizes.includes(prevSize) ? prevSize : sizes[0] ?? "") : prevSize;
+        return { ...l, productId, segment: seg, sizeLabel: nextSize };
+      })
+    );
   }
 
   function onSegmentChange(key: string, productId: string, segment: VariantSegment) {
