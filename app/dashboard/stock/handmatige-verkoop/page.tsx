@@ -131,9 +131,72 @@ export default async function HandmatigeVerkoopPage({
     isSet: Boolean((p as any).is_set ?? false),
     setPriceInclCents: Number((p as any).price_cents ?? 0)
   }));
+  const productNameById = new Map<string, string>(productMeta.map((m) => [m.id, m.name]));
+
+  // Paginering voor het overzicht
+  const pageRaw = typeof sp.page === "string" ? Number(sp.page) : 1;
+  const page = Number.isFinite(pageRaw) && pageRaw >= 1 ? Math.floor(pageRaw) : 1;
+  const offset = (page - 1) * PAGE_SIZE;
+
+  // Manual sales + count + bijbehorende regels (in twee queries)
+  type SaleRow = { id: string; sale_date: string; note: string | null; created_at: string };
+  type LineRow = {
+    id: string;
+    manual_sale_id: string;
+    product_id: string | null;
+    is_set: boolean;
+    quantity: number;
+    unit_revenue_incl_cents: number;
+    variant_segment: string | null;
+    size_label: string | null;
+  };
+  let salesRows: SaleRow[] = [];
+  let linesBySale: Map<string, LineRow[]> = new Map();
+  let salesTotalCount = 0;
+  let salesTableMissing = false;
+  let salesLoadError: string | null = null;
+
+  const salesQuery = await supabase
+    .from("manual_sales")
+    .select("id,sale_date,note,created_at", { count: "exact" })
+    .order("sale_date", { ascending: false })
+    .order("created_at", { ascending: false })
+    .range(offset, offset + PAGE_SIZE - 1);
+
+  if (salesQuery.error) {
+    const code = String((salesQuery.error as any)?.code ?? "");
+    const msg = String((salesQuery.error as any)?.message ?? "").toLowerCase();
+    if (code === "PGRST205" || msg.includes("manual_sales")) {
+      salesTableMissing = true;
+    } else {
+      salesLoadError = salesQuery.error.message;
+    }
+  } else {
+    salesRows = (salesQuery.data ?? []) as SaleRow[];
+    salesTotalCount = salesQuery.count ?? salesRows.length;
+    if (salesRows.length > 0) {
+      const ids = salesRows.map((r) => r.id);
+      const linesQ = await supabase
+        .from("manual_sale_lines")
+        .select("id,manual_sale_id,product_id,is_set,quantity,unit_revenue_incl_cents,variant_segment,size_label")
+        .in("manual_sale_id", ids)
+        .order("created_at", { ascending: true });
+      if (linesQ.error) {
+        salesLoadError = linesQ.error.message;
+      } else {
+        for (const row of (linesQ.data ?? []) as LineRow[]) {
+          const arr = linesBySale.get(row.manual_sale_id) ?? [];
+          arr.push(row);
+          linesBySale.set(row.manual_sale_id, arr);
+        }
+      }
+    }
+  }
+
+  const totalPages = Math.max(1, Math.ceil(salesTotalCount / PAGE_SIZE));
 
   return (
-    <div className="mx-auto max-w-3xl space-y-4">
+    <div className="mx-auto max-w-5xl space-y-4">
       <Link href="/dashboard/stock" className="text-sm text-brand-blue hover:underline">
         ← Terug naar voorraad
       </Link>
@@ -151,6 +214,139 @@ export default async function HandmatigeVerkoopPage({
 
       <div className="rounded-lg border border-zinc-200 bg-white p-6">
         <ManualSaleForm products={pickOptions} productMeta={productMeta} setComponentDefs={setComponentDefs} />
+      </div>
+
+      <div className="rounded-lg border border-zinc-200 bg-white p-6">
+        <div className="flex flex-wrap items-baseline justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-semibold">Geboekte handmatige verkopen</h2>
+            <p className="mt-1 text-sm text-zinc-600">
+              Overzicht van alle geregistreerde handmatige verkopen, nieuwste eerst.
+            </p>
+          </div>
+          <p className="text-xs text-zinc-500">
+            {salesTableMissing
+              ? ""
+              : `${salesTotalCount} ${salesTotalCount === 1 ? "verkoop" : "verkopen"}`}
+          </p>
+        </div>
+
+        {salesTableMissing ? (
+          <p className="mt-4 text-sm text-zinc-500">
+            Nog niet beschikbaar — draai migratie <code>0045_manual_sales_tables.sql</code> in Supabase.
+          </p>
+        ) : salesLoadError ? (
+          <p className="mt-4 text-sm text-red-700">Verkopen laden mislukt: {salesLoadError}</p>
+        ) : salesRows.length === 0 ? (
+          <p className="mt-4 text-sm text-zinc-500">Nog geen handmatige verkopen geregistreerd.</p>
+        ) : (
+          <div className="mt-4 space-y-4">
+            {salesRows.map((sale) => {
+              const lines = linesBySale.get(sale.id) ?? [];
+              const totalRevenue = lines.reduce(
+                (acc, l) => acc + Number(l.quantity ?? 0) * Number(l.unit_revenue_incl_cents ?? 0),
+                0
+              );
+              const totalQty = lines.reduce((acc, l) => acc + Number(l.quantity ?? 0), 0);
+              return (
+                <div key={sale.id} className="overflow-hidden rounded-lg border border-zinc-200">
+                  <div className="flex flex-wrap items-baseline justify-between gap-3 border-b border-zinc-200 bg-zinc-50 px-4 py-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-zinc-900">
+                        {formatDateNl(sale.sale_date)}{" "}
+                        <span className="text-xs font-normal text-zinc-500">
+                          · {lines.length} {lines.length === 1 ? "regel" : "regels"}
+                          {totalQty > 0 ? ` · ${totalQty} ${totalQty === 1 ? "stuk" : "stuks"}` : ""}
+                        </span>
+                      </p>
+                      {sale.note ? (
+                        <p className="mt-0.5 text-xs text-zinc-600">{sale.note}</p>
+                      ) : null}
+                    </div>
+                    <p className="text-sm font-semibold tabular-nums text-zinc-900">
+                      € {centsToEuroString(totalRevenue)}
+                    </p>
+                  </div>
+
+                  {lines.length === 0 ? (
+                    <p className="px-4 py-3 text-xs text-zinc-500">Geen regels gevonden voor deze verkoop.</p>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full min-w-[640px] text-left text-sm">
+                        <thead className="border-b border-zinc-100 bg-white text-xs font-semibold uppercase tracking-wide text-zinc-500">
+                          <tr>
+                            <th className="px-4 py-2">Product</th>
+                            <th className="px-4 py-2">Variant</th>
+                            <th className="px-4 py-2">Maat</th>
+                            <th className="px-4 py-2 text-right">Aantal</th>
+                            <th className="px-4 py-2 text-right">Stuksprijs (incl.)</th>
+                            <th className="px-4 py-2 text-right">Totaal</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-zinc-100">
+                          {lines.map((l) => {
+                            const name = l.product_id
+                              ? productNameById.get(l.product_id) ?? "—"
+                              : "—";
+                            const lineTotal = Number(l.quantity ?? 0) * Number(l.unit_revenue_incl_cents ?? 0);
+                            const variant = l.is_set
+                              ? "SET"
+                              : l.variant_segment
+                                ? l.variant_segment.toUpperCase()
+                                : "—";
+                            return (
+                              <tr key={l.id}>
+                                <td className="px-4 py-2 text-zinc-800">
+                                  {l.is_set ? <span className="mr-1 text-xs font-semibold text-brand-blue">[SET]</span> : null}
+                                  {name}
+                                </td>
+                                <td className="px-4 py-2 text-zinc-700">{variant}</td>
+                                <td className="px-4 py-2 text-zinc-700">{l.is_set ? "—" : l.size_label ?? "—"}</td>
+                                <td className="px-4 py-2 text-right tabular-nums">{l.quantity}</td>
+                                <td className="px-4 py-2 text-right tabular-nums">
+                                  € {centsToEuroString(Number(l.unit_revenue_incl_cents ?? 0))}
+                                </td>
+                                <td className="px-4 py-2 text-right font-medium tabular-nums">
+                                  € {centsToEuroString(lineTotal)}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+
+            {totalPages > 1 ? (
+              <div className="flex items-center justify-between border-t border-zinc-200 pt-3 text-sm">
+                <span className="text-zinc-600">
+                  Pagina {page} van {totalPages}
+                </span>
+                <div className="flex gap-2">
+                  {page > 1 ? (
+                    <Link
+                      href={`/dashboard/stock/handmatige-verkoop?page=${page - 1}`}
+                      className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-800 hover:bg-zinc-50"
+                    >
+                      ← Vorige
+                    </Link>
+                  ) : null}
+                  {page < totalPages ? (
+                    <Link
+                      href={`/dashboard/stock/handmatige-verkoop?page=${page + 1}`}
+                      className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-800 hover:bg-zinc-50"
+                    >
+                      Volgende →
+                    </Link>
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
+          </div>
+        )}
       </div>
     </div>
   );
