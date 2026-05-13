@@ -117,21 +117,46 @@ export async function POST(request: Request) {
     }
   }
 
-  // Voor elke set: controleer dat de meegestuurde componenten exact matchen met de definitie.
-  const setComponentsBySet = new Map<string, { component_product_id: string; quantity: number }[]>();
+  // Voor elke set: controleer dat de meegestuurde componenten een geldige selectie zijn.
+  // Regels:
+  //   - Componenten zonder option_group: moeten alle aanwezig zijn (multiset match op (productId, quantity)).
+  //   - Componenten met option_group: er moet precies één gekozen component per groep zijn, en die moet
+  //     overeenkomen met een van de gedefinieerde alternatieven (op (productId, quantity)).
+  type SetDefRow = { component_product_id: string; quantity: number; option_group: string | null };
+  const setComponentsBySet = new Map<string, SetDefRow[]>();
   const setIds = [...new Set(lines.filter((l) => l.isSet).map((l) => l.productId))];
   if (setIds.length > 0) {
-    const { data: defs, error: psErr } = await svc
+    let defs: any[] | null = null;
+    const firstQ = await svc
       .from("product_set_components")
-      .select("set_product_id,component_product_id,quantity")
+      .select("set_product_id,component_product_id,quantity,option_group")
       .in("set_product_id", setIds);
-    if (psErr) return NextResponse.json({ error: psErr.message }, { status: 500 });
+    if (firstQ.error) {
+      const code = String((firstQ.error as any)?.code ?? "");
+      const msg = String((firstQ.error as any)?.message ?? "").toLowerCase();
+      if (code === "42703" || msg.includes("option_group")) {
+        const fb = await svc
+          .from("product_set_components")
+          .select("set_product_id,component_product_id,quantity")
+          .in("set_product_id", setIds);
+        if (fb.error) return NextResponse.json({ error: fb.error.message }, { status: 500 });
+        defs = (fb.data ?? []).map((r: any) => ({ ...r, option_group: null }));
+      } else {
+        return NextResponse.json({ error: firstQ.error.message }, { status: 500 });
+      }
+    } else {
+      defs = firstQ.data ?? [];
+    }
     for (const id of setIds) setComponentsBySet.set(id, []);
     for (const row of defs ?? []) {
       const arr = setComponentsBySet.get(row.set_product_id as string) ?? [];
       arr.push({
         component_product_id: row.component_product_id as string,
-        quantity: Number(row.quantity ?? 1)
+        quantity: Number(row.quantity ?? 1),
+        option_group:
+          typeof row.option_group === "string" && row.option_group.trim().length > 0
+            ? row.option_group.trim()
+            : null
       });
       setComponentsBySet.set(row.set_product_id as string, arr);
     }
@@ -144,22 +169,61 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Set heeft geen componenten meer. Verwijder de regel." }, { status: 400 });
     }
     const got = line.setComponents ?? [];
-    if (got.length !== def.length) {
-      return NextResponse.json({ error: "Set-componenten kloppen niet meer. Voeg de set opnieuw toe." }, { status: 400 });
+
+    const required = def.filter((d) => !d.option_group);
+    const groupedDefs = new Map<string, SetDefRow[]>();
+    for (const d of def) {
+      if (!d.option_group) continue;
+      const arr = groupedDefs.get(d.option_group) ?? [];
+      arr.push(d);
+      groupedDefs.set(d.option_group, arr);
     }
-    // We controleren op (component_product_id, quantity) als een multiset.
-    const want = new Map<string, number>();
-    for (const d of def) want.set(`${d.component_product_id}#${d.quantity}`, (want.get(`${d.component_product_id}#${d.quantity}`) ?? 0) + 1);
-    const have = new Map<string, number>();
-    for (const g of got) have.set(`${g.productId}#${g.quantity}`, (have.get(`${g.productId}#${g.quantity}`) ?? 0) + 1);
-    let okShape = want.size === have.size;
-    if (okShape) {
-      for (const [k, v] of want) {
-        if (have.get(k) !== v) { okShape = false; break; }
+    const expectedCount = required.length + groupedDefs.size;
+    if (got.length !== expectedCount) {
+      return NextResponse.json(
+        { error: "Set-componenten kloppen niet meer. Voeg de set opnieuw toe." },
+        { status: 400 }
+      );
+    }
+
+    // Multiset van wat we hebben (productId#quantity).
+    const haveCounts = new Map<string, number>();
+    for (const g of got) {
+      const k = `${g.productId}#${g.quantity}`;
+      haveCounts.set(k, (haveCounts.get(k) ?? 0) + 1);
+    }
+    const consume = (key: string): boolean => {
+      const v = haveCounts.get(key) ?? 0;
+      if (v <= 0) return false;
+      if (v === 1) haveCounts.delete(key);
+      else haveCounts.set(key, v - 1);
+      return true;
+    };
+
+    let ok = true;
+    for (const r of required) {
+      if (!consume(`${r.component_product_id}#${r.quantity}`)) {
+        ok = false;
+        break;
       }
     }
-    if (!okShape) {
-      return NextResponse.json({ error: "Set-componenten kloppen niet meer. Voeg de set opnieuw toe." }, { status: 400 });
+    if (ok) {
+      for (const [, alternatives] of groupedDefs) {
+        const matched = alternatives.find((alt) =>
+          consume(`${alt.component_product_id}#${alt.quantity}`)
+        );
+        if (!matched) {
+          ok = false;
+          break;
+        }
+      }
+    }
+    if (ok && haveCounts.size > 0) ok = false;
+    if (!ok) {
+      return NextResponse.json(
+        { error: "Set-componenten kloppen niet meer. Voeg de set opnieuw toe." },
+        { status: 400 }
+      );
     }
   }
 

@@ -252,7 +252,8 @@ export function ProductEditorForm({
       componentProductId: c.componentProductId,
       quantity: c.quantity,
       sortOrder: c.sortOrder ?? i,
-      note: c.note ?? ""
+      note: c.note ?? "",
+      optionGroup: (c as any).optionGroup ?? ""
     }))
   );
   const setComponentsJson = useMemo(
@@ -262,7 +263,8 @@ export function ProductEditorForm({
           componentProductId: c.componentProductId,
           quantity: Number(c.quantity) || 1,
           sortOrder: c.sortOrder ?? i,
-          note: (c.note ?? "").trim()
+          note: (c.note ?? "").trim(),
+          optionGroup: (c.optionGroup ?? "").trim()
         }))
       ),
     [setComponents]
@@ -328,6 +330,11 @@ export function ProductEditorForm({
 
             <div className="space-y-3">
               <span className="text-sm font-medium text-zinc-800">Componenten</span>
+              <p className="text-xs text-zinc-600">
+                Vul een <strong>keuzegroep</strong> (bijv. <code>bovenlaag</code>) om componenten als alternatieven aan
+                te bieden — de klant kiest dan precies één van die items. Leeg laten betekent dat het component altijd
+                in de set zit.
+              </p>
               {setComponentOptions.length === 0 ? (
                 <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
                   Sla het product eerst op om componenten te kunnen kiezen, of er zijn nog geen andere producten om uit te
@@ -371,6 +378,19 @@ export function ProductEditorForm({
                       className="mt-1 w-full rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm"
                     />
                   </label>
+                  <label className="w-40">
+                    <span className="block text-xs text-zinc-600">Keuzegroep (optioneel)</span>
+                    <input
+                      value={row.optionGroup ?? ""}
+                      onChange={(e) => {
+                        const next = [...setComponents];
+                        next[i] = { ...next[i], optionGroup: e.target.value };
+                        setSetComponents(next);
+                      }}
+                      placeholder="bijv. bovenlaag"
+                      className="mt-1 w-full rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm"
+                    />
+                  </label>
                   <label className="min-w-[160px] flex-1">
                     <span className="block text-xs text-zinc-600">Toelichting (optioneel)</span>
                     <input
@@ -399,7 +419,13 @@ export function ProductEditorForm({
                 onClick={() =>
                   setSetComponents([
                     ...setComponents,
-                    { componentProductId: "", quantity: 1, sortOrder: setComponents.length, note: "" }
+                    {
+                      componentProductId: "",
+                      quantity: 1,
+                      sortOrder: setComponents.length,
+                      note: "",
+                      optionGroup: ""
+                    }
                   ])
                 }
               >

@@ -48,13 +48,30 @@ export default async function ProductDetailPage({ params }: Props) {
 
   let setComponents: SetComponentForShop[] = [];
   if (isSet) {
-    const { data: compRows } = await supabase
+    const firstQ = await supabase
       .from("product_set_components")
       .select(
-        "component_product_id,quantity,sort_order,component:component_product_id(id,name,slug,garment_type,variant_youth,variant_adult,variant_socks,variant_shoes,variant_onesize)"
+        "component_product_id,quantity,sort_order,option_group,component:component_product_id(id,name,slug,garment_type,variant_youth,variant_adult,variant_socks,variant_shoes,variant_onesize)"
       )
       .eq("set_product_id", product.id)
       .order("sort_order", { ascending: true });
+    let compRows: any[] | null = null;
+    if (firstQ.error) {
+      const code = String((firstQ.error as any)?.code ?? "");
+      const msg = String((firstQ.error as any)?.message ?? "").toLowerCase();
+      if (code === "42703" || msg.includes("option_group")) {
+        const fb = await supabase
+          .from("product_set_components")
+          .select(
+            "component_product_id,quantity,sort_order,component:component_product_id(id,name,slug,garment_type,variant_youth,variant_adult,variant_socks,variant_shoes,variant_onesize)"
+          )
+          .eq("set_product_id", product.id)
+          .order("sort_order", { ascending: true });
+        compRows = (fb.data ?? []).map((r: any) => ({ ...r, option_group: null }));
+      }
+    } else {
+      compRows = firstQ.data ?? [];
+    }
     setComponents = (compRows ?? [])
       .map((row: any) => {
         const cp = row.component;
@@ -64,6 +81,10 @@ export default async function ProductDetailPage({ params }: Props) {
           componentSlug: cp.slug as string,
           componentName: cp.name as string,
           quantity: Number(row.quantity ?? 1),
+          optionGroup:
+            typeof row.option_group === "string" && row.option_group.trim().length > 0
+              ? row.option_group.trim()
+              : null,
           garmentType: (cp.garment_type ?? "clothing") as
             | "clothing"
             | "socks"

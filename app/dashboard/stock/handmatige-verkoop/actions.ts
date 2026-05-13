@@ -60,19 +60,45 @@ export async function createManualSaleAction(input: unknown) {
 
   // Set-componenten ophalen voor validatie
   const setIds = d.lines.filter((l) => l.isSet).map((l) => l.productId);
-  const definedComps = new Map<string, { componentProductId: string; quantity: number }[]>();
+  const definedComps = new Map<
+    string,
+    { componentProductId: string; quantity: number; optionGroup: string | null }[]
+  >();
   if (setIds.length > 0) {
-    const { data: comps, error: cErr } = await service
+    const firstQ = await service
       .from("product_set_components")
-      .select("set_product_id,component_product_id,quantity")
+      .select("set_product_id,component_product_id,quantity,option_group")
       .in("set_product_id", setIds);
-    if (cErr) {
-      redirect(`/dashboard/stock/handmatige-verkoop?error=${encodeURIComponent(cErr.message)}`);
+    let comps: any[] | null = null;
+    if (firstQ.error) {
+      const code = String((firstQ.error as any)?.code ?? "");
+      const msg = String((firstQ.error as any)?.message ?? "").toLowerCase();
+      if (code === "42703" || msg.includes("option_group")) {
+        const fb = await service
+          .from("product_set_components")
+          .select("set_product_id,component_product_id,quantity")
+          .in("set_product_id", setIds);
+        if (fb.error) {
+          redirect(`/dashboard/stock/handmatige-verkoop?error=${encodeURIComponent(fb.error.message)}`);
+        }
+        comps = (fb.data ?? []).map((r: any) => ({ ...r, option_group: null }));
+      } else {
+        redirect(`/dashboard/stock/handmatige-verkoop?error=${encodeURIComponent(firstQ.error.message)}`);
+      }
+    } else {
+      comps = firstQ.data ?? [];
     }
     for (const row of comps ?? []) {
       const k = row.set_product_id as string;
       const arr = definedComps.get(k) ?? [];
-      arr.push({ componentProductId: row.component_product_id as string, quantity: Number(row.quantity ?? 1) });
+      arr.push({
+        componentProductId: row.component_product_id as string,
+        quantity: Number(row.quantity ?? 1),
+        optionGroup:
+          typeof row.option_group === "string" && row.option_group.trim().length > 0
+            ? row.option_group.trim()
+            : null
+      });
       definedComps.set(k, arr);
     }
   }
@@ -91,30 +117,56 @@ export async function createManualSaleAction(input: unknown) {
       }
       const def = definedComps.get(l.productId) ?? [];
       const got = l.components ?? [];
-      if (def.length === 0 || got.length !== def.length) {
+      if (def.length === 0) {
         redirect(
           `/dashboard/stock/handmatige-verkoop?error=${encodeURIComponent("Set-componenten kloppen niet meer. Open opnieuw en kies een set.")}`
         );
       }
-      const want = new Map<string, number>();
-      for (const dRow of def) {
-        const k = `${dRow.componentProductId}#${dRow.quantity}`;
-        want.set(k, (want.get(k) ?? 0) + 1);
+      const required = def.filter((d) => !d.optionGroup);
+      const groupedDefs = new Map<string, typeof def>();
+      for (const d of def) {
+        if (!d.optionGroup) continue;
+        const arr = groupedDefs.get(d.optionGroup) ?? [];
+        arr.push(d);
+        groupedDefs.set(d.optionGroup, arr);
+      }
+      const expectedCount = required.length + groupedDefs.size;
+      if (got.length !== expectedCount) {
+        redirect(
+          `/dashboard/stock/handmatige-verkoop?error=${encodeURIComponent("Set-componenten kloppen niet meer met de productdefinitie.")}`
+        );
       }
       const have = new Map<string, number>();
       for (const g of got) {
         const k = `${g.componentProductId}#${g.quantityPerSet}`;
         have.set(k, (have.get(k) ?? 0) + 1);
       }
-      let ok = want.size === have.size;
+      const consume = (key: string): boolean => {
+        const v = have.get(key) ?? 0;
+        if (v <= 0) return false;
+        if (v === 1) have.delete(key);
+        else have.set(key, v - 1);
+        return true;
+      };
+      let ok = true;
+      for (const r of required) {
+        if (!consume(`${r.componentProductId}#${r.quantity}`)) {
+          ok = false;
+          break;
+        }
+      }
       if (ok) {
-        for (const [k, v] of want) {
-          if (have.get(k) !== v) {
+        for (const [, alternatives] of groupedDefs) {
+          const matched = alternatives.find((alt) =>
+            consume(`${alt.componentProductId}#${alt.quantity}`)
+          );
+          if (!matched) {
             ok = false;
             break;
           }
         }
       }
+      if (ok && have.size > 0) ok = false;
       if (!ok) {
         redirect(
           `/dashboard/stock/handmatige-verkoop?error=${encodeURIComponent("Set-componenten kloppen niet meer met de productdefinitie.")}`

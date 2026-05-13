@@ -181,11 +181,28 @@ export default async function EditProductPage({
     .single();
   if (productError || !product) redirect("/dashboard/products?error=Not%20found");
 
-  const { data: setComponentRows } = await supabase
-    .from("product_set_components")
-    .select("component_product_id,quantity,sort_order,note")
-    .eq("set_product_id", id)
-    .order("sort_order", { ascending: true });
+  let setComponentRows: any[] | null = null;
+  {
+    const first = await supabase
+      .from("product_set_components")
+      .select("component_product_id,quantity,sort_order,note,option_group")
+      .eq("set_product_id", id)
+      .order("sort_order", { ascending: true });
+    if (first.error) {
+      const code = String((first.error as any)?.code ?? "");
+      const msg = String((first.error as any)?.message ?? "").toLowerCase();
+      if (code === "42703" || msg.includes("option_group")) {
+        const fb = await supabase
+          .from("product_set_components")
+          .select("component_product_id,quantity,sort_order,note")
+          .eq("set_product_id", id)
+          .order("sort_order", { ascending: true });
+        setComponentRows = (fb.data ?? []).map((r: any) => ({ ...r, option_group: null }));
+      }
+    } else {
+      setComponentRows = first.data ?? [];
+    }
+  }
 
   const { data: otherProducts } = await supabase
     .from("products")
@@ -254,7 +271,8 @@ export default async function EditProductPage({
       componentProductId: r.component_product_id as string,
       quantity: Number(r.quantity ?? 1),
       sortOrder: Number(r.sort_order ?? i),
-      note: typeof r.note === "string" ? r.note : ""
+      note: typeof r.note === "string" ? r.note : "",
+      optionGroup: typeof r.option_group === "string" ? r.option_group : ""
     }))
   };
 

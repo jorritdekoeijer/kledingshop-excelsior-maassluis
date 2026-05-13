@@ -31,7 +31,12 @@ export const productSetComponentInputSchema = z.object({
   componentProductId: z.string().uuid("Kies een geldig component-product."),
   quantity: z.coerce.number().int().min(1).max(99),
   sortOrder: z.coerce.number().int().min(0).max(999).default(0),
-  note: z.string().max(200).optional().default("")
+  note: z.string().max(200).optional().default(""),
+  /**
+   * Optionele keuzegroep: componenten met dezelfde naam binnen één set zijn alternatieven
+   * (klant kiest precies één). Leeglaten = altijd inbegrepen.
+   */
+  optionGroup: z.string().max(60).optional().default("")
 });
 
 export type ProductSetComponentInput = z.infer<typeof productSetComponentInputSchema>;

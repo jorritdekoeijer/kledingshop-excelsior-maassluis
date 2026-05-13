@@ -17,6 +17,7 @@ export type ManualSaleSetComponentDef = {
   componentProductId: string;
   quantity: number;
   sortOrder: number;
+  optionGroup: string | null;
 };
 
 type ComponentChoice = {
@@ -24,6 +25,8 @@ type ComponentChoice = {
   quantityPerSet: number;
   segment: VariantSegment;
   sizeLabel: string;
+  /** null = altijd inbegrepen; string = keuzegroep-naam. */
+  optionGroup: string | null;
 };
 
 type LineState = {
@@ -34,6 +37,8 @@ type LineState = {
   sizeLabel: string;
   quantity: number;
   components: ComponentChoice[];
+  /** Per option-group: welke component-index uit `components` is gekozen. */
+  groupSelection: Record<string, number>;
 };
 
 const eur = (cents: number) =>
@@ -44,7 +49,16 @@ function mkKey(): string {
 }
 
 function emptyLine(): LineState {
-  return { key: mkKey(), productId: "", isSet: false, segment: "adult", sizeLabel: "", quantity: 1, components: [] };
+  return {
+    key: mkKey(),
+    productId: "",
+    isSet: false,
+    segment: "adult",
+    sizeLabel: "",
+    quantity: 1,
+    components: [],
+    groupSelection: {}
+  };
 }
 
 function defaultSegmentForProduct(p: ProductPickOption | undefined): VariantSegment {
@@ -110,7 +124,14 @@ export function ManualSaleForm({
 
   function onProductChange(key: string, productId: string) {
     if (!productId) {
-      updateLine(key, { productId: "", isSet: false, segment: "adult", sizeLabel: "", components: [] });
+      updateLine(key, {
+        productId: "",
+        isSet: false,
+        segment: "adult",
+        sizeLabel: "",
+        components: [],
+        groupSelection: {}
+      });
       return;
     }
     const meta = metaMap.get(productId);
@@ -124,16 +145,38 @@ export function ManualSaleForm({
           componentProductId: d.componentProductId,
           quantityPerSet: d.quantity,
           segment: seg,
-          sizeLabel: sizes[0] ?? ""
+          sizeLabel: sizes[0] ?? "",
+          optionGroup: d.optionGroup ?? null
         };
       });
-      updateLine(key, { productId, isSet: true, segment: "adult", sizeLabel: "", components: initialComponents });
+      // Initialiseer groupSelection: per groep eerste component-index
+      const groupSelection: Record<string, number> = {};
+      initialComponents.forEach((c, idx) => {
+        if (c.optionGroup && groupSelection[c.optionGroup] === undefined) {
+          groupSelection[c.optionGroup] = idx;
+        }
+      });
+      updateLine(key, {
+        productId,
+        isSet: true,
+        segment: "adult",
+        sizeLabel: "",
+        components: initialComponents,
+        groupSelection
+      });
       return;
     }
     const p = productMap.get(productId);
     const seg = defaultSegmentForProduct(p);
     const sizes = p ? sizesForSegment(p, seg) : [];
-    updateLine(key, { productId, isSet: false, segment: seg, sizeLabel: sizes[0] ?? "", components: [] });
+    updateLine(key, {
+      productId,
+      isSet: false,
+      segment: seg,
+      sizeLabel: sizes[0] ?? "",
+      components: [],
+      groupSelection: {}
+    });
   }
 
   function onSegmentChange(key: string, productId: string, seg: VariantSegment) {
@@ -156,6 +199,21 @@ export function ManualSaleForm({
         return { ...l, components: next };
       })
     );
+  }
+
+  function setGroupChoice(lineKey: string, optionGroup: string, componentIdx: number) {
+    setLines((prev) =>
+      prev.map((l) =>
+        l.key === lineKey ? { ...l, groupSelection: { ...l.groupSelection, [optionGroup]: componentIdx } } : l
+      )
+    );
+  }
+
+  function isComponentActive(line: LineState, componentIdx: number): boolean {
+    const c = line.components[componentIdx];
+    if (!c) return false;
+    if (!c.optionGroup) return true;
+    return line.groupSelection[c.optionGroup] === componentIdx;
   }
 
   function unitRevenueFor(line: LineState): number {
@@ -195,9 +253,10 @@ export function ManualSaleForm({
           alert("Setregel heeft geen componenten. Kies een ander product of verwijder de regel.");
           return;
         }
-        for (const c of l.components) {
+        const activeComponents = l.components.filter((_, idx) => isComponentActive(l, idx));
+        for (const c of activeComponents) {
           if (!c.sizeLabel.trim()) {
-            alert("Kies per component een maat.");
+            alert("Kies per gekozen component een maat.");
             return;
           }
         }
@@ -206,7 +265,7 @@ export function ManualSaleForm({
           isSet: true,
           quantity: l.quantity,
           unitRevenueInclCents: unitRevenueFor(l),
-          components: l.components.map((c) => ({
+          components: activeComponents.map((c) => ({
             componentProductId: c.componentProductId,
             variantSegment: c.segment,
             sizeLabel: c.sizeLabel.trim(),
@@ -417,95 +476,111 @@ export function ManualSaleForm({
                 </div>
 
                 {line.isSet && line.components.length > 0 ? (
-                  <div className="mt-4 space-y-2 rounded-md border border-zinc-200 bg-white p-3">
+                  <div className="mt-4 space-y-3 rounded-md border border-zinc-200 bg-white p-3">
                     <p className="text-xs font-semibold uppercase tracking-wide text-zinc-600">Componenten</p>
-                    {line.components.map((c, idx) => {
-                      const cp = productMap.get(c.componentProductId);
-                      if (!cp) return (
-                        <p key={idx} className="text-xs text-red-700">
-                          Component {c.componentProductId} niet beschikbaar.
-                        </p>
-                      );
-                      const cHasOne = (cp.onesize?.sizes.length ?? 0) > 0;
-                      const cHasShoes = (cp.shoes?.sizes.length ?? 0) > 0;
-                      const cHasSocks = (cp.socks?.sizes.length ?? 0) > 0;
-                      const cShowToggle = !cHasOne && !cHasShoes && !cHasSocks && cp.youth.sizes.length > 0 && cp.adult.sizes.length > 0;
-                      const cSizes = sizesForSegment(cp, c.segment);
-                      return (
-                        <div key={idx} className="grid items-end gap-3 md:grid-cols-12">
-                          <div className="md:col-span-5 text-sm text-zinc-800">
-                            <span className="font-medium">
-                              {c.quantityPerSet > 1 ? `${c.quantityPerSet}× ` : ""}
-                              {cp.name}
-                            </span>
-                          </div>
-                          <div className="md:col-span-4">
-                            <span className="text-xs font-medium text-zinc-600">Variant</span>
-                            {cHasOne ? (
-                              <p className="mt-1 text-xs font-semibold text-zinc-700">ONE SIZE</p>
-                            ) : cHasShoes ? (
-                              <p className="mt-1 text-xs font-semibold text-zinc-700">SHOES</p>
-                            ) : cHasSocks ? (
-                              <p className="mt-1 text-xs font-semibold text-zinc-700">SOCKS</p>
-                            ) : cShowToggle ? (
-                              <div className="mt-1 inline-flex rounded-full border border-zinc-300 bg-white p-1" role="group">
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    const sizes = sizesForSegment(cp, "youth");
-                                    updateComponent(line.key, idx, { segment: "youth", sizeLabel: sizes[0] ?? "" });
-                                  }}
-                                  className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
-                                    c.segment === "youth" ? "bg-brand-blue text-white" : "text-zinc-700 hover:bg-zinc-100"
-                                  }`}
-                                >
-                                  YOUTH
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    const sizes = sizesForSegment(cp, "adult");
-                                    updateComponent(line.key, idx, { segment: "adult", sizeLabel: sizes[0] ?? "" });
-                                  }}
-                                  className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
-                                    c.segment === "adult" ? "bg-brand-blue text-white" : "text-zinc-700 hover:bg-zinc-100"
-                                  }`}
-                                >
-                                  ADULT
-                                </button>
-                              </div>
-                            ) : (
-                              <p className="mt-1 text-xs font-medium text-zinc-700">
-                                {c.segment === "youth"
-                                  ? "YOUTH"
-                                  : c.segment === "adult"
-                                    ? "ADULT"
-                                    : c.segment === "socks"
-                                      ? "SOCKS"
-                                      : c.segment === "shoes"
-                                        ? "SHOES"
-                                        : "ONE SIZE"}
-                              </p>
-                            )}
-                          </div>
-                          <label className="md:col-span-3">
-                            <span className="text-xs font-medium text-zinc-600">Maat</span>
-                            <select
-                              value={c.sizeLabel}
-                              onChange={(e) => updateComponent(line.key, idx, { sizeLabel: e.target.value })}
-                              className="mt-1 w-full rounded-md border border-zinc-300 px-2 py-1.5 text-sm"
-                            >
-                              {cSizes.length === 0 ? <option value="">—</option> : null}
-                              {cSizes.map((sz) => (
-                                <option key={sz} value={sz}>
-                                  {sz}
-                                </option>
+                    {(() => {
+                      // Groepeer componenten in buckets. Vaste componenten staan los; keuzegroepen krijgen
+                      // een interne lijst met radio-selectie.
+                      type Bucket = {
+                        key: string;
+                        group: string | null;
+                        items: { idx: number; c: ComponentChoice }[];
+                      };
+                      const buckets: Bucket[] = [];
+                      const byGroupKey = new Map<string, Bucket>();
+                      line.components.forEach((c, idx) => {
+                        if (!c.optionGroup) {
+                          buckets.push({ key: `i:${idx}`, group: null, items: [{ idx, c }] });
+                          return;
+                        }
+                        const k = `g:${c.optionGroup}`;
+                        const existing = byGroupKey.get(k);
+                        if (existing) existing.items.push({ idx, c });
+                        else {
+                          const b: Bucket = { key: k, group: c.optionGroup, items: [{ idx, c }] };
+                          byGroupKey.set(k, b);
+                          buckets.push(b);
+                        }
+                      });
+
+                      return buckets.map((bucket) => {
+                        if (bucket.items.length === 1 && !bucket.group) {
+                          const { idx, c } = bucket.items[0];
+                          return (
+                            <ComponentEditor
+                              key={bucket.key}
+                              line={line}
+                              componentIdx={idx}
+                              component={c}
+                              productMap={productMap}
+                              disabled={false}
+                              onSegmentChange={(seg, sizes) =>
+                                updateComponent(line.key, idx, { segment: seg, sizeLabel: sizes[0] ?? "" })
+                              }
+                              onSizeChange={(sz) => updateComponent(line.key, idx, { sizeLabel: sz })}
+                            />
+                          );
+                        }
+                        // Keuzegroep
+                        const activeIdx = bucket.group ? line.groupSelection[bucket.group] : bucket.items[0].idx;
+                        return (
+                          <div key={bucket.key} className="rounded-md border border-zinc-200 p-3">
+                            <p className="text-xs font-medium uppercase tracking-wide text-zinc-600">
+                              Keuze ({bucket.group}) — kies één
+                            </p>
+                            <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                              {bucket.items.map(({ idx, c }) => {
+                                const cp = productMap.get(c.componentProductId);
+                                const selected = activeIdx === idx;
+                                return (
+                                  <button
+                                    type="button"
+                                    key={idx}
+                                    onClick={() => bucket.group && setGroupChoice(line.key, bucket.group, idx)}
+                                    className={`rounded-md border-2 px-3 py-2 text-left text-sm font-medium transition ${
+                                      selected
+                                        ? "border-brand-blue bg-brand-blue/5 text-zinc-900"
+                                        : "border-zinc-200 bg-white text-zinc-600 hover:border-zinc-300"
+                                    }`}
+                                  >
+                                    <span className="flex items-center gap-2">
+                                      <span
+                                        className={`inline-flex h-4 w-4 items-center justify-center rounded-full border ${
+                                          selected ? "border-brand-blue bg-brand-blue" : "border-zinc-400 bg-white"
+                                        }`}
+                                        aria-hidden
+                                      >
+                                        {selected ? <span className="h-1.5 w-1.5 rounded-full bg-white" /> : null}
+                                      </span>
+                                      <span>
+                                        {c.quantityPerSet > 1 ? `${c.quantityPerSet}× ` : ""}
+                                        {cp?.name ?? c.componentProductId}
+                                      </span>
+                                    </span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                            <div className="mt-3 space-y-2">
+                              {bucket.items.map(({ idx, c }) => (
+                                <ComponentEditor
+                                  key={idx}
+                                  line={line}
+                                  componentIdx={idx}
+                                  component={c}
+                                  productMap={productMap}
+                                  disabled={activeIdx !== idx}
+                                  onSegmentChange={(seg, sizes) =>
+                                    updateComponent(line.key, idx, { segment: seg, sizeLabel: sizes[0] ?? "" })
+                                  }
+                                  onSizeChange={(sz) => updateComponent(line.key, idx, { sizeLabel: sz })}
+                                />
                               ))}
-                            </select>
-                          </label>
-                        </div>
-                      );
-                    })}
+                            </div>
+                          </div>
+                        );
+                      });
+                    })()}
                   </div>
                 ) : null}
               </div>
@@ -530,5 +605,111 @@ export function ManualSaleForm({
         {pending ? "Opslaan…" : "Opslaan"}
       </button>
     </form>
+  );
+}
+
+function ComponentEditor({
+  component: c,
+  componentIdx,
+  productMap,
+  disabled,
+  onSegmentChange,
+  onSizeChange
+}: {
+  line: LineState;
+  componentIdx: number;
+  component: ComponentChoice;
+  productMap: Map<string, ProductPickOption>;
+  disabled: boolean;
+  onSegmentChange: (seg: VariantSegment, sizes: string[]) => void;
+  onSizeChange: (sz: string) => void;
+}) {
+  void componentIdx;
+  const cp = productMap.get(c.componentProductId);
+  if (!cp) {
+    return (
+      <p className="text-xs text-red-700">Component {c.componentProductId} niet beschikbaar.</p>
+    );
+  }
+  const cHasOne = (cp.onesize?.sizes.length ?? 0) > 0;
+  const cHasShoes = (cp.shoes?.sizes.length ?? 0) > 0;
+  const cHasSocks = (cp.socks?.sizes.length ?? 0) > 0;
+  const cShowToggle =
+    !cHasOne && !cHasShoes && !cHasSocks && cp.youth.sizes.length > 0 && cp.adult.sizes.length > 0;
+  const cSizes = sizesForSegment(cp, c.segment);
+  return (
+    <div
+      className={`grid items-end gap-3 md:grid-cols-12 ${disabled ? "opacity-50" : ""}`}
+      aria-disabled={disabled}
+    >
+      <div className="md:col-span-5 text-sm text-zinc-800">
+        <span className="font-medium">
+          {c.quantityPerSet > 1 ? `${c.quantityPerSet}× ` : ""}
+          {cp.name}
+        </span>
+        {disabled ? <span className="ml-2 text-xs text-zinc-500">(niet gekozen)</span> : null}
+      </div>
+      <div className="md:col-span-4">
+        <span className="text-xs font-medium text-zinc-600">Variant</span>
+        {cHasOne ? (
+          <p className="mt-1 text-xs font-semibold text-zinc-700">ONE SIZE</p>
+        ) : cHasShoes ? (
+          <p className="mt-1 text-xs font-semibold text-zinc-700">SHOES</p>
+        ) : cHasSocks ? (
+          <p className="mt-1 text-xs font-semibold text-zinc-700">SOCKS</p>
+        ) : cShowToggle ? (
+          <div className="mt-1 inline-flex rounded-full border border-zinc-300 bg-white p-1" role="group">
+            <button
+              type="button"
+              disabled={disabled}
+              onClick={() => onSegmentChange("youth", sizesForSegment(cp, "youth"))}
+              className={`rounded-full px-2.5 py-1 text-xs font-semibold disabled:cursor-not-allowed ${
+                c.segment === "youth" ? "bg-brand-blue text-white" : "text-zinc-700 hover:bg-zinc-100"
+              }`}
+            >
+              YOUTH
+            </button>
+            <button
+              type="button"
+              disabled={disabled}
+              onClick={() => onSegmentChange("adult", sizesForSegment(cp, "adult"))}
+              className={`rounded-full px-2.5 py-1 text-xs font-semibold disabled:cursor-not-allowed ${
+                c.segment === "adult" ? "bg-brand-blue text-white" : "text-zinc-700 hover:bg-zinc-100"
+              }`}
+            >
+              ADULT
+            </button>
+          </div>
+        ) : (
+          <p className="mt-1 text-xs font-medium text-zinc-700">
+            {c.segment === "youth"
+              ? "YOUTH"
+              : c.segment === "adult"
+                ? "ADULT"
+                : c.segment === "socks"
+                  ? "SOCKS"
+                  : c.segment === "shoes"
+                    ? "SHOES"
+                    : "ONE SIZE"}
+          </p>
+        )}
+      </div>
+      <label className="md:col-span-3">
+        <span className="text-xs font-medium text-zinc-600">Maat</span>
+        <select
+          value={c.sizeLabel}
+          disabled={disabled}
+          onChange={(e) => onSizeChange(e.target.value)}
+          className="mt-1 w-full rounded-md border border-zinc-300 px-2 py-1.5 text-sm disabled:bg-zinc-100"
+        >
+          {cSizes.length === 0 ? <option value="">—</option> : null}
+          {cSizes.map((sz) => (
+            <option key={sz} value={sz}>
+              {sz}
+            </option>
+          ))}
+        </select>
+      </label>
+    </div>
   );
 }

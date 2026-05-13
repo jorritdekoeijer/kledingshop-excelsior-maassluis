@@ -58,9 +58,20 @@ export async function replaceProductSetComponents(
     component_product_id: c.componentProductId,
     quantity: c.quantity,
     sort_order: c.sortOrder ?? i,
-    note: (c.note ?? "").trim() || null
+    note: (c.note ?? "").trim() || null,
+    option_group: (c.optionGroup ?? "").trim() || null
   }));
-  const { error: insErr } = await service.from("product_set_components").insert(rows);
+  let { error: insErr } = await service.from("product_set_components").insert(rows);
+  if (insErr) {
+    const msg = String(insErr.message ?? "").toLowerCase();
+    const code = String((insErr as any).code ?? "");
+    // Schemafallback: oude DB zonder option_group kolom — opnieuw zonder dat veld proberen.
+    if (code === "42703" || msg.includes("option_group")) {
+      const rowsLegacy = rows.map(({ option_group: _ignored, ...rest }) => rest);
+      const retry = await service.from("product_set_components").insert(rowsLegacy);
+      insErr = retry.error;
+    }
+  }
   if (insErr) return { ok: false, message: `Componenten opslaan mislukt: ${insErr.message}` };
 
   return { ok: true };

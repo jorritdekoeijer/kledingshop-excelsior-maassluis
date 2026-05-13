@@ -41,18 +41,43 @@ export default async function HandmatigeVerkoopPage({
 
   // Componenten van set-producten ophalen zodat de form per set de componenten kent.
   const setIds = (products ?? []).filter((p) => (p as any).is_set).map((p) => p.id);
-  let setComponentDefs: { setProductId: string; componentProductId: string; quantity: number; sortOrder: number }[] = [];
+  let setComponentDefs: {
+    setProductId: string;
+    componentProductId: string;
+    quantity: number;
+    sortOrder: number;
+    optionGroup: string | null;
+  }[] = [];
   if (setIds.length > 0) {
-    const { data: comps } = await supabase
+    const firstQ = await supabase
       .from("product_set_components")
-      .select("set_product_id,component_product_id,quantity,sort_order")
+      .select("set_product_id,component_product_id,quantity,sort_order,option_group")
       .in("set_product_id", setIds)
       .order("sort_order", { ascending: true });
+    let comps: any[] | null = null;
+    if (firstQ.error) {
+      const code = String((firstQ.error as any)?.code ?? "");
+      const msg = String((firstQ.error as any)?.message ?? "").toLowerCase();
+      if (code === "42703" || msg.includes("option_group")) {
+        const fb = await supabase
+          .from("product_set_components")
+          .select("set_product_id,component_product_id,quantity,sort_order")
+          .in("set_product_id", setIds)
+          .order("sort_order", { ascending: true });
+        comps = (fb.data ?? []).map((c: any) => ({ ...c, option_group: null }));
+      }
+    } else {
+      comps = firstQ.data ?? [];
+    }
     setComponentDefs = (comps ?? []).map((c: any) => ({
       setProductId: c.set_product_id as string,
       componentProductId: c.component_product_id as string,
       quantity: Number(c.quantity ?? 1),
-      sortOrder: Number(c.sort_order ?? 0)
+      sortOrder: Number(c.sort_order ?? 0),
+      optionGroup:
+        typeof c.option_group === "string" && c.option_group.trim().length > 0
+          ? c.option_group.trim()
+          : null
     }));
   }
 
