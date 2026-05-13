@@ -247,39 +247,88 @@ export async function fetchFinancialOverview(
   const revenueInclCents = sum(orderRows.map((o) => Number(o.total_cents ?? 0)));
   const revenueExclCents = sum(orderRows.map((o) => exclCentsFromIncl21(Number(o.total_cents ?? 0))));
 
-  // Extra omzet: handmatige verkopen (interne verkooporders) → aantal × verkoopprijs (productvariant sale_cents).
+  // Extra omzet: handmatige verkopen.
+  // Nieuw: omzet komt uit public.manual_sale_lines (unit_revenue × quantity) per sale_date.
+  // Legacy fallback (oude data zonder manual_sale_lines): via stock_consumptions × product variant sale_cents
+  // — alleen voor consumptions die NIET aan een manual_sale_line zijn gekoppeld.
   let manualRevenueInclCents = 0;
-  const manualConsRes: any = await supabase
+  let manualSalesTableMissing = false;
+
+  const mslRes: any = await supabase
+    .from("manual_sale_lines")
+    .select("quantity,unit_revenue_incl_cents,manual_sales!inner(sale_date)")
+    .gte("manual_sales.sale_date", fromDate)
+    .lte("manual_sales.sale_date", toDate);
+
+  if (mslRes.error) {
+    const code = String((mslRes.error as any)?.code ?? "");
+    const msg = String((mslRes.error as any)?.message ?? "").toLowerCase();
+    if (code === "PGRST205" || msg.includes("manual_sale_lines") || msg.includes("manual_sales")) {
+      manualSalesTableMissing = true;
+    } else {
+      warnings.push(`Handmatige verkoop-omzet (nieuwe tabel) kon niet worden gelezen: ${(mslRes.error as any)?.message}`);
+    }
+  } else {
+    for (const row of mslRes.data ?? []) {
+      const qty = Number((row as any).quantity ?? 0);
+      const unit = Number((row as any).unit_revenue_incl_cents ?? 0);
+      if (Number.isFinite(qty) && qty > 0 && Number.isFinite(unit) && unit >= 0) {
+        manualRevenueInclCents += qty * unit;
+      }
+    }
+  }
+
+  // Legacy fallback: consumptions die NIET aan een manual_sale_line gekoppeld zijn.
+  // We laten die rijen waarderen via product.variant_*.sale_cents (oude gedrag).
+  const legacyConsRes: any = await supabase
     .from("stock_consumptions")
-    .select("quantity,reason,occurred_at,created_at,stock_batches(product_id,variant_segment)")
+    .select("quantity,reason,occurred_at,created_at,manual_sale_line_id,stock_batches(product_id,variant_segment)")
     .eq("reason", "manual_sale")
+    .is("manual_sale_line_id", null)
     .gte("occurred_at", startIso)
     .lte("occurred_at", endIso);
 
-  const manualOccurredMissing =
-    Boolean((manualConsRes.error as any)?.code === "42703") &&
-    String((manualConsRes.error as any)?.message ?? "").toLowerCase().includes("occurred_at");
-  if (manualOccurredMissing) {
+  const legacyOccurredMissing =
+    Boolean((legacyConsRes.error as any)?.code === "42703") &&
+    String((legacyConsRes.error as any)?.message ?? "").toLowerCase().includes("occurred_at");
+  const legacyColMissing =
+    Boolean((legacyConsRes.error as any)?.code === "42703") &&
+    String((legacyConsRes.error as any)?.message ?? "").toLowerCase().includes("manual_sale_line_id");
+
+  let legacyData: any[] | null = null;
+  if (legacyColMissing) {
+    // Oude schema's zonder manual_sale_line_id: pak alle manual_sale rijen (kan dubbel tellen als nieuwe tabel óók data heeft;
+    // op verse installaties zonder migratie 0045 is dat onmogelijk dus prima).
     const retry: any = await supabase
       .from("stock_consumptions")
-      .select("quantity,reason,created_at,stock_batches(product_id,variant_segment)")
+      .select("quantity,reason,occurred_at,created_at,stock_batches(product_id,variant_segment)")
       .eq("reason", "manual_sale")
+      .gte("occurred_at", startIso)
+      .lte("occurred_at", endIso);
+    legacyData = retry.data ?? null;
+    if (retry.error && !legacyOccurredMissing) {
+      warnings.push(`Handmatige verkoop-omzet (legacy) kon niet worden gelezen: ${retry.error.message}`);
+    }
+  } else if (legacyOccurredMissing) {
+    const retry: any = await supabase
+      .from("stock_consumptions")
+      .select("quantity,reason,created_at,manual_sale_line_id,stock_batches(product_id,variant_segment)")
+      .eq("reason", "manual_sale")
+      .is("manual_sale_line_id", null)
       .gte("created_at", startIso)
       .lte("created_at", endIso);
-    (manualConsRes as any).data = retry.data;
-    (manualConsRes as any).error = retry.error;
+    legacyData = retry.data ?? null;
+    if (retry.error) warnings.push(`Handmatige verkoop-omzet (legacy) kon niet worden gelezen: ${retry.error.message}`);
+  } else if (legacyConsRes.error) {
+    warnings.push(`Handmatige verkoop-omzet (legacy) kon niet worden gelezen: ${(legacyConsRes.error as any)?.message}`);
+  } else {
+    legacyData = (legacyConsRes.data ?? []) as any[];
   }
 
-  if (manualConsRes.error) {
-    warnings.push(
-      `Handmatige verkoop-omzet kon niet worden berekend: ${(manualConsRes.error as any)?.message ?? "Onbekende fout"}`
-    );
-  } else {
-    const rows = (manualConsRes.data ?? []) as any[];
+  if (legacyData && legacyData.length > 0) {
     const productIds = Array.from(
-      new Set(rows.map((r) => String((r as any)?.stock_batches?.product_id ?? "")).filter(Boolean))
+      new Set(legacyData.map((r) => String((r as any)?.stock_batches?.product_id ?? "")).filter(Boolean))
     );
-
     const productMap = new Map<string, any>();
     if (productIds.length > 0) {
       const pr = await supabase
@@ -287,7 +336,7 @@ export async function fetchFinancialOverview(
         .select("id,variant_youth,variant_adult,variant_socks,variant_shoes,variant_onesize")
         .in("id", productIds);
       if (pr.error) {
-        warnings.push(`Handmatige verkoop-omzet kon producten niet laden: ${pr.error.message}`);
+        warnings.push(`Handmatige verkoop-omzet (legacy) kon producten niet laden: ${pr.error.message}`);
       } else {
         for (const p of pr.data ?? []) productMap.set(String((p as any).id), p);
       }
@@ -312,7 +361,7 @@ export async function fetchFinancialOverview(
     };
 
     let missingPrice = 0;
-    for (const r of rows) {
+    for (const r of legacyData) {
       const qty = Number((r as any).quantity ?? 0);
       const b = (r as any).stock_batches;
       const batch = Array.isArray(b) ? b[0] : b;
@@ -329,9 +378,15 @@ export async function fetchFinancialOverview(
     }
     if (missingPrice > 0) {
       warnings.push(
-        `Handmatige verkoop-omzet: ${missingPrice} regel(s) konden niet worden gewaardeerd omdat verkoopprijs ontbreekt op het product.`
+        `Handmatige verkoop-omzet: ${missingPrice} legacy-regel(s) konden niet worden gewaardeerd omdat verkoopprijs ontbreekt.`
       );
     }
+  }
+
+  if (manualSalesTableMissing) {
+    warnings.push(
+      "Handmatige verkopen worden nog via de oude (FIFO-batch) route gewaardeerd. Draai migratie 0045_manual_sales_tables.sql voor nauwkeurige omzet (set-producten)."
+    );
   }
 
   const totalRevenueInclCents = revenueInclCents + manualRevenueInclCents;
