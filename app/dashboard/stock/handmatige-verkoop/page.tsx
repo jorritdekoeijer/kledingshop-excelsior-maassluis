@@ -47,24 +47,53 @@ export default async function HandmatigeVerkoopPage({
     quantity: number;
     sortOrder: number;
     optionGroup: string | null;
+    optionGroupLabel: string | null;
   }[] = [];
   if (setIds.length > 0) {
     const firstQ = await supabase
       .from("product_set_components")
-      .select("set_product_id,component_product_id,quantity,sort_order,option_group")
+      .select("set_product_id,component_product_id,quantity,sort_order,option_group,option_group_label")
       .in("set_product_id", setIds)
       .order("sort_order", { ascending: true });
     let comps: any[] | null = null;
     if (firstQ.error) {
       const code = String((firstQ.error as any)?.code ?? "");
       const msg = String((firstQ.error as any)?.message ?? "").toLowerCase();
-      if (code === "42703" || msg.includes("option_group")) {
+      if (code === "42703" || msg.includes("option_group_label")) {
+        const second = await supabase
+          .from("product_set_components")
+          .select("set_product_id,component_product_id,quantity,sort_order,option_group")
+          .in("set_product_id", setIds)
+          .order("sort_order", { ascending: true });
+        if (second.error) {
+          const c2 = String((second.error as any)?.code ?? "");
+          const m2 = String((second.error as any)?.message ?? "").toLowerCase();
+          if (c2 === "42703" || m2.includes("option_group")) {
+            const fb = await supabase
+              .from("product_set_components")
+              .select("set_product_id,component_product_id,quantity,sort_order")
+              .in("set_product_id", setIds)
+              .order("sort_order", { ascending: true });
+            comps = (fb.data ?? []).map((c: any) => ({
+              ...c,
+              option_group: null,
+              option_group_label: null
+            }));
+          }
+        } else {
+          comps = (second.data ?? []).map((c: any) => ({ ...c, option_group_label: null }));
+        }
+      } else if (code === "42703" || msg.includes("option_group")) {
         const fb = await supabase
           .from("product_set_components")
           .select("set_product_id,component_product_id,quantity,sort_order")
           .in("set_product_id", setIds)
           .order("sort_order", { ascending: true });
-        comps = (fb.data ?? []).map((c: any) => ({ ...c, option_group: null }));
+        comps = (fb.data ?? []).map((c: any) => ({
+          ...c,
+          option_group: null,
+          option_group_label: null
+        }));
       }
     } else {
       comps = firstQ.data ?? [];
@@ -77,6 +106,10 @@ export default async function HandmatigeVerkoopPage({
       optionGroup:
         typeof c.option_group === "string" && c.option_group.trim().length > 0
           ? c.option_group.trim()
+          : null,
+      optionGroupLabel:
+        typeof c.option_group_label === "string" && c.option_group_label.trim().length > 0
+          ? c.option_group_label.trim()
           : null
     }));
   }

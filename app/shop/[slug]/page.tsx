@@ -51,7 +51,7 @@ export default async function ProductDetailPage({ params }: Props) {
     const firstQ = await supabase
       .from("product_set_components")
       .select(
-        "component_product_id,quantity,sort_order,option_group,component:component_product_id(id,name,slug,garment_type,variant_youth,variant_adult,variant_socks,variant_shoes,variant_onesize)"
+        "component_product_id,quantity,sort_order,option_group,option_group_label,component:component_product_id(id,name,slug,garment_type,variant_youth,variant_adult,variant_socks,variant_shoes,variant_onesize)"
       )
       .eq("set_product_id", product.id)
       .order("sort_order", { ascending: true });
@@ -59,7 +59,35 @@ export default async function ProductDetailPage({ params }: Props) {
     if (firstQ.error) {
       const code = String((firstQ.error as any)?.code ?? "");
       const msg = String((firstQ.error as any)?.message ?? "").toLowerCase();
-      if (code === "42703" || msg.includes("option_group")) {
+      if (code === "42703" || msg.includes("option_group_label")) {
+        const second = await supabase
+          .from("product_set_components")
+          .select(
+            "component_product_id,quantity,sort_order,option_group,component:component_product_id(id,name,slug,garment_type,variant_youth,variant_adult,variant_socks,variant_shoes,variant_onesize)"
+          )
+          .eq("set_product_id", product.id)
+          .order("sort_order", { ascending: true });
+        if (second.error) {
+          const c2 = String((second.error as any)?.code ?? "");
+          const m2 = String((second.error as any)?.message ?? "").toLowerCase();
+          if (c2 === "42703" || m2.includes("option_group")) {
+            const fb = await supabase
+              .from("product_set_components")
+              .select(
+                "component_product_id,quantity,sort_order,component:component_product_id(id,name,slug,garment_type,variant_youth,variant_adult,variant_socks,variant_shoes,variant_onesize)"
+              )
+              .eq("set_product_id", product.id)
+              .order("sort_order", { ascending: true });
+            compRows = (fb.data ?? []).map((r: any) => ({
+              ...r,
+              option_group: null,
+              option_group_label: null
+            }));
+          }
+        } else {
+          compRows = (second.data ?? []).map((r: any) => ({ ...r, option_group_label: null }));
+        }
+      } else if (code === "42703" || msg.includes("option_group")) {
         const fb = await supabase
           .from("product_set_components")
           .select(
@@ -67,7 +95,11 @@ export default async function ProductDetailPage({ params }: Props) {
           )
           .eq("set_product_id", product.id)
           .order("sort_order", { ascending: true });
-        compRows = (fb.data ?? []).map((r: any) => ({ ...r, option_group: null }));
+        compRows = (fb.data ?? []).map((r: any) => ({
+          ...r,
+          option_group: null,
+          option_group_label: null
+        }));
       }
     } else {
       compRows = firstQ.data ?? [];
@@ -84,6 +116,10 @@ export default async function ProductDetailPage({ params }: Props) {
           optionGroup:
             typeof row.option_group === "string" && row.option_group.trim().length > 0
               ? row.option_group.trim()
+              : null,
+          optionGroupLabel:
+            typeof row.option_group_label === "string" && row.option_group_label.trim().length > 0
+              ? row.option_group_label.trim()
               : null,
           garmentType: (cp.garment_type ?? "clothing") as
             | "clothing"

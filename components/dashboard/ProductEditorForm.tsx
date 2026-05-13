@@ -253,7 +253,8 @@ export function ProductEditorForm({
       quantity: c.quantity,
       sortOrder: c.sortOrder ?? i,
       note: c.note ?? "",
-      optionGroup: (c as any).optionGroup ?? ""
+      optionGroup: (c as any).optionGroup ?? "",
+      optionGroupLabel: (c as any).optionGroupLabel ?? ""
     }))
   );
   const setComponentsJson = useMemo(
@@ -264,7 +265,8 @@ export function ProductEditorForm({
           quantity: Number(c.quantity) || 1,
           sortOrder: c.sortOrder ?? i,
           note: (c.note ?? "").trim(),
-          optionGroup: (c.optionGroup ?? "").trim()
+          optionGroup: (c.optionGroup ?? "").trim(),
+          optionGroupLabel: (c.optionGroupLabel ?? "").trim()
         }))
       ),
     [setComponents]
@@ -331,9 +333,11 @@ export function ProductEditorForm({
             <div className="space-y-3">
               <span className="text-sm font-medium text-zinc-800">Componenten</span>
               <p className="text-xs text-zinc-600">
-                Vul een <strong>keuzegroep</strong> (bijv. <code>bovenlaag</code>) om componenten als alternatieven aan
-                te bieden — de klant kiest dan precies één van die items. Leeg laten betekent dat het component altijd
-                in de set zit.
+                Vul een <strong>keuzegroep</strong> (interne key, bv. <code>bovenlaag</code>) om componenten als
+                alternatieven aan te bieden — de klant kiest dan precies één van die items. Leeg laten betekent dat het
+                component altijd in de set zit. Het <strong>publieke label</strong> is wat in de webshop boven de
+                keuze wordt getoond (bv. "Kies je bovenlaag"). Vul dit label op één regel van de groep in; alle
+                regels met dezelfde keuzegroep krijgen hetzelfde label.
               </p>
               {setComponentOptions.length === 0 ? (
                 <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
@@ -378,8 +382,8 @@ export function ProductEditorForm({
                       className="mt-1 w-full rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm"
                     />
                   </label>
-                  <label className="w-40">
-                    <span className="block text-xs text-zinc-600">Keuzegroep (optioneel)</span>
+                  <label className="w-36">
+                    <span className="block text-xs text-zinc-600">Keuzegroep (key, optioneel)</span>
                     <input
                       value={row.optionGroup ?? ""}
                       onChange={(e) => {
@@ -389,6 +393,20 @@ export function ProductEditorForm({
                       }}
                       placeholder="bijv. bovenlaag"
                       className="mt-1 w-full rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm"
+                    />
+                  </label>
+                  <label className="min-w-[180px] flex-1">
+                    <span className="block text-xs text-zinc-600">Publiek label (optioneel)</span>
+                    <input
+                      value={row.optionGroupLabel ?? ""}
+                      onChange={(e) => {
+                        const next = [...setComponents];
+                        next[i] = { ...next[i], optionGroupLabel: e.target.value };
+                        setSetComponents(next);
+                      }}
+                      placeholder='bijv. "Kies je bovenlaag"'
+                      disabled={!String(row.optionGroup ?? "").trim()}
+                      className="mt-1 w-full rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm disabled:bg-zinc-100 disabled:text-zinc-400"
                     />
                   </label>
                   <label className="min-w-[160px] flex-1">
@@ -424,7 +442,8 @@ export function ProductEditorForm({
                       quantity: 1,
                       sortOrder: setComponents.length,
                       note: "",
-                      optionGroup: ""
+                      optionGroup: "",
+                      optionGroupLabel: ""
                     }
                   ])
                 }

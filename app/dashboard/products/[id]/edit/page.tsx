@@ -185,19 +185,47 @@ export default async function EditProductPage({
   {
     const first = await supabase
       .from("product_set_components")
-      .select("component_product_id,quantity,sort_order,note,option_group")
+      .select("component_product_id,quantity,sort_order,note,option_group,option_group_label")
       .eq("set_product_id", id)
       .order("sort_order", { ascending: true });
     if (first.error) {
       const code = String((first.error as any)?.code ?? "");
       const msg = String((first.error as any)?.message ?? "").toLowerCase();
-      if (code === "42703" || msg.includes("option_group")) {
+      if (code === "42703" || msg.includes("option_group_label")) {
+        const second = await supabase
+          .from("product_set_components")
+          .select("component_product_id,quantity,sort_order,note,option_group")
+          .eq("set_product_id", id)
+          .order("sort_order", { ascending: true });
+        if (second.error) {
+          const c2 = String((second.error as any)?.code ?? "");
+          const m2 = String((second.error as any)?.message ?? "").toLowerCase();
+          if (c2 === "42703" || m2.includes("option_group")) {
+            const fb = await supabase
+              .from("product_set_components")
+              .select("component_product_id,quantity,sort_order,note")
+              .eq("set_product_id", id)
+              .order("sort_order", { ascending: true });
+            setComponentRows = (fb.data ?? []).map((r: any) => ({
+              ...r,
+              option_group: null,
+              option_group_label: null
+            }));
+          }
+        } else {
+          setComponentRows = (second.data ?? []).map((r: any) => ({ ...r, option_group_label: null }));
+        }
+      } else if (code === "42703" || msg.includes("option_group")) {
         const fb = await supabase
           .from("product_set_components")
           .select("component_product_id,quantity,sort_order,note")
           .eq("set_product_id", id)
           .order("sort_order", { ascending: true });
-        setComponentRows = (fb.data ?? []).map((r: any) => ({ ...r, option_group: null }));
+        setComponentRows = (fb.data ?? []).map((r: any) => ({
+          ...r,
+          option_group: null,
+          option_group_label: null
+        }));
       }
     } else {
       setComponentRows = first.data ?? [];
@@ -272,7 +300,8 @@ export default async function EditProductPage({
       quantity: Number(r.quantity ?? 1),
       sortOrder: Number(r.sort_order ?? i),
       note: typeof r.note === "string" ? r.note : "",
-      optionGroup: typeof r.option_group === "string" ? r.option_group : ""
+      optionGroup: typeof r.option_group === "string" ? r.option_group : "",
+      optionGroupLabel: typeof r.option_group_label === "string" ? r.option_group_label : ""
     }))
   };
 

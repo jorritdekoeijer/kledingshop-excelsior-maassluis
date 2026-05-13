@@ -13,8 +13,10 @@ export type SetComponentForShop = {
   componentSlug: string;
   componentName: string;
   quantity: number;
-  /** Optionele keuzegroep: items met dezelfde groep zijn alternatieven (klant kiest één). */
+  /** Optionele keuzegroep (interne key): items met dezelfde groep zijn alternatieven (klant kiest één). */
   optionGroup: string | null;
+  /** Optioneel publiek label voor de keuzegroep (wordt boven de keuze getoond). */
+  optionGroupLabel: string | null;
   garmentType: "clothing" | "socks" | "shoes" | "onesize";
   youth: ProductVariantBlock;
   adult: ProductVariantBlock;
@@ -193,11 +195,15 @@ export function SetProductPurchasePanel({
           }
 
           const activeIndex = groupSelection[bucket.key] ?? bucket.items[0].index;
+          // Gebruik het publieke label als één van de regels in de groep het heeft ingevuld.
+          const publicLabel = bucket.items
+            .map((it) => it.component.optionGroupLabel)
+            .find((l): l is string => Boolean(l && l.trim().length > 0));
+          const heading = publicLabel ?? "Kies één";
+          void groupLabel;
           return (
             <div key={bucket.key} className="rounded-lg border border-zinc-200 bg-white p-4">
-              <p className="text-xs font-medium uppercase tracking-wide text-zinc-600">
-                Keuze ({groupLabel}) — kies één
-              </p>
+              <p className="text-xs font-medium uppercase tracking-wide text-zinc-600">{heading}</p>
               <div className="mt-3 grid gap-3 sm:grid-cols-2">
                 {bucket.items.map((it) => {
                   const selected = activeIndex === it.index;

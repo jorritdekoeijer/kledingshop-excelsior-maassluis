@@ -18,6 +18,7 @@ export type ManualSaleSetComponentDef = {
   quantity: number;
   sortOrder: number;
   optionGroup: string | null;
+  optionGroupLabel: string | null;
 };
 
 type ComponentChoice = {
@@ -25,8 +26,10 @@ type ComponentChoice = {
   quantityPerSet: number;
   segment: VariantSegment;
   sizeLabel: string;
-  /** null = altijd inbegrepen; string = keuzegroep-naam. */
+  /** null = altijd inbegrepen; string = interne keuzegroep-key. */
   optionGroup: string | null;
+  /** Optioneel publiek label voor de keuzegroep. */
+  optionGroupLabel: string | null;
 };
 
 type LineState = {
@@ -146,7 +149,8 @@ export function ManualSaleForm({
           quantityPerSet: d.quantity,
           segment: seg,
           sizeLabel: sizes[0] ?? "",
-          optionGroup: d.optionGroup ?? null
+          optionGroup: d.optionGroup ?? null,
+          optionGroupLabel: d.optionGroupLabel ?? null
         };
       });
       // Initialiseer groupSelection: per groep eerste component-index
@@ -523,10 +527,14 @@ export function ManualSaleForm({
                         }
                         // Keuzegroep
                         const activeIdx = bucket.group ? line.groupSelection[bucket.group] : bucket.items[0].idx;
+                        // Publiek label (uit een van de regels) — fallback op interne key.
+                        const publicLabel = bucket.items
+                          .map((it) => it.c.optionGroupLabel)
+                          .find((l): l is string => Boolean(l && l.trim().length > 0));
                         return (
                           <div key={bucket.key} className="rounded-md border border-zinc-200 p-3">
                             <p className="text-xs font-medium uppercase tracking-wide text-zinc-600">
-                              Keuze ({bucket.group}) — kies één
+                              {publicLabel ? `${publicLabel} (groep: ${bucket.group})` : `Keuze (${bucket.group}) — kies één`}
                             </p>
                             <div className="mt-2 grid gap-2 sm:grid-cols-2">
                               {bucket.items.map(({ idx, c }) => {

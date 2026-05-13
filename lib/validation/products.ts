@@ -33,10 +33,15 @@ export const productSetComponentInputSchema = z.object({
   sortOrder: z.coerce.number().int().min(0).max(999).default(0),
   note: z.string().max(200).optional().default(""),
   /**
-   * Optionele keuzegroep: componenten met dezelfde naam binnen één set zijn alternatieven
+   * Optionele keuzegroep (interne key): componenten met dezelfde key binnen één set zijn alternatieven
    * (klant kiest precies één). Leeglaten = altijd inbegrepen.
    */
-  optionGroup: z.string().max(60).optional().default("")
+  optionGroup: z.string().max(60).optional().default(""),
+  /**
+   * Publiek label voor de keuzegroep dat in de webshop wordt getoond (bv. "Kies je bovenlaag").
+   * Alleen relevant als optionGroup is ingevuld. Leeg = generieke tekst in de shop.
+   */
+  optionGroupLabel: z.string().max(120).optional().default("")
 });
 
 export type ProductSetComponentInput = z.infer<typeof productSetComponentInputSchema>;
