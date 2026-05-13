@@ -114,16 +114,26 @@ export default async function DashboardStockPage({
     return a.sizeLabel.localeCompare(b.sizeLabel, "nl");
   });
 
-  // Recente interne bestellingen (optioneel; tabel kan ontbreken in oudere schema's).
-  const { data: internalOrders, error: ioErr } = await supabase
+  // Paginering interne bestellingen (optioneel; tabel kan ontbreken in oudere schema's).
+  const IO_PAGE_SIZE = 20;
+  const ioPageRaw = typeof sp.ioPage === "string" ? Number(sp.ioPage) : 1;
+  const ioPage = Number.isFinite(ioPageRaw) && ioPageRaw >= 1 ? Math.floor(ioPageRaw) : 1;
+  const ioOffset = (ioPage - 1) * IO_PAGE_SIZE;
+  const {
+    data: internalOrders,
+    error: ioErr,
+    count: ioCount
+  } = await supabase
     .from("internal_orders")
-    .select("id,order_date,note,total_purchase_excl_cents,cost_groups(name)")
+    .select("id,order_date,note,total_purchase_excl_cents,cost_groups(name)", { count: "exact" })
     .order("order_date", { ascending: false })
     .order("created_at", { ascending: false })
-    .limit(20);
+    .range(ioOffset, ioOffset + IO_PAGE_SIZE - 1);
   const internalOrdersMissing =
     Boolean((ioErr as any)?.code === "PGRST205") ||
     String((ioErr as any)?.message ?? "").toLowerCase().includes("internal_orders");
+  const ioTotal = ioCount ?? 0;
+  const ioTotalPages = Math.max(1, Math.ceil(ioTotal / IO_PAGE_SIZE));
 
   return (
     <div className="space-y-4">
@@ -170,9 +180,18 @@ export default async function DashboardStockPage({
         <StockRowsTable rows={stockRows} />
       </div>
 
-      <div className="rounded-lg border border-zinc-200 bg-white p-6">
-        <h2 className="text-lg font-semibold">Recente interne bestellingen</h2>
-        <p className="mt-2 text-sm text-zinc-600">Overzicht van de laatste interne afboekingen (excl. btw).</p>
+      <div id="interne-bestellingen" className="rounded-lg border border-zinc-200 bg-white p-6 scroll-mt-24">
+        <div className="flex flex-wrap items-baseline justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-semibold">Interne bestellingen</h2>
+            <p className="mt-2 text-sm text-zinc-600">Overzicht van alle interne afboekingen (excl. btw), nieuwste eerst.</p>
+          </div>
+          {!internalOrdersMissing && !ioErr ? (
+            <p className="text-xs text-zinc-500">
+              {ioTotal} {ioTotal === 1 ? "bestelling" : "bestellingen"}
+            </p>
+          ) : null}
+        </div>
 
         {internalOrdersMissing ? (
           <p className="mt-4 text-sm text-zinc-500">Nog niet beschikbaar (draai migratie `0017_internal_orders.sql`).</p>
@@ -181,47 +200,75 @@ export default async function DashboardStockPage({
         ) : (internalOrders ?? []).length === 0 ? (
           <p className="mt-4 text-sm text-zinc-500">Nog geen interne bestellingen.</p>
         ) : (
-          <div className="mt-4 overflow-x-auto rounded-lg border border-zinc-200">
-            <table className="w-full min-w-[860px] text-left text-sm">
-              <thead className="border-b border-zinc-200 bg-zinc-50 text-xs font-semibold uppercase tracking-wide text-zinc-600">
-                <tr>
-                  <th className="px-4 py-3">Datum</th>
-                  <th className="px-4 py-3">Kostengroep</th>
-                  <th className="px-4 py-3">Omschrijving</th>
-                  <th className="px-4 py-3 text-right">Totaal inkoop (excl.)</th>
-                  <th className="px-4 py-3 text-right">Acties</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-zinc-100">
-                {(internalOrders ?? []).map((o: any) => (
-                  <tr key={String(o.id)}>
-                    <td className="px-4 py-3 text-zinc-700">{String(o.order_date ?? "—")}</td>
-                    <td className="px-4 py-3 text-zinc-800">{(o.cost_groups as any)?.name ?? "—"}</td>
-                    <td className="px-4 py-3 text-zinc-700">{String(o.note ?? "")}</td>
-                    <td className="px-4 py-3 text-right font-medium tabular-nums">
-                      € {centsToEuroString(Number(o.total_purchase_excl_cents ?? 0))}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <div className="flex justify-end gap-3 text-sm font-semibold">
-                        <Link
-                          href={`/dashboard/stock/interne-bestelling/${encodeURIComponent(String(o.id))}`}
-                          className="text-brand-blue hover:underline"
-                        >
-                          Bekijken
-                        </Link>
-                        <Link
-                          href={`/dashboard/stock/interne-bestelling/${encodeURIComponent(String(o.id))}/edit`}
-                          className="text-brand-blue hover:underline"
-                        >
-                          Bewerken
-                        </Link>
-                      </div>
-                    </td>
+          <>
+            <div className="mt-4 overflow-x-auto rounded-lg border border-zinc-200">
+              <table className="w-full min-w-[860px] text-left text-sm">
+                <thead className="border-b border-zinc-200 bg-zinc-50 text-xs font-semibold uppercase tracking-wide text-zinc-600">
+                  <tr>
+                    <th className="px-4 py-3">Datum</th>
+                    <th className="px-4 py-3">Kostengroep</th>
+                    <th className="px-4 py-3">Omschrijving</th>
+                    <th className="px-4 py-3 text-right">Totaal inkoop (excl.)</th>
+                    <th className="px-4 py-3 text-right">Acties</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-zinc-100">
+                  {(internalOrders ?? []).map((o: any) => (
+                    <tr key={String(o.id)}>
+                      <td className="px-4 py-3 text-zinc-700">{String(o.order_date ?? "—")}</td>
+                      <td className="px-4 py-3 text-zinc-800">{(o.cost_groups as any)?.name ?? "—"}</td>
+                      <td className="px-4 py-3 text-zinc-700">{String(o.note ?? "")}</td>
+                      <td className="px-4 py-3 text-right font-medium tabular-nums">
+                        € {centsToEuroString(Number(o.total_purchase_excl_cents ?? 0))}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <div className="flex justify-end gap-3 text-sm font-semibold">
+                          <Link
+                            href={`/dashboard/stock/interne-bestelling/${encodeURIComponent(String(o.id))}`}
+                            className="text-brand-blue hover:underline"
+                          >
+                            Bekijken
+                          </Link>
+                          <Link
+                            href={`/dashboard/stock/interne-bestelling/${encodeURIComponent(String(o.id))}/edit`}
+                            className="text-brand-blue hover:underline"
+                          >
+                            Bewerken
+                          </Link>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {ioTotalPages > 1 ? (
+              <div className="mt-4 flex items-center justify-between text-sm">
+                <span className="text-zinc-600">
+                  Pagina {ioPage} van {ioTotalPages}
+                </span>
+                <div className="flex gap-2">
+                  {ioPage > 1 ? (
+                    <Link
+                      href={`/dashboard/stock?ioPage=${ioPage - 1}#interne-bestellingen`}
+                      className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-800 hover:bg-zinc-50"
+                    >
+                      ← Vorige
+                    </Link>
+                  ) : null}
+                  {ioPage < ioTotalPages ? (
+                    <Link
+                      href={`/dashboard/stock?ioPage=${ioPage + 1}#interne-bestellingen`}
+                      className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-800 hover:bg-zinc-50"
+                    >
+                      Volgende →
+                    </Link>
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
+          </>
         )}
       </div>
     </div>
