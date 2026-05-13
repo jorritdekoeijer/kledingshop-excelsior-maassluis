@@ -13,6 +13,15 @@ import {
 const STORAGE_KEY = "kleding-cart-v2";
 const LEGACY_STORAGE_KEY = "kleding-cart-v1";
 
+export type CartSetComponent = {
+  productId: string;
+  slug: string;
+  name: string;
+  quantity: number;
+  variant?: "youth" | "adult" | "socks" | "shoes" | "onesize";
+  sizeLabel?: string;
+};
+
 export type CartLine = {
   /** Uniek per product + variant + maat */
   lineId: string;
@@ -24,6 +33,9 @@ export type CartLine = {
   variant?: "youth" | "adult" | "socks" | "shoes" | "onesize";
   sizeLabel?: string;
   jerseyNumber?: string;
+  /** Indien true: dit is een productset met componenten. */
+  isSet?: boolean;
+  setComponents?: CartSetComponent[];
 };
 
 type CartContextValue = {
@@ -93,6 +105,34 @@ export function CartProvider({ children }: { children: ReactNode }) {
             const productId = typeof o.productId === "string" ? o.productId : null;
             if (!lineId || !productId) continue;
             const quantity = typeof o.quantity === "number" && o.quantity >= 1 ? Math.floor(o.quantity) : 1;
+            const setComponents: CartSetComponent[] | undefined = Array.isArray(o.setComponents)
+              ? (o.setComponents
+                  .map((sc): CartSetComponent | null => {
+                    if (!sc || typeof sc !== "object") return null;
+                    const so = sc as Record<string, unknown>;
+                    const pId = typeof so.productId === "string" ? so.productId : null;
+                    if (!pId) return null;
+                    const qty =
+                      typeof so.quantity === "number" && so.quantity >= 1 ? Math.floor(so.quantity) : 1;
+                    const v =
+                      so.variant === "youth" ||
+                      so.variant === "adult" ||
+                      so.variant === "socks" ||
+                      so.variant === "shoes" ||
+                      so.variant === "onesize"
+                        ? (so.variant as "youth" | "adult" | "socks" | "shoes" | "onesize")
+                        : undefined;
+                    return {
+                      productId: pId,
+                      slug: typeof so.slug === "string" ? so.slug : "",
+                      name: typeof so.name === "string" ? so.name : "",
+                      quantity: qty,
+                      variant: v,
+                      sizeLabel: typeof so.sizeLabel === "string" ? so.sizeLabel : undefined
+                    };
+                  })
+                  .filter((x): x is CartSetComponent => x !== null))
+              : undefined;
             next.push({
               lineId,
               productId,
@@ -108,9 +148,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
                 o.variant === "onesize"
                   ? o.variant
                   : undefined,
-              sizeLabel: typeof o.sizeLabel === "string" ? o.sizeLabel : undefined
-              ,
-              jerseyNumber: typeof o.jerseyNumber === "string" ? o.jerseyNumber : undefined
+              sizeLabel: typeof o.sizeLabel === "string" ? o.sizeLabel : undefined,
+              jerseyNumber: typeof o.jerseyNumber === "string" ? o.jerseyNumber : undefined,
+              isSet: o.isSet === true || setComponents !== undefined ? Boolean(o.isSet ?? setComponents) : undefined,
+              setComponents
             });
           }
           setLines(next);

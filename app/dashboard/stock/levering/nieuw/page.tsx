@@ -28,7 +28,8 @@ export default async function NewStockDeliveryPage({
   const supabase = await createSupabaseServerClient();
   const { data: products } = await supabase
     .from("products")
-    .select("id,name,printing_excl_cents,variant_youth,variant_adult,variant_socks,variant_shoes,variant_onesize")
+    .select("id,name,is_set,printing_excl_cents,variant_youth,variant_adult,variant_socks,variant_shoes,variant_onesize")
+    .or("is_set.is.null,is_set.eq.false")
     .order("name");
 
   const { data: deliveries, error: delErr } = await supabase

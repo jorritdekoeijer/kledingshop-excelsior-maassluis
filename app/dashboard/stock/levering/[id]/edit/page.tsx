@@ -51,7 +51,8 @@ export default async function EditStockDeliveryPage({
   // Intern: toon alle producten (ook inactief), zodat je leveringen altijd kunt verwerken.
   const { data: allProducts } = await supabase
     .from("products")
-    .select("id,name,printing_excl_cents,variant_youth,variant_adult,variant_socks,variant_shoes,variant_onesize")
+    .select("id,name,is_set,printing_excl_cents,variant_youth,variant_adult,variant_socks,variant_shoes,variant_onesize")
+    .or("is_set.is.null,is_set.eq.false")
     .order("name");
   const options = buildProductPickOptions(allProducts ?? []);
 

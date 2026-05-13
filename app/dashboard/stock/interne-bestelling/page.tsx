@@ -21,8 +21,9 @@ export default async function InterneBestellingPage({
   const { data: products } = await supabase
     .from("products")
     .select(
-      "id,name,printing_excl_cents,variant_youth,variant_adult,variant_socks,variant_shoes,variant_onesize,stock_batches(quantity_remaining,variant_segment,size_label,unit_purchase_excl_cents,unit_printing_excl_cents,received_at,created_at)"
+      "id,name,is_set,printing_excl_cents,variant_youth,variant_adult,variant_socks,variant_shoes,variant_onesize,stock_batches(quantity_remaining,variant_segment,size_label,unit_purchase_excl_cents,unit_printing_excl_cents,received_at,created_at)"
     )
+    .or("is_set.is.null,is_set.eq.false")
     .order("name");
 
   const { data: costGroups } = await supabase.from("cost_groups").select("id,name").order("created_at");

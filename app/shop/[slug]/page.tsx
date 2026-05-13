@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { PublicFooter } from "@/components/shop/PublicFooter";
 import { PublicHeader } from "@/components/shop/PublicHeader";
 import { ProductPurchasePanel } from "@/components/shop/ProductPurchasePanel";
+import { SetProductPurchasePanel, type SetComponentForShop } from "@/components/shop/SetProductPurchasePanel";
 import { orderedImagePaths, type ProductImageRow } from "@/lib/shop/product-images";
 import { shopDisplayPricing } from "@/lib/shop/display-pricing";
 import { normalizeProductDetails, normalizeVariantBlock } from "@/lib/shop/product-json";
@@ -26,7 +27,7 @@ export default async function ProductDetailPage({ params }: Props) {
   const { data: product } = await supabase
     .from("products")
     .select(
-      "id,name,slug,price_cents,temporary_discount_percent,description,product_details,garment_type,allow_jersey_number,jersey_number_sale_cents,variant_youth,variant_adult,variant_socks,variant_shoes,variant_onesize,product_images(path,is_primary,sort_order)"
+      "id,name,slug,price_cents,is_set,temporary_discount_percent,description,product_details,garment_type,allow_jersey_number,jersey_number_sale_cents,variant_youth,variant_adult,variant_socks,variant_shoes,variant_onesize,product_images(path,is_primary,sort_order)"
     )
     .eq("slug", slug)
     .eq("active", true)
@@ -43,6 +44,40 @@ export default async function ProductDetailPage({ params }: Props) {
   const shoes = normalizeVariantBlock((product as any).variant_shoes);
   const onesize = normalizeVariantBlock((product as any).variant_onesize);
   const pct = Number(product.temporary_discount_percent ?? 0);
+  const isSet = Boolean((product as any).is_set ?? false);
+
+  let setComponents: SetComponentForShop[] = [];
+  if (isSet) {
+    const { data: compRows } = await supabase
+      .from("product_set_components")
+      .select(
+        "component_product_id,quantity,sort_order,component:component_product_id(id,name,slug,garment_type,variant_youth,variant_adult,variant_socks,variant_shoes,variant_onesize)"
+      )
+      .eq("set_product_id", product.id)
+      .order("sort_order", { ascending: true });
+    setComponents = (compRows ?? [])
+      .map((row: any) => {
+        const cp = row.component;
+        if (!cp) return null;
+        return {
+          componentProductId: cp.id as string,
+          componentSlug: cp.slug as string,
+          componentName: cp.name as string,
+          quantity: Number(row.quantity ?? 1),
+          garmentType: (cp.garment_type ?? "clothing") as
+            | "clothing"
+            | "socks"
+            | "shoes"
+            | "onesize",
+          youth: normalizeVariantBlock(cp.variant_youth),
+          adult: normalizeVariantBlock(cp.variant_adult),
+          socks: normalizeVariantBlock(cp.variant_socks),
+          shoes: normalizeVariantBlock(cp.variant_shoes),
+          onesize: normalizeVariantBlock(cp.variant_onesize)
+        } satisfies SetComponentForShop;
+      })
+      .filter((x): x is SetComponentForShop => x !== null);
+  }
 
   return (
     <div className="flex min-h-dvh flex-col bg-white">
@@ -66,21 +101,31 @@ export default async function ProductDetailPage({ params }: Props) {
               </p>
             ) : null}
 
-            <ProductPurchasePanel
-              productId={product.id}
-              name={product.name}
-              slug={product.slug}
-              discountPercent={pct}
-              garmentType={product.garment_type as any}
-              allowJerseyNumber={Boolean((product as any).allow_jersey_number ?? false)}
-              jerseyNumberSaleCents={Number((product as any).jersey_number_sale_cents ?? 0)}
-              youth={youth}
-              adult={adult}
-              socks={socks}
-              shoes={shoes}
-              onesize={onesize}
-              fallbackEffectiveCents={pricing.effectiveCents}
-            />
+            {isSet ? (
+              <SetProductPurchasePanel
+                setProductId={product.id}
+                setName={product.name}
+                setSlug={product.slug}
+                setSalePriceInclCents={Number(product.price_cents ?? 0)}
+                components={setComponents}
+              />
+            ) : (
+              <ProductPurchasePanel
+                productId={product.id}
+                name={product.name}
+                slug={product.slug}
+                discountPercent={pct}
+                garmentType={product.garment_type as any}
+                allowJerseyNumber={Boolean((product as any).allow_jersey_number ?? false)}
+                jerseyNumberSaleCents={Number((product as any).jersey_number_sale_cents ?? 0)}
+                youth={youth}
+                adult={adult}
+                socks={socks}
+                shoes={shoes}
+                onesize={onesize}
+                fallbackEffectiveCents={pricing.effectiveCents}
+              />
+            )}
 
             {product.description ? (
               <section className="mt-10">

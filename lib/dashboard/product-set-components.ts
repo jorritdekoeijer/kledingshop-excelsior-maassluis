@@ -1,0 +1,67 @@
+import { createSupabaseServiceClient } from "@/lib/supabase/service";
+import type { ProductSetComponentInput } from "@/lib/validation/products";
+
+type ServiceClient = ReturnType<typeof createSupabaseServiceClient>;
+
+/**
+ * Vervang de componenten van een set-product.
+ * - Als isSet false: alle componenten worden verwijderd (set werd uitgezet).
+ * - Als isSet true: bestaande regels worden gewist en de meegegeven componenten opnieuw geschreven.
+ * - Componenten mogen NIET naar het set-product zelf verwijzen.
+ * - Component-product moet bestaan en mag zelf geen set zijn.
+ */
+export async function replaceProductSetComponents(
+  service: ServiceClient,
+  setProductId: string,
+  isSet: boolean,
+  components: ProductSetComponentInput[]
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  if (!isSet) {
+    const { error } = await service
+      .from("product_set_components")
+      .delete()
+      .eq("set_product_id", setProductId);
+    if (error) return { ok: false, message: `Componenten verwijderen mislukt: ${error.message}` };
+    return { ok: true };
+  }
+
+  if (components.length === 0) {
+    return { ok: false, message: "Voeg minstens één component toe aan de productset." };
+  }
+
+  const ids = [...new Set(components.map((c) => c.componentProductId))];
+  if (ids.includes(setProductId)) {
+    return { ok: false, message: "Een set mag niet zichzelf als component bevatten." };
+  }
+
+  const { data: comps, error: compsErr } = await service
+    .from("products")
+    .select("id,is_set,active")
+    .in("id", ids);
+  if (compsErr) return { ok: false, message: `Componenten ophalen mislukt: ${compsErr.message}` };
+
+  const byId = new Map((comps ?? []).map((p) => [p.id, p]));
+  for (const id of ids) {
+    const p = byId.get(id);
+    if (!p) return { ok: false, message: "Een gekozen component bestaat niet (meer)." };
+    if (p.is_set) return { ok: false, message: "Een set mag geen andere set als component hebben." };
+  }
+
+  const { error: delErr } = await service
+    .from("product_set_components")
+    .delete()
+    .eq("set_product_id", setProductId);
+  if (delErr) return { ok: false, message: `Componenten resetten mislukt: ${delErr.message}` };
+
+  const rows = components.map((c, i) => ({
+    set_product_id: setProductId,
+    component_product_id: c.componentProductId,
+    quantity: c.quantity,
+    sort_order: c.sortOrder ?? i,
+    note: (c.note ?? "").trim() || null
+  }));
+  const { error: insErr } = await service.from("product_set_components").insert(rows);
+  if (insErr) return { ok: false, message: `Componenten opslaan mislukt: ${insErr.message}` };
+
+  return { ok: true };
+}

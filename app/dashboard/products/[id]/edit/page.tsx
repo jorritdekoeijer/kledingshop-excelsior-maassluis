@@ -4,6 +4,7 @@ import { ProductEditorForm } from "@/components/dashboard/ProductEditorForm";
 import { productParsedToDbRow } from "@/lib/dashboard/product-db-row";
 import { deleteReorderRulesNotInGarmentTemplates } from "@/lib/dashboard/reorder-rules-garment-cleanup";
 import { parseProductUpsertFormData } from "@/lib/dashboard/product-form-parse";
+import { replaceProductSetComponents } from "@/lib/dashboard/product-set-components";
 import { resolveProductCategoryId } from "@/lib/dashboard/resolve-product-category-id";
 import { normalizeProductDetails, normalizeVariantBlock } from "@/lib/shop/product-json";
 import { requirePermission } from "@/lib/auth/permissions-server";
@@ -61,6 +62,11 @@ async function updateProduct(productId: string, formData: FormData) {
     .eq("id", productId);
   if (error) {
     redirect(`/dashboard/products/${productId}/edit?error=${encodeURIComponent(formatPostgrestError(error))}`);
+  }
+
+  const setRes = await replaceProductSetComponents(service, productId, Boolean(d.isSet), d.setComponents ?? []);
+  if (!setRes.ok) {
+    redirect(`/dashboard/products/${productId}/edit?error=${encodeURIComponent(setRes.message)}`);
   }
 
   await deleteReorderRulesNotInGarmentTemplates(service, productId, d.garmentType);
@@ -169,11 +175,26 @@ export default async function EditProductPage({
   const { data: product, error: productError } = await supabase
     .from("products")
     .select(
-      "id,name,slug,description,price_cents,printing_excl_cents,allow_jersey_number,jersey_number_sale_cents,jersey_number_purchase_single_excl_cents,jersey_number_purchase_double_excl_cents,temporary_discount_percent,active,category_id,garment_type,product_details,variant_youth,variant_adult,variant_socks,variant_shoes,variant_onesize"
+      "id,name,slug,description,price_cents,is_set,printing_excl_cents,allow_jersey_number,jersey_number_sale_cents,jersey_number_purchase_single_excl_cents,jersey_number_purchase_double_excl_cents,temporary_discount_percent,active,category_id,garment_type,product_details,variant_youth,variant_adult,variant_socks,variant_shoes,variant_onesize"
     )
     .eq("id", id)
     .single();
   if (productError || !product) redirect("/dashboard/products?error=Not%20found");
+
+  const { data: setComponentRows } = await supabase
+    .from("product_set_components")
+    .select("component_product_id,quantity,sort_order,note")
+    .eq("set_product_id", id)
+    .order("sort_order", { ascending: true });
+
+  const { data: otherProducts } = await supabase
+    .from("products")
+    .select("id,name,is_set")
+    .neq("id", id)
+    .order("name", { ascending: true });
+  const setComponentOptions = (otherProducts ?? [])
+    .filter((p) => !p.is_set)
+    .map((p) => ({ id: p.id as string, name: p.name as string }));
 
   const { data: images } = await supabase
     .from("product_images")
@@ -226,7 +247,15 @@ export default async function EditProductPage({
     variantAdult: normalizeVariantBlock(product.variant_adult),
     variantSocks: normalizeVariantBlock((product as any).variant_socks),
     variantShoes: normalizeVariantBlock((product as any).variant_shoes),
-    variantOneSize: normalizeVariantBlock((product as any).variant_onesize)
+    variantOneSize: normalizeVariantBlock((product as any).variant_onesize),
+    isSet: Boolean((product as any).is_set ?? false),
+    setSalePriceInclCents: Boolean((product as any).is_set ?? false) ? Number(product.price_cents ?? 0) : 0,
+    setComponents: (setComponentRows ?? []).map((r, i) => ({
+      componentProductId: r.component_product_id as string,
+      quantity: Number(r.quantity ?? 1),
+      sortOrder: Number(r.sort_order ?? i),
+      note: typeof r.note === "string" ? r.note : ""
+    }))
   };
 
   return (
@@ -252,6 +281,7 @@ export default async function EditProductPage({
           categories={(categories ?? []) as any}
           defaults={defaults as any}
           reorderRules={(((reorderRules ?? []) as any) ?? []) as any}
+          setComponentOptions={setComponentOptions}
           updateProductAction={updateProduct.bind(null, id)}
           updateReorderRulesAction={updateReorderRules.bind(null, id)}
           syncVariantSizesAction={syncVariantSizesFromReorderRules.bind(null, id)}

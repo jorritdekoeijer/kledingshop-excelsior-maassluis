@@ -65,22 +65,44 @@ export default async function DashboardOrderDetailPage({ params, searchParams }:
   const { data: order, error } = await supabase
     .from("orders")
     .select(
-      "id,status,total_cents,guest_email,guest_name,guest_phone,shipping_address,fulfillment_error,confirmation_sent_at,public_token,created_at,updated_at,order_number,pickup_email_sent_at,pickup_email_kind,order_items(id,quantity,unit_price_cents,line_total_cents,picked,delivered,products(name,slug)),mollie_payments(mollie_payment_id,status,created_at,updated_at)"
+      "id,status,total_cents,guest_email,guest_name,guest_phone,shipping_address,fulfillment_error,confirmation_sent_at,public_token,created_at,updated_at,order_number,pickup_email_sent_at,pickup_email_kind,order_items(id,quantity,unit_price_cents,line_total_cents,variant_segment,size_label,picked,delivered,set_order_item_id,products(name,slug,is_set)),mollie_payments(mollie_payment_id,status,created_at,updated_at)"
     )
     .eq("id", id)
     .maybeSingle();
 
   if (error || !order) notFound();
 
-  const items = (order.order_items ?? []) as unknown as Array<{
+  const itemsRaw = (order.order_items ?? []) as unknown as Array<{
     id: string;
     quantity: number;
     unit_price_cents: number;
     line_total_cents: number;
+    variant_segment?: string | null;
+    size_label?: string | null;
     picked?: boolean;
     delivered?: boolean;
+    set_order_item_id?: string | null;
     products?: unknown;
   }>;
+
+  function isSetParent(it: (typeof itemsRaw)[number]): boolean {
+    const p = it.products as { is_set?: boolean } | { is_set?: boolean }[] | null | undefined;
+    const obj = Array.isArray(p) ? p[0] : p;
+    return Boolean(obj?.is_set) && !it.set_order_item_id;
+  }
+
+  const componentsByParent = new Map<string, typeof itemsRaw>();
+  for (const it of itemsRaw) {
+    if (it.set_order_item_id) {
+      const arr = componentsByParent.get(it.set_order_item_id) ?? [];
+      arr.push(it);
+      componentsByParent.set(it.set_order_item_id, arr);
+    }
+  }
+
+  const topLevelItems = itemsRaw.filter((it) => !it.set_order_item_id);
+  // Voor counts negeren we set-parents: hun status volgt uit hun componenten.
+  const items = itemsRaw.filter((it) => !isSetParent(it));
 
   const payments = (order.mollie_payments ?? []) as unknown as Array<{
     mollie_payment_id: string;
@@ -230,44 +252,98 @@ export default async function DashboardOrderDetailPage({ params, searchParams }:
           )}
         </div>
         <ul className="mt-3 divide-y divide-zinc-100">
-          {items.map((li, i) => (
-            <li key={i} className="flex flex-wrap justify-between gap-2 py-2 text-sm">
-              <div className="min-w-0">
-                <div className="truncate">
-                  {lineProductName(li)}{" "}
-                  <span className="text-zinc-500">
-                    × {li.quantity} à {eur(li.unit_price_cents)}
-                  </span>
+          {topLevelItems.map((li, i) => {
+            const isParent = isSetParent(li);
+            const components = isParent ? componentsByParent.get(li.id) ?? [] : [];
+            return (
+              <li key={i} className="py-2 text-sm">
+                <div className="flex flex-wrap justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="truncate">
+                      {lineProductName(li)}
+                      {isParent ? (
+                        <span className="ml-2 rounded bg-brand-blue/10 px-2 py-0.5 text-xs font-medium text-brand-blue">
+                          SET
+                        </span>
+                      ) : null}{" "}
+                      <span className="text-zinc-500">
+                        × {li.quantity} à {eur(li.unit_price_cents)}
+                      </span>
+                    </div>
+                    {!isParent ? (
+                      <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
+                        <span
+                          className={`rounded px-2 py-0.5 ${
+                            li.delivered
+                              ? "bg-green-100 text-green-800"
+                              : li.picked
+                                ? "bg-emerald-100 text-emerald-900"
+                                : "bg-amber-100 text-amber-900"
+                          }`}
+                        >
+                          {li.delivered ? "AFGELEVERD" : li.picked ? "INGEPAKT" : "BACKORDER"}
+                        </span>
+                        {!li.delivered && !li.picked && canPickWrite && (order.status === "new_order" || order.status === "backorder") ? (
+                          <form action={pickOrderItem}>
+                            <input type="hidden" name="orderItemId" value={li.id} />
+                            <input type="hidden" name="next" value={detailPath} />
+                            <button
+                              type="submit"
+                              className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs font-medium hover:bg-zinc-50"
+                            >
+                              In voorraad (aanklikken)
+                            </button>
+                          </form>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </div>
+                  <span className="font-medium">{eur(li.line_total_cents)}</span>
                 </div>
-                <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
-                  <span
-                    className={`rounded px-2 py-0.5 ${
-                      li.delivered
-                        ? "bg-green-100 text-green-800"
-                        : li.picked
-                          ? "bg-emerald-100 text-emerald-900"
-                          : "bg-amber-100 text-amber-900"
-                    }`}
-                  >
-                    {li.delivered ? "AFGELEVERD" : li.picked ? "INGEPAKT" : "BACKORDER"}
-                  </span>
-                  {!li.delivered && !li.picked && canPickWrite && (order.status === "new_order" || order.status === "backorder") ? (
-                    <form action={pickOrderItem}>
-                      <input type="hidden" name="orderItemId" value={li.id} />
-                      <input type="hidden" name="next" value={detailPath} />
-                      <button
-                        type="submit"
-                        className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs font-medium hover:bg-zinc-50"
-                      >
-                        In voorraad (aanklikken)
-                      </button>
-                    </form>
-                  ) : null}
-                </div>
-              </div>
-              <span className="font-medium">{eur(li.line_total_cents)}</span>
-            </li>
-          ))}
+                {isParent && components.length > 0 ? (
+                  <ul className="mt-2 ml-3 border-l border-zinc-200 pl-4">
+                    {components.map((c) => (
+                      <li key={c.id} className="flex flex-wrap items-center justify-between gap-2 py-1.5 text-xs">
+                        <div className="min-w-0">
+                          <div className="truncate text-zinc-800">
+                            {lineProductName(c)}
+                            {c.variant_segment === "youth" ? " · YOUTH" : c.variant_segment === "adult" ? " · ADULT" : ""}
+                            {c.size_label ? ` · maat ${c.size_label}` : ""}{" "}
+                            <span className="text-zinc-500">× {c.quantity}</span>
+                          </div>
+                          <div className="mt-1 flex flex-wrap items-center gap-2">
+                            <span
+                              className={`rounded px-1.5 py-0.5 ${
+                                c.delivered
+                                  ? "bg-green-100 text-green-800"
+                                  : c.picked
+                                    ? "bg-emerald-100 text-emerald-900"
+                                    : "bg-amber-100 text-amber-900"
+                              }`}
+                            >
+                              {c.delivered ? "AFGELEVERD" : c.picked ? "INGEPAKT" : "BACKORDER"}
+                            </span>
+                            {!c.delivered && !c.picked && canPickWrite && (order.status === "new_order" || order.status === "backorder") ? (
+                              <form action={pickOrderItem}>
+                                <input type="hidden" name="orderItemId" value={c.id} />
+                                <input type="hidden" name="next" value={detailPath} />
+                                <button
+                                  type="submit"
+                                  className="rounded-md border border-zinc-300 bg-white px-2 py-0.5 text-xs font-medium hover:bg-zinc-50"
+                                >
+                                  In voorraad
+                                </button>
+                              </form>
+                            ) : null}
+                          </div>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+              </li>
+            );
+          })}
         </ul>
         <p className="mt-4 flex justify-between border-t border-zinc-200 pt-3 text-base font-semibold">
           <span>Totaal</span>

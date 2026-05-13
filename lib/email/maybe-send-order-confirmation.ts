@@ -18,20 +18,23 @@ export async function maybeSendOrderConfirmationAfterPayment(svc: SupabaseClient
 
   const { data: items } = await svc
     .from("order_items")
-    .select("quantity,variant_segment,size_label,products(name)")
+    .select("quantity,variant_segment,size_label,set_order_item_id,products(name,is_set)")
     .eq("order_id", orderId);
 
+  // Set-componenten weglaten: de set wordt door zijn parent-regel weergegeven.
   const lines =
-    (items ?? []).map((li: any) => ({
-      name: [
-        String(li?.products?.name ?? "Product"),
-        li?.variant_segment ? String(li.variant_segment).toUpperCase() : "",
-        li?.size_label ? String(li.size_label) : ""
-      ]
-        .filter(Boolean)
-        .join(" · "),
-      quantity: Number(li?.quantity ?? 1) || 1
-    })) ?? [];
+    (items ?? [])
+      .filter((li: any) => !li?.set_order_item_id)
+      .map((li: any) => ({
+        name: [
+          String(li?.products?.name ?? "Product"),
+          li?.variant_segment ? String(li.variant_segment).toUpperCase() : "",
+          li?.size_label ? String(li.size_label) : ""
+        ]
+          .filter(Boolean)
+          .join(" · "),
+        quantity: Number(li?.quantity ?? 1) || 1
+      })) ?? [];
 
   const ok = await sendOrderConfirmationEmail({
     guestEmail: row.guest_email,

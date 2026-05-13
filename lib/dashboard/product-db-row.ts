@@ -54,6 +54,7 @@ export function productParsedToDbRow(d: ProductUpsertParsed) {
     slug: d.slug,
     description: d.description,
     price_cents: d.priceCents,
+    is_set: Boolean(d.isSet),
     printing_excl_cents: d.printingExclCents,
     allow_jersey_number: d.allowJerseyNumber && d.garmentType === "clothing",
     jersey_number_sale_cents: d.allowJerseyNumber && d.garmentType === "clothing" ? d.jerseyNumberSaleCents : 0,

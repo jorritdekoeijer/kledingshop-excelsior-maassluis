@@ -47,7 +47,8 @@ export default async function DashboardStockPage({
   // Toon alle producten (ook met 0 voorraad), maar aggregeer de voorraad direct uit stock_batches.
   const { data: products, error: pErr } = await supabase
     .from("products")
-    .select("id,name,variant_youth,variant_adult")
+    .select("id,name,is_set,variant_youth,variant_adult")
+    .or("is_set.is.null,is_set.eq.false")
     .order("name");
   if (pErr) {
     return (

@@ -4,6 +4,7 @@ import { requirePermission } from "@/lib/auth/permissions-server";
 import { permissions } from "@/lib/auth/permissions";
 import { productParsedToInsertRow } from "@/lib/dashboard/product-db-row";
 import { parseProductUpsertFormData } from "@/lib/dashboard/product-form-parse";
+import { replaceProductSetComponents } from "@/lib/dashboard/product-set-components";
 import { resolveProductCategoryId } from "@/lib/dashboard/resolve-product-category-id";
 import { PUBLIC_PRODUCT_CATEGORIES_TABLE } from "@/lib/db/public-tables";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -59,6 +60,11 @@ async function createProduct(formData: FormData) {
   const upload = await service.storage.from("product-images").upload(path, file, { upsert: true, contentType: file.type });
   if (upload.error) redirect(`/dashboard/products/${created.id}/edit?error=${encodeURIComponent(upload.error.message)}`);
   await service.from("product_images").insert({ product_id: created.id, path, sort_order: 0, is_primary: true });
+
+  const setRes = await replaceProductSetComponents(service, created.id, Boolean(d.isSet), d.setComponents ?? []);
+  if (!setRes.ok) {
+    redirect(`/dashboard/products/${created.id}/edit?error=${encodeURIComponent(setRes.message)}`);
+  }
 
   // Voorraadregels (per maat) direct aanmaken op basis van de gekozen kledingsoort.
   const rawRules = formData.get("reorderRulesJson");
@@ -148,6 +154,14 @@ export default async function NewProductPage({
     .select("id,name")
     .order("name");
 
+  const { data: otherProducts } = await supabase
+    .from("products")
+    .select("id,name,is_set")
+    .order("name", { ascending: true });
+  const setComponentOptions = (otherProducts ?? [])
+    .filter((p) => !(p as any).is_set)
+    .map((p) => ({ id: p.id as string, name: p.name as string }));
+
   return (
     <div className="rounded-lg border border-zinc-200 bg-white p-6">
       <h1 className="text-xl font-semibold">Nieuw product</h1>
@@ -156,7 +170,11 @@ export default async function NewProductPage({
       ) : null}
 
       <div className="mt-6">
-        <NewProductPageClient action={createProduct} categories={categories ?? []} />
+        <NewProductPageClient
+          action={createProduct}
+          categories={categories ?? []}
+          setComponentOptions={setComponentOptions}
+        />
       </div>
     </div>
   );

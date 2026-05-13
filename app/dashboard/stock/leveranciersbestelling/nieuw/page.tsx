@@ -40,7 +40,8 @@ export default async function NewSupplierOrderPage({
 
   const { data: products } = await supabase
     .from("products")
-    .select("id,name,variant_youth,variant_adult,stock_batches(quantity_remaining,variant_segment,size_label)")
+    .select("id,name,is_set,variant_youth,variant_adult,stock_batches(quantity_remaining,variant_segment,size_label)")
+    .or("is_set.is.null,is_set.eq.false")
     .order("name");
 
   const productOptions = buildProductPickOptions(products ?? []);

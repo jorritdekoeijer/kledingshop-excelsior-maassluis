@@ -102,13 +102,16 @@ export async function markOrderReadyForPickup(formData: FormData) {
 
   const { data: items } = await supabase
     .from("order_items")
-    .select("quantity,picked,delivered,products(name)")
+    .select("quantity,picked,delivered,set_order_item_id,products(name,is_set)")
     .eq("order_id", parsed.data);
 
   const ready: Array<{ name: string; quantity: number }> = [];
   const backorder: Array<{ name: string; quantity: number }> = [];
 
   for (const li of (items ?? []) as any[]) {
+    // Set-parents tellen we niet mee; hun status volgt uit de componenten.
+    const isParent = Boolean(li?.products?.is_set) && !li?.set_order_item_id;
+    if (isParent) continue;
     const name = String(li?.products?.name ?? "Product");
     const qty = Number(li?.quantity ?? 1) || 1;
     const delivered = Boolean(li?.delivered);
@@ -169,10 +172,15 @@ export async function markOrderPickedUp(formData: FormData) {
 
   const { data: items } = await supabase
     .from("order_items")
-    .select("id,picked,delivered")
+    .select("id,picked,delivered,set_order_item_id,products(is_set)")
     .eq("order_id", parsed.data);
 
-  const undelivered = (items ?? []).filter((li: any) => !li.delivered);
+  // Set-parents negeren we volledig; alleen leaves (componenten of normale regels) tellen mee.
+  const leaves = (items ?? []).filter((li: any) => {
+    const isParent = Boolean(li?.products?.is_set) && !li?.set_order_item_id;
+    return !isParent;
+  });
+  const undelivered = leaves.filter((li: any) => !li.delivered);
   const ready = undelivered.filter((li: any) => li.picked);
   const missing = undelivered.filter((li: any) => !li.picked);
 
@@ -183,6 +191,25 @@ export async function markOrderPickedUp(formData: FormData) {
       .update({ delivered: true, delivered_at: new Date().toISOString() })
       .eq("id", li.id)
       .eq("delivered", false);
+  }
+
+  // Set-parents ook op delivered zetten zodra alles uit de set is afgehandeld (administratief).
+  const setParents = (items ?? []).filter((li: any) => {
+    const isParent = Boolean(li?.products?.is_set) && !li?.set_order_item_id;
+    return isParent && !li.delivered;
+  });
+  for (const sp of setParents as any[]) {
+    const children = (items ?? []).filter((li: any) => li.set_order_item_id === sp.id);
+    const allDone =
+      children.length > 0 &&
+      children.every((c: any) => c.delivered === true || (c.picked === true && undelivered.find((u: any) => u.id === c.id)));
+    if (allDone) {
+      await supabase
+        .from("order_items")
+        .update({ delivered: true, delivered_at: new Date().toISOString() })
+        .eq("id", sp.id)
+        .eq("delivered", false);
+    }
   }
 
   const nextStatus = missing.length === 0 ? "completed" : "backorder";
@@ -243,20 +270,23 @@ export async function resendOrderConfirmationEmail(formData: FormData) {
 
   const { data: items } = await supabase
     .from("order_items")
-    .select("quantity,variant_segment,size_label,products(name)")
+    .select("quantity,variant_segment,size_label,set_order_item_id,products(name,is_set)")
     .eq("order_id", parsed.data);
 
+  // Set-componenten weglaten: de set-parent vat ze al samen (1 setregel met setnaam).
   const lines =
-    (items ?? []).map((li: any) => ({
-      name: [
-        String(li?.products?.name ?? "Product"),
-        li?.variant_segment ? String(li.variant_segment).toUpperCase() : "",
-        li?.size_label ? String(li.size_label) : ""
-      ]
-        .filter(Boolean)
-        .join(" · "),
-      quantity: Number(li?.quantity ?? 1) || 1
-    })) ?? [];
+    (items ?? [])
+      .filter((li: any) => !li?.set_order_item_id)
+      .map((li: any) => ({
+        name: [
+          String(li?.products?.name ?? "Product"),
+          li?.variant_segment ? String(li.variant_segment).toUpperCase() : "",
+          li?.size_label ? String(li.size_label) : ""
+        ]
+          .filter(Boolean)
+          .join(" · "),
+        quantity: Number(li?.quantity ?? 1) || 1
+      })) ?? [];
 
   const ok = await sendOrderConfirmationEmail({
     guestEmail: row.guest_email.trim(),

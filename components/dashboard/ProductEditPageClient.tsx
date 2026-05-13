@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ProductEditorForm } from "@/components/dashboard/ProductEditorForm";
+import { ProductEditorForm, type SetComponentOption } from "@/components/dashboard/ProductEditorForm";
 import { ProductReorderRulesEditor, type ExistingRule } from "@/components/dashboard/ProductReorderRulesEditor";
 
 type Cat = { id: string; name: string };
@@ -11,6 +11,7 @@ export function ProductEditPageClient({
   categories,
   defaults,
   reorderRules,
+  setComponentOptions = [],
   updateProductAction,
   updateReorderRulesAction,
   syncVariantSizesAction,
@@ -34,8 +35,12 @@ export function ProductEditPageClient({
     variantSocks?: any;
     variantShoes?: any;
     variantOneSize?: any;
+    isSet?: boolean;
+    setSalePriceInclCents?: number;
+    setComponents?: any[];
   };
   reorderRules: ExistingRule[];
+  setComponentOptions?: SetComponentOption[];
   updateProductAction: (formData: FormData) => void | Promise<void>;
   updateReorderRulesAction: (formData: FormData) => void | Promise<void>;
   syncVariantSizesAction: () => void | Promise<void>;
@@ -88,6 +93,7 @@ export function ProductEditPageClient({
           defaults={defaults}
           garmentTypeValue={garmentType}
           onGarmentTypeChange={setGarmentType}
+          setComponentOptions={setComponentOptions}
         />
       </div>
 

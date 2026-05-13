@@ -22,7 +22,8 @@ export default async function HandmatigeVerkoopPage({
   const supabase = await createSupabaseServerClient();
   const { data: products, error: pErr } = await supabase
     .from("products")
-    .select("id,name,variant_youth,variant_adult,variant_socks,variant_shoes,variant_onesize")
+    .select("id,name,is_set,variant_youth,variant_adult,variant_socks,variant_shoes,variant_onesize")
+    .or("is_set.is.null,is_set.eq.false")
     .order("name");
 
   if (pErr) {

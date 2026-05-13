@@ -28,7 +28,14 @@ export function CheckoutForm() {
       quantity: l.quantity,
       variant: l.variant,
       size: l.sizeLabel,
-      jerseyNumber: l.jerseyNumber
+      jerseyNumber: l.jerseyNumber,
+      isSet: l.isSet,
+      setComponents: l.setComponents?.map((c) => ({
+        productId: c.productId,
+        quantity: c.quantity,
+        variant: c.variant,
+        size: c.sizeLabel
+      }))
     }));
     const body = {
       items,

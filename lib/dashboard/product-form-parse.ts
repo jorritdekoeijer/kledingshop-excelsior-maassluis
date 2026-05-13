@@ -1,6 +1,7 @@
 import type { z } from "zod";
 import { canonicalPriceCentsFromVariants } from "@/lib/products/variant-pricing";
-import { productUpsertSchema, productVariantBlockSchema } from "@/lib/validation/products";
+import { productUpsertSchema, productVariantBlockSchema, productSetComponentInputSchema } from "@/lib/validation/products";
+import { parseDutchEuroToCents } from "@/lib/money/nl-euro";
 import { slugify } from "@/lib/utils/slugify";
 
 export type ProductUpsertParsed = z.infer<typeof productUpsertSchema>;
@@ -65,8 +66,43 @@ export function parseProductUpsertFormData(formData: FormData): ProductFormParse
   const variantOneSize = oneZ.data;
 
   const garmentType = formData.get("garmentType");
-  const priceCents =
-    garmentType === "socks"
+
+  const isSetRaw = formData.get("isSet");
+  const isSet = isSetRaw === "on" || isSetRaw === "true";
+
+  const setSaleInclEuroRaw = String(formData.get("setSaleInclEuro") ?? "").trim();
+  const setSalePriceInclCents = isSet
+    ? (() => {
+        if (!setSaleInclEuroRaw) return null;
+        const c = parseDutchEuroToCents(setSaleInclEuroRaw);
+        return Number.isFinite(c) && c >= 0 ? c : null;
+      })()
+    : 0;
+
+  const setComponentsRaw = parseJsonField<unknown>(formData.get("setComponentsJson"), []);
+  const setComponentsZ = productSetComponentInputSchema.array().safeParse(
+    Array.isArray(setComponentsRaw) ? setComponentsRaw : []
+  );
+  if (!setComponentsZ.success) {
+    return {
+      ok: false,
+      message: setComponentsZ.error.issues[0]?.message ?? "Ongeldige componenten voor de set."
+    };
+  }
+  const setComponents = setComponentsZ.data;
+
+  if (isSet) {
+    if (setSalePriceInclCents === null) {
+      return { ok: false, message: "Vul een verkoopprijs in voor de productset (incl. btw)." };
+    }
+    if (setComponents.length === 0) {
+      return { ok: false, message: "Voeg minstens één component toe aan de productset." };
+    }
+  }
+
+  const priceCents = isSet
+    ? (setSalePriceInclCents as number)
+    : garmentType === "socks"
       ? (variantSocks.sale_cents != null ? variantSocks.sale_cents : null)
       : garmentType === "shoes"
         ? (variantShoes.sale_cents != null ? variantShoes.sale_cents : null)
@@ -108,6 +144,9 @@ export function parseProductUpsertFormData(formData: FormData): ProductFormParse
     jerseyNumberPurchaseDoubleExclCents: formData.get("jerseyNumberPurchaseDoubleExclCents"),
     temporaryDiscountPercent,
     active: formData.get("active"),
+    isSet,
+    setSalePriceInclCents: setSalePriceInclCents ?? 0,
+    setComponents,
     categoryId: cid,
     garmentType: formData.get("garmentType"),
     productDetails,

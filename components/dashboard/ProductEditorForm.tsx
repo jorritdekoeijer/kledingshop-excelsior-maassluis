@@ -3,7 +3,9 @@
 import type { ReactNode } from "react";
 import { useMemo, useState } from "react";
 import { exclCentsFromIncl21, inclCentsFromExcl21, parseDutchEuroToCents } from "@/lib/money/nl-euro";
-import type { ProductDetailRow, ProductVariantBlock } from "@/lib/validation/products";
+import type { ProductDetailRow, ProductSetComponentInput, ProductVariantBlock } from "@/lib/validation/products";
+
+export type SetComponentOption = { id: string; name: string };
 
 function centsToNlInput(cents: number): string {
   if (!Number.isFinite(cents) || cents < 0) return "0,00";
@@ -40,6 +42,9 @@ type Defaults = {
   variantSocks: ProductVariantBlock;
   variantShoes: ProductVariantBlock;
   variantOneSize: ProductVariantBlock;
+  isSet: boolean;
+  setSalePriceInclCents: number;
+  setComponents: ProductSetComponentInput[];
 };
 
 const emptyVariant = (): ProductVariantBlock => ({
@@ -63,6 +68,7 @@ export function ProductEditorForm({
   showImageUpload = false,
   garmentTypeValue,
   onGarmentTypeChange,
+  setComponentOptions = [],
   childrenBeforeSubmit
 }: {
   action: (formData: FormData) => void | Promise<void>;
@@ -72,6 +78,8 @@ export function ProductEditorForm({
   /** Optioneel: controlled garment type (voor live-sync met voorraadregels). */
   garmentTypeValue?: "clothing" | "socks" | "shoes" | "onesize";
   onGarmentTypeChange?: (v: "clothing" | "socks" | "shoes" | "onesize") => void;
+  /** Mogelijke component-producten voor een productset (niet zichzelf, geen andere sets). */
+  setComponentOptions?: SetComponentOption[];
   /** Optioneel: extra content binnen het <form> (voor bijv. voorraadregels bij nieuw product). */
   childrenBeforeSubmit?: ReactNode;
 }) {
@@ -93,7 +101,10 @@ export function ProductEditorForm({
     variantAdult: defaults?.variantAdult ?? emptyVariant(),
     variantSocks: (defaults as any)?.variantSocks ?? emptyVariant(),
     variantShoes: (defaults as any)?.variantShoes ?? emptyVariant(),
-    variantOneSize: (defaults as any)?.variantOneSize ?? emptyVariant()
+    variantOneSize: (defaults as any)?.variantOneSize ?? emptyVariant(),
+    isSet: (defaults as any)?.isSet ?? false,
+    setSalePriceInclCents: Number((defaults as any)?.setSalePriceInclCents ?? 0),
+    setComponents: ((defaults as any)?.setComponents ?? []) as ProductSetComponentInput[]
   };
 
   // Verplichte categorie: alleen een id uit de huidige lijst als default; anders eerste optie (nooit leeg als er categorieën zijn).
@@ -234,6 +245,29 @@ export function ProductEditorForm({
     return Number.isFinite(c) && c >= 0 ? c : 0;
   }, [jerseyPurchaseDoubleExcl]);
 
+  const [isSet, setIsSet] = useState<boolean>(Boolean(d.isSet));
+  const [setSaleIncl, setSetSaleIncl] = useState(() => centsToNlInput(Math.max(0, d.setSalePriceInclCents ?? 0)));
+  const [setComponents, setSetComponents] = useState<ProductSetComponentInput[]>(
+    (d.setComponents ?? []).map((c, i) => ({
+      componentProductId: c.componentProductId,
+      quantity: c.quantity,
+      sortOrder: c.sortOrder ?? i,
+      note: c.note ?? ""
+    }))
+  );
+  const setComponentsJson = useMemo(
+    () =>
+      JSON.stringify(
+        setComponents.map((c, i) => ({
+          componentProductId: c.componentProductId,
+          quantity: Number(c.quantity) || 1,
+          sortOrder: c.sortOrder ?? i,
+          note: (c.note ?? "").trim()
+        }))
+      ),
+    [setComponents]
+  );
+
   return (
     <form action={action} className="grid gap-4 md:grid-cols-2">
       <input type="hidden" name="productDetailsJson" value={productDetailsJson} readOnly />
@@ -257,11 +291,134 @@ export function ProductEditorForm({
         value={String(jerseyNumberPurchaseDoubleExclCents)}
         readOnly
       />
+      <input type="hidden" name="isSet" value={isSet ? "on" : ""} readOnly />
+      <input type="hidden" name="setSaleInclEuro" value={setSaleIncl} readOnly />
+      <input type="hidden" name="setComponentsJson" value={setComponentsJson} readOnly />
 
       <fieldset className="md:col-span-2 rounded-lg border border-zinc-200 p-4">
+        <legend className="px-1 text-sm font-medium text-zinc-800">Productset</legend>
+        <p className="mb-3 text-xs text-zinc-600">
+          Een set is een bundel van bestaande producten met een eigen verkoopprijs. Maten en voorraad worden per
+          component beheerd; de set zelf heeft alleen een verkoopprijs.
+        </p>
+        <label className="flex cursor-pointer items-center gap-2 text-sm text-zinc-800">
+          <input
+            type="checkbox"
+            checked={isSet}
+            onChange={(e) => setIsSet(e.target.checked)}
+            className="h-4 w-4 border-zinc-300 text-brand-blue focus:ring-brand-blue/40"
+          />
+          Dit product is een set/bundel
+        </label>
+
+        {isSet ? (
+          <div className="mt-4 space-y-4">
+            <label className="block">
+              <span className="text-sm text-zinc-700">Verkoopprijs set (incl. btw)</span>
+              <div className="mt-1 flex max-w-xs items-center gap-2">
+                <span className="text-sm text-zinc-500">€</span>
+                <input
+                  value={setSaleIncl}
+                  onChange={(e) => setSetSaleIncl(e.target.value)}
+                  className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
+                  placeholder="0,00"
+                />
+              </div>
+            </label>
+
+            <div className="space-y-3">
+              <span className="text-sm font-medium text-zinc-800">Componenten</span>
+              {setComponentOptions.length === 0 ? (
+                <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                  Sla het product eerst op om componenten te kunnen kiezen, of er zijn nog geen andere producten om uit te
+                  kiezen.
+                </p>
+              ) : null}
+              {setComponents.map((row, i) => (
+                <div key={i} className="flex flex-wrap items-end gap-2 rounded-md border border-zinc-200 bg-zinc-50/60 p-3">
+                  <label className="min-w-[220px] flex-1">
+                    <span className="block text-xs text-zinc-600">Component</span>
+                    <select
+                      value={row.componentProductId}
+                      onChange={(e) => {
+                        const next = [...setComponents];
+                        next[i] = { ...next[i], componentProductId: e.target.value };
+                        setSetComponents(next);
+                      }}
+                      className="mt-1 w-full rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm"
+                    >
+                      <option value="">— kies component —</option>
+                      {setComponentOptions.map((o) => (
+                        <option key={o.id} value={o.id}>
+                          {o.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="w-24">
+                    <span className="block text-xs text-zinc-600">Aantal</span>
+                    <input
+                      type="number"
+                      min={1}
+                      max={99}
+                      value={row.quantity}
+                      onChange={(e) => {
+                        const n = Math.max(1, Math.floor(Number(e.target.value) || 1));
+                        const next = [...setComponents];
+                        next[i] = { ...next[i], quantity: n };
+                        setSetComponents(next);
+                      }}
+                      className="mt-1 w-full rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm"
+                    />
+                  </label>
+                  <label className="min-w-[160px] flex-1">
+                    <span className="block text-xs text-zinc-600">Toelichting (optioneel)</span>
+                    <input
+                      value={row.note ?? ""}
+                      onChange={(e) => {
+                        const next = [...setComponents];
+                        next[i] = { ...next[i], note: e.target.value };
+                        setSetComponents(next);
+                      }}
+                      className="mt-1 w-full rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm"
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    className="text-sm text-red-700 hover:underline"
+                    onClick={() => setSetComponents(setComponents.filter((_, j) => j !== i))}
+                  >
+                    Verwijder
+                  </button>
+                </div>
+              ))}
+              <button
+                type="button"
+                className="text-sm font-medium text-brand-blue hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={setComponentOptions.length === 0}
+                onClick={() =>
+                  setSetComponents([
+                    ...setComponents,
+                    { componentProductId: "", quantity: 1, sortOrder: setComponents.length, note: "" }
+                  ])
+                }
+              >
+                + Component toevoegen
+              </button>
+            </div>
+          </div>
+        ) : null}
+      </fieldset>
+
+      <fieldset
+        disabled={isSet}
+        className={`md:col-span-2 rounded-lg border border-zinc-200 p-4 ${isSet ? "opacity-60" : ""}`}
+      >
         <legend className="px-1 text-sm font-medium text-zinc-800">Kledingsoort</legend>
         <p className="mb-3 text-xs text-zinc-600">
-          Kies de kledingsoort voor dit product.
+          {isSet
+            ? "Niet relevant voor sets — maten worden per component bepaald."
+            : "Kies de kledingsoort voor dit product."}
         </p>
         <div className="flex flex-wrap gap-6">
           <label className="flex cursor-pointer items-center gap-2 text-sm text-zinc-800">
@@ -323,21 +480,23 @@ export function ProductEditorForm({
         </div>
       </fieldset>
 
-      <label className="block md:col-span-2">
-        <span className="text-sm text-zinc-700">Kosten bedrukking (excl. btw)</span>
-        <div className="mt-1 flex max-w-xs items-center gap-2">
-          <span className="text-sm text-zinc-500">€</span>
-          <input
-            name="printingExclEuro"
-            value={printingExclEuro}
-            onChange={(e) => setPrintingExclEuro(e.target.value)}
-            className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
-            placeholder="0,00"
-          />
-        </div>
-      </label>
+      {!isSet ? (
+        <label className="block md:col-span-2">
+          <span className="text-sm text-zinc-700">Kosten bedrukking (excl. btw)</span>
+          <div className="mt-1 flex max-w-xs items-center gap-2">
+            <span className="text-sm text-zinc-500">€</span>
+            <input
+              name="printingExclEuro"
+              value={printingExclEuro}
+              onChange={(e) => setPrintingExclEuro(e.target.value)}
+              className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
+              placeholder="0,00"
+            />
+          </div>
+        </label>
+      ) : null}
 
-      {garmentType === "clothing" ? (
+      {!isSet && garmentType === "clothing" ? (
         <fieldset className="md:col-span-2 rounded-lg border border-zinc-200 p-4">
           <legend className="px-1 text-sm font-medium text-zinc-800">Rugnummer (optioneel)</legend>
           <div className="mt-1 flex flex-col gap-3">
@@ -500,7 +659,7 @@ export function ProductEditorForm({
         </button>
       </div>
 
-      {garmentType === "clothing" ? (
+      {!isSet && garmentType === "clothing" ? (
         <>
           <VariantBlock
             title="Jeugd (YOUTH)"
@@ -538,7 +697,7 @@ export function ProductEditorForm({
             }}
           />
         </>
-      ) : garmentType === "socks" ? (
+      ) : !isSet && garmentType === "socks" ? (
         <VariantBlock
           title="Sokken (SOCKS)"
           model={socks.model_number ?? ""}
@@ -556,7 +715,7 @@ export function ProductEditorForm({
             if (Number.isFinite(c) && c >= 0) setSocksSaleIncl(centsToNlInput(inclCentsFromExcl21(c)));
           }}
         />
-      ) : garmentType === "shoes" ? (
+      ) : !isSet && garmentType === "shoes" ? (
         <VariantBlock
           title="Schoenen (SHOES)"
           model={shoes.model_number ?? ""}
@@ -574,7 +733,7 @@ export function ProductEditorForm({
             if (Number.isFinite(c) && c >= 0) setShoesSaleIncl(centsToNlInput(inclCentsFromExcl21(c)));
           }}
         />
-      ) : (
+      ) : !isSet ? (
         <VariantBlock
           title="One Size"
           model={one.model_number ?? ""}
@@ -592,7 +751,7 @@ export function ProductEditorForm({
             if (Number.isFinite(c) && c >= 0) setOneSaleIncl(centsToNlInput(inclCentsFromExcl21(c)));
           }}
         />
-      )}
+      ) : null}
 
       {showImageUpload ? (
         <label className="block md:col-span-2">

@@ -31,12 +31,25 @@ export function CartView() {
     <div className="space-y-6">
       <ul className="divide-y divide-zinc-200 rounded-lg border border-zinc-200 bg-white">
         {lines.map((l) => (
-          <li key={l.lineId} className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
+          <li key={l.lineId} className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0">
               <Link href={`/shop/${l.slug}`} className="font-medium text-brand-blue hover:underline">
                 {l.name}
+                {l.isSet ? <span className="ml-2 rounded bg-brand-blue/10 px-2 py-0.5 text-xs text-brand-blue">SET</span> : null}
               </Link>
               <p className="text-sm text-zinc-600">{eur(l.priceCents)} per stuk</p>
+              {l.isSet && l.setComponents && l.setComponents.length > 0 ? (
+                <ul className="mt-2 space-y-1 text-xs text-zinc-600">
+                  {l.setComponents.map((c, i) => (
+                    <li key={i}>
+                      • {c.quantity > 1 ? `${c.quantity}× ` : ""}
+                      {c.name}
+                      {c.variant === "youth" ? " · YOUTH" : c.variant === "adult" ? " · ADULT" : ""}
+                      {c.sizeLabel ? ` · maat ${c.sizeLabel}` : ""}
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
             </div>
             <div className="flex flex-wrap items-center gap-3">
               <label className="flex items-center gap-2 text-sm">

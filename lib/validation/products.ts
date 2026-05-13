@@ -27,6 +27,15 @@ export const categoryUpsertSchema = z.object({
   slug: z.string().min(1).max(80)
 });
 
+export const productSetComponentInputSchema = z.object({
+  componentProductId: z.string().uuid("Kies een geldig component-product."),
+  quantity: z.coerce.number().int().min(1).max(99),
+  sortOrder: z.coerce.number().int().min(0).max(999).default(0),
+  note: z.string().max(200).optional().default("")
+});
+
+export type ProductSetComponentInput = z.infer<typeof productSetComponentInputSchema>;
+
 export const productUpsertSchema = z.object({
   id: z.string().uuid().optional(),
   name: z.string().min(1).max(120),
@@ -46,6 +55,12 @@ export const productUpsertSchema = z.object({
     (v) => v === "on" || v === true || v === "true",
     z.boolean()
   ),
+  isSet: z.preprocess(
+    (v) => v === "on" || v === true || v === "true",
+    z.boolean()
+  ).default(false),
+  setSalePriceInclCents: z.coerce.number().int().min(0).default(0),
+  setComponents: z.array(productSetComponentInputSchema).max(20).default([]),
   categoryId: z.string().min(1, "Kies een categorie.").uuid("Kies een geldige categorie."),
   garmentType: z.preprocess(
     (v) => (v === "socks" || v === "shoes" || v === "onesize" ? v : "clothing"),

@@ -14,6 +14,7 @@ type BedanktOrder = {
     quantity: number;
     unit_price_cents: number;
     line_total_cents: number;
+    set_order_item_id: string | null;
     products: { name: string } | null;
   }[];
 };
@@ -32,7 +33,7 @@ export default async function BedanktPage({ searchParams }: Props) {
     const { data } = await svc
       .from("orders")
       .select(
-        "status,total_cents,guest_name,fulfillment_error,order_items(quantity,unit_price_cents,line_total_cents,products(name))"
+        "status,total_cents,guest_name,fulfillment_error,order_items(quantity,unit_price_cents,line_total_cents,set_order_item_id,products(name))"
       )
       .eq("public_token", token)
       .maybeSingle();
@@ -73,14 +74,16 @@ export default async function BedanktPage({ searchParams }: Props) {
             <div className="rounded-lg border border-zinc-200 bg-white p-4">
               <p className="text-sm font-medium text-zinc-900">Overzicht</p>
               <ul className="mt-3 space-y-2 text-sm">
-                {(order.order_items ?? []).map((li, i) => (
-                  <li key={i} className="flex justify-between gap-4">
-                    <span>
-                      {li.products?.name ?? "Product"} × {li.quantity}
-                    </span>
-                    <span>{eur(li.line_total_cents)}</span>
-                  </li>
-                ))}
+                {(order.order_items ?? [])
+                  .filter((li) => !li.set_order_item_id)
+                  .map((li, i) => (
+                    <li key={i} className="flex justify-between gap-4">
+                      <span>
+                        {li.products?.name ?? "Product"} × {li.quantity}
+                      </span>
+                      <span>{eur(li.line_total_cents)}</span>
+                    </li>
+                  ))}
               </ul>
               <p className="mt-4 flex justify-between border-t border-zinc-100 pt-3 text-base font-semibold">
                 <span>Totaal</span>
