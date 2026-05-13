@@ -5,8 +5,18 @@ import { permissions } from "@/lib/auth/permissions";
 import { buildProductPickOptions } from "@/lib/stock/build-product-pick-options";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { ManualSaleForm } from "@/components/dashboard/ManualSaleForm";
+import { centsToEuroString } from "@/lib/money/nl-euro";
 
 export const dynamic = "force-dynamic";
+
+const PAGE_SIZE = 20;
+
+function formatDateNl(d: string | null | undefined): string {
+  if (!d) return "—";
+  const m = String(d).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return String(d);
+  return `${m[3]}-${m[2]}-${m[1]}`;
+}
 
 export default async function HandmatigeVerkoopPage({
   searchParams
